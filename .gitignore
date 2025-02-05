@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+build
+thirdparty/installed
+thirdparty/src
+thirdparty/download
+thirdparty/downloaded

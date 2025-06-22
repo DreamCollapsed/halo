@@ -1,0 +1,24 @@
+# Build directories
+build/
+cmake-build-*/
+
+# Third-party directories
+thirdparty/downloads/
+thirdparty/builds/
+thirdparty/installed/
+thirdparty/src/
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

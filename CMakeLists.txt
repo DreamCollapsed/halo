@@ -26,3 +26,6 @@ add_subdirectory(thirdparty)
 
 # Include the main project source
 add_subdirectory(src)
+
+# 启用 compile_commands.json 生成，方便 clangd 代码补全
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

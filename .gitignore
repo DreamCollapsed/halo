@@ -22,3 +22,36 @@ thirdparty/src/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# CMake/Makefile 相关产物
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+*.log
+
+# src 目录下的构建产物
+src/CMakeFiles/
+src/Makefile
+src/cmake_install.cmake
+src/folly_test
+src/*.o
+src/*.o.d
+
+# thirdparty 目录下的构建产物
+thirdparty/CMakeFiles/
+thirdparty/Makefile
+thirdparty/cmake_install.cmake
+thirdparty/*.cmake
+thirdparty/*.log
+
+# 其他临时/缓存/测试文件
+*.tmp
+*.bak
+*.old
+*.out
+*.a
+*.dylib
+*.so
+*.exe

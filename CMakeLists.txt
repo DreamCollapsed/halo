@@ -27,3 +27,13 @@ add_subdirectory(thirdparty)
 
 # Include the main project source
 add_subdirectory(src)
+
+# 启用CTest自动化测试
+include(CTest)
+enable_testing()
+
+# 设置RPATH，自动查找第三方库
+set(CMAKE_SKIP_BUILD_RPATH FALSE)
+set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+set(CMAKE_INSTALL_RPATH "${THIRDPARTY_INSTALL_DIR}/lib")
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)

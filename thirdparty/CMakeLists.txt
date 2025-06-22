@@ -158,6 +158,7 @@ ExternalProject_Add(libunwind
 endif()
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/fast_float_ep.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/gtest_ep.cmake)
 
 if(NOT APPLE)
 set(FOLLY_DEPENDS boost fmt double-conversion_shared gflags glog_shared libevent libunwind fast_float)
@@ -184,4 +185,19 @@ ExternalProject_Add(folly
         -DBoost_USE_STATIC_RUNTIME=OFF
         -DBoost_CONTEXT_LIBRARY_RELEASE=${THIRDPARTY_INSTALL_DIR}/lib/libboost_context.a
         -DBoost_CONTEXT_LIBRARY=${THIRDPARTY_INSTALL_DIR}/lib/libboost_context.a
+)
+
+# GoogleTest
+ExternalProject_Add(gtest
+    URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.tar.gz
+    PREFIX ${THIRDPARTY_BUILD_DIR}/gtest
+    SOURCE_DIR ${THIRDPARTY_SRC_DIR}/gtest
+    INSTALL_DIR ${THIRDPARTY_INSTALL_DIR}
+    CMAKE_ARGS
+        -DCMAKE_INSTALL_PREFIX=${THIRDPARTY_INSTALL_DIR}
+        -DCMAKE_BUILD_TYPE=Release
+        -DBUILD_GMOCK=ON
+        -DBUILD_GTEST=ON
+        -DINSTALL_GTEST=ON
+        -DBUILD_SHARED_LIBS=ON
 )

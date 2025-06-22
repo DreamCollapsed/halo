@@ -59,3 +59,28 @@ else()
         ZLIB::ZLIB
     )
 endif()
+
+# 示例：添加一个简单的CTest测试
+add_test(NAME folly_test_run COMMAND folly_test)
+
+add_executable(unit_tests test_sample.cpp)
+
+target_include_directories(unit_tests
+    PRIVATE
+    ${THIRDPARTY_INSTALL_DIR}/include
+)
+
+target_link_directories(unit_tests
+    PRIVATE
+    ${THIRDPARTY_INSTALL_DIR}/lib
+)
+
+add_dependencies(unit_tests gtest)
+
+target_link_libraries(unit_tests
+    PRIVATE
+    ${THIRDPARTY_INSTALL_DIR}/lib/libgtest.dylib
+    ${THIRDPARTY_INSTALL_DIR}/lib/libgtest_main.dylib
+)
+
+add_test(NAME unit_tests_run COMMAND unit_tests)

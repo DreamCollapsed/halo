@@ -4,6 +4,7 @@ project(halo VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Set build type if not specified
 if(NOT CMAKE_BUILD_TYPE)
@@ -26,6 +27,3 @@ add_subdirectory(thirdparty)
 
 # Include the main project source
 add_subdirectory(src)
-
-# 启用 compile_commands.json 生成，方便 clangd 代码补全
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

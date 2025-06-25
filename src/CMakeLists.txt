@@ -1,24 +1,24 @@
-add_executable(folly_test main.cpp)
+add_executable(halo main.cpp)
 
-# Set include directories for folly_test
-target_include_directories(folly_test
+# Set include directories for halo
+target_include_directories(halo
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/include
 )
 
-# Set link directories for folly_test
-target_link_directories(folly_test
+# Set link directories for halo
+target_link_directories(halo
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/lib
 )
 
-add_dependencies(folly_test folly)
+add_dependencies(halo folly)
 
 find_package(OpenSSL REQUIRED)
 find_package(ZLIB REQUIRED)
 
 if(APPLE)
-    target_link_libraries(folly_test
+    target_link_libraries(halo
         PRIVATE
         ${THIRDPARTY_INSTALL_DIR}/lib/libfolly.dylib
         ${THIRDPARTY_INSTALL_DIR}/lib/libglog.dylib
@@ -39,7 +39,7 @@ if(APPLE)
         ZLIB::ZLIB
     )
 else()
-    target_link_libraries(folly_test
+    target_link_libraries(halo
         PRIVATE
         ${THIRDPARTY_INSTALL_DIR}/lib/libfolly.so
         ${THIRDPARTY_INSTALL_DIR}/lib/libglog.so
@@ -63,29 +63,29 @@ else()
 endif()
 
 # Example: Add a simple CTest test
-add_test(NAME folly_test_run COMMAND folly_test)
+add_test(NAME halo_test_run COMMAND halo)
 
-add_executable(unit_tests test_sample.cpp)
+add_executable(halo_unit_tests test_sample.cpp)
 
-# Set include directories for unit_tests
-target_include_directories(unit_tests
+# Set include directories for halo_unit_tests
+target_include_directories(halo_unit_tests
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/include
 )
 
-# Set link directories for unit_tests
-target_link_directories(unit_tests
+# Set link directories for halo_unit_tests
+target_link_directories(halo_unit_tests
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/lib
 )
 
-add_dependencies(unit_tests googletest)
+add_dependencies(halo_unit_tests googletest)
 
-# Link GoogleTest libraries for unit_tests
-target_link_libraries(unit_tests
+# Link GoogleTest libraries for halo_unit_tests
+target_link_libraries(halo_unit_tests
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/lib/libgtest.dylib
     ${THIRDPARTY_INSTALL_DIR}/lib/libgtest_main.dylib
 )
 
-add_test(NAME unit_tests_run COMMAND unit_tests)
+add_test(NAME halo_unit_tests_run COMMAND halo_unit_tests)

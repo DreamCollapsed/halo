@@ -1,7 +1,7 @@
 # Third-party dependencies management
 
 # Set common variables for all dependencies
-set(BOOST_VERSION "1.84.0")
+set(BOOST_VERSION "1.88.0")
 set(BOOST_COMPONENTS 
     atomic
     chrono
@@ -14,14 +14,13 @@ set(BOOST_COMPONENTS
     thread
 )
 
-set(DOUBLE_CONVERSION_VERSION "3.3.0")
+set(DOUBLE_CONVERSION_VERSION "3.3.1")
 set(FMT_VERSION "11.2.0")
 set(GFLAGS_VERSION "2.2.2")
 set(GLOG_VERSION "0.6.0")
 set(LIBEVENT_VERSION "2.1.12")
-set(LIBIBERTY_VERSION "2.40")
 set(LIBUNWIND_VERSION "1.7.2")
-set(FOLLY_VERSION "2025.06.09.00")
+set(FOLLY_VERSION "2025.06.23.00")
 
 # Function to download and verify file
 function(download_and_verify url filename sha256)
@@ -42,7 +41,7 @@ ExternalProject_Add(boost
     URL ${boost_URL}
     URL_HASH SHA256=${boost_SHA256}
     PREFIX ${THIRDPARTY_BUILD_DIR}/boost
-    SOURCE_DIR ${THIRDPARTY_SRC_DIR}/boost-1.84.0
+    SOURCE_DIR ${THIRDPARTY_SRC_DIR}/boost-${BOOST_VERSION}
     INSTALL_DIR ${THIRDPARTY_INSTALL_DIR}
     CONFIGURE_COMMAND CXX=${CMAKE_CXX_COMPILER} ./bootstrap.sh --prefix=${THIRDPARTY_INSTALL_DIR} --with-toolset=clang
     BUILD_COMMAND ./b2 install toolset=clang --with-atomic --with-chrono --with-context --with-date_time --with-filesystem --with-program_options --with-regex --with-system --with-thread variant=release link=shared,static threading=multi runtime-link=shared

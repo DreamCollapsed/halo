@@ -1,10 +1,12 @@
 add_executable(folly_test main.cpp)
 
+# Set include directories for folly_test
 target_include_directories(folly_test
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/include
 )
 
+# Set link directories for folly_test
 target_link_directories(folly_test
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/lib
@@ -60,23 +62,26 @@ else()
     )
 endif()
 
-# 示例：添加一个简单的CTest测试
+# Example: Add a simple CTest test
 add_test(NAME folly_test_run COMMAND folly_test)
 
 add_executable(unit_tests test_sample.cpp)
 
+# Set include directories for unit_tests
 target_include_directories(unit_tests
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/include
 )
 
+# Set link directories for unit_tests
 target_link_directories(unit_tests
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/lib
 )
 
-add_dependencies(unit_tests gtest)
+add_dependencies(unit_tests googletest)
 
+# Link GoogleTest libraries for unit_tests
 target_link_libraries(unit_tests
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/lib/libgtest.dylib

@@ -31,7 +31,6 @@ Makefile
 *.cmake
 *.log
 
-# src 目录下的构建产物
 src/CMakeFiles/
 src/Makefile
 src/cmake_install.cmake

@@ -1,29 +1,3 @@
-# Third-party dependencies management
-
-# Set common variables for all dependencies
-set(BOOST_VERSION "1.88.0")
-set(BOOST_COMPONENTS 
-    atomic
-    chrono
-    context
-    date_time
-    filesystem
-    program_options
-    regex
-    system
-    thread
-)
-
-set(DOUBLE_CONVERSION_VERSION "3.3.1")
-set(FMT_VERSION "11.2.0")
-set(GFLAGS_VERSION "2.2.2")
-set(GLOG_VERSION "0.6.0")
-set(LIBEVENT_VERSION "2.1.12")
-set(LIBUNWIND_VERSION "1.7.2")
-set(ABSEIL_VERSION "20250512.1")
-
-set(FOLLY_VERSION "2025.06.23.00")
-
 # Function to download and verify file
 function(download_and_verify url filename sha256)
     if(NOT EXISTS ${THIRDPARTY_DOWNLOAD_DIR}/${filename})
@@ -38,7 +12,6 @@ endfunction()
 include(${CMAKE_SOURCE_DIR}/thirdparty/cmake/CMakeLists.txt)
 
 # Boost
-string(REPLACE "." "_" BOOST_VERSION_UNDERSCORE ${BOOST_VERSION})
 ExternalProject_Add(boost
     URL ${boost_URL}
     URL_HASH SHA256=${boost_SHA256}

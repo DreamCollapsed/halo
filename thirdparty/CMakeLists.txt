@@ -7,7 +7,7 @@ set(BOOST_COMPONENTS
     chrono
     context
     date_time
-    filesystem 
+    filesystem
     program_options
     regex
     system
@@ -20,6 +20,8 @@ set(GFLAGS_VERSION "2.2.2")
 set(GLOG_VERSION "0.6.0")
 set(LIBEVENT_VERSION "2.1.12")
 set(LIBUNWIND_VERSION "1.7.2")
+set(ABSEIL_VERSION "20250512.1")
+
 set(FOLLY_VERSION "2025.06.23.00")
 
 # Function to download and verify file
@@ -175,6 +177,7 @@ else()
 set(FOLLY_DEPENDS boost fmt double-conversion_shared gflags glog_shared libevent fast_float)
 endif()
 
+# Folly
 ExternalProject_Add(folly
     DEPENDS ${FOLLY_DEPENDS}
     URL ${folly_URL}
@@ -194,6 +197,20 @@ ExternalProject_Add(folly
         -DBoost_USE_STATIC_RUNTIME=OFF
         -DBoost_CONTEXT_LIBRARY_RELEASE=${THIRDPARTY_INSTALL_DIR}/lib/libboost_context.a
         -DBoost_CONTEXT_LIBRARY=${THIRDPARTY_INSTALL_DIR}/lib/libboost_context.a
+)
+
+# Abseil
+ExternalProject_Add(abseil
+    URL ${ABSEIL_URL}
+    URL_HASH SHA256=${ABSEIL_SHA256}
+    PREFIX ${THIRDPARTY_BUILD_DIR}/abseil
+    SOURCE_DIR ${THIRDPARTY_SRC_DIR}/abseil
+    INSTALL_DIR ${THIRDPARTY_INSTALL_DIR}
+    CMAKE_ARGS
+        -DCMAKE_INSTALL_PREFIX=${THIRDPARTY_INSTALL_DIR}
+        -DCMAKE_BUILD_TYPE=Release
+        -DBUILD_TESTING=OFF
+        -DBUILD_SHARED_LIBS=ON
 )
 
 # googletest

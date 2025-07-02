@@ -1,3 +1,7 @@
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
 add_executable(halo main.cpp)
 
 # Set include directories for halo
@@ -62,30 +66,58 @@ else()
     )
 endif()
 
-# Example: Add a simple CTest test
 add_test(NAME halo_test_run COMMAND halo)
 
-add_executable(halo_unit_tests test_sample.cpp)
 
-# Set include directories for halo_unit_tests
-target_include_directories(halo_unit_tests
+# Abseil UT
+add_executable(test_abseil ${CMAKE_SOURCE_DIR}/test/test_abseil.cpp)
+set_target_properties(test_abseil PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/unit_test/thirdparty")
+
+target_include_directories(test_abseil
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/include
 )
 
-# Set link directories for halo_unit_tests
-target_link_directories(halo_unit_tests
+target_link_directories(test_abseil
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/lib
 )
 
-add_dependencies(halo_unit_tests googletest)
+add_dependencies(test_abseil abseil googletest)
 
-# Link GoogleTest libraries for halo_unit_tests
-target_link_libraries(halo_unit_tests
+target_link_libraries(test_abseil
+    PRIVATE
+    ${THIRDPARTY_INSTALL_DIR}/lib/libgtest.dylib
+    ${THIRDPARTY_INSTALL_DIR}/lib/libgtest_main.dylib
+    ${THIRDPARTY_INSTALL_DIR}/lib/libabsl_strings.dylib
+)
+
+add_test(NAME abseil_ut COMMAND test_abseil)
+
+
+
+add_executable(test_folly ${CMAKE_SOURCE_DIR}/test/test_folly.cpp)
+set_target_properties(test_folly PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/unit_test/thirdparty")
+
+# Set include directories for test_folly
+target_include_directories(test_folly
+    PRIVATE
+    ${THIRDPARTY_INSTALL_DIR}/include
+)
+
+# Set link directories for test_folly
+target_link_directories(test_folly
+    PRIVATE
+    ${THIRDPARTY_INSTALL_DIR}/lib
+)
+
+add_dependencies(test_folly googletest)
+
+# Link GoogleTest libraries for test_folly
+target_link_libraries(test_folly
     PRIVATE
     ${THIRDPARTY_INSTALL_DIR}/lib/libgtest.dylib
     ${THIRDPARTY_INSTALL_DIR}/lib/libgtest_main.dylib
 )
 
-add_test(NAME halo_unit_tests_run COMMAND halo_unit_tests)
+add_test(NAME test_folly COMMAND test_folly)

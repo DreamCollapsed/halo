@@ -10,6 +10,7 @@ set(THIRDPARTY_DEPS
     folly
     fast_float
     googletest
+    abseil-cpp
 )
 
 set(boost_URL "https://archives.boost.io/release/1.88.0/source/boost_1_88_0.tar.gz")
@@ -32,3 +33,5 @@ set(fast_float_URL "https://github.com/fastfloat/fast_float/archive/refs/tags/v8
 set(fast_float_SHA256 "e14a33089712b681d74d94e2a11362643bd7d769ae8f7e7caefe955f57f7eacd")
 set(jemalloc_URL "https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2")
 set(jemalloc_SHA256 "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa")
+set(ABSEIL_URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/${ABSEIL_VERSION}.tar.gz")
+set(ABSEIL_SHA256 "9b7a064305e9fd94d124ffa6cc358592eb42b5da588fb4e07d09254aa40086db")

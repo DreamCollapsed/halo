@@ -1,30 +1,22 @@
-add_executable(folly_test main.cpp)
+# Main program build configuration
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
-target_include_directories(folly_test
+# Find packages (thirdparty has already set up CMAKE_PREFIX_PATH and cache variables)
+find_package(absl REQUIRED CONFIG)
+
+# Create main executable
+add_executable(halo main.cpp)
+
+# Link required libraries
+target_link_libraries(halo
     PRIVATE
-    ${THIRDPARTY_INSTALL_DIR}/include
+    absl::strings
+    absl::str_format
 )
 
-target_link_directories(folly_test
-    PRIVATE
-    ${THIRDPARTY_INSTALL_DIR}/lib
-)
-
-target_link_libraries(folly_test
-    PRIVATE
-    folly
-    glog
-    gflags
-    event
-    double-conversion
-    fmt
-    boost_context
-    boost_chrono
-    boost_date_time
-    boost_filesystem
-    boost_program_options
-    boost_regex
-    boost_system
-    boost_thread
-    unwind
-)
+# Platform-specific libraries
+if(NOT APPLE)
+    target_link_libraries(halo PRIVATE unwind)
+endif()

@@ -7,6 +7,7 @@ enable_testing()
 # Find packages (thirdparty has already set up CMAKE_PREFIX_PATH and cache variables)
 find_package(GTest REQUIRED CONFIG)
 find_package(absl REQUIRED CONFIG)
+find_package(gflags REQUIRED CONFIG)
 
 # Set test output directory
 set(TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/test")

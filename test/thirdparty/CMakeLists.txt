@@ -49,3 +49,15 @@ add_module_test(thirdparty_combined
     TIMEOUT 30
     PERFORMANCE
 )
+
+# gflags integration test
+add_module_test(thirdparty_gflags
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_gflags_integration.cpp"
+    LIBRARIES
+        gflags_static
+    LABELS
+        gflags
+        thirdparty
+        integration
+    TIMEOUT 30
+)

@@ -10,6 +10,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Prefer static libraries over shared libraries for better compatibility
+# This will prioritize static libraries when both static and shared are available
+# and fall back to shared libraries when only shared libraries are available
+set(BUILD_SHARED_LIBS OFF)
+
 # Set build type if not specified
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)

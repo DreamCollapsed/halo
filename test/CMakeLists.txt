@@ -4,11 +4,6 @@
 # Enable testing functionality
 enable_testing()
 
-# Find packages (thirdparty has already set up CMAKE_PREFIX_PATH and cache variables)
-find_package(GTest REQUIRED CONFIG)
-find_package(absl REQUIRED CONFIG)
-find_package(gflags REQUIRED CONFIG)
-
 # Set test output directory
 set(TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/test")
 file(MAKE_DIRECTORY "${TEST_OUTPUT_DIR}")
@@ -31,11 +26,12 @@ function(add_module_test module_name test_sources)
         OUTPUT_NAME "${test_target}"
     )
     
-    # Link base libraries
+    # Link centralized third-party test target (replaces individual find_package calls)
+    # and any additional libraries specified by the caller
     target_link_libraries(${test_target}
         PRIVATE
-        GTest::gtest
-        GTest::gtest_main
+        halo::thirdparty
+        halo::thirdparty_test
         ${ARG_LIBRARIES}
     )
     

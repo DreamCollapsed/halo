@@ -100,13 +100,22 @@ function(thirdparty_cmake_configure srcdir builddir)
     endif()
 
     message(STATUS "[thirdparty_cmake_configure] Configuring ${srcdir} to ${builddir}")
+    
     execute_process(
         COMMAND ${CMAKE_COMMAND} -S "${srcdir}" -B "${builddir}" ${ARG_UNPARSED_ARGUMENTS}
         RESULT_VARIABLE result
+        OUTPUT_VARIABLE output
+        ERROR_VARIABLE error
     )
 
     if(NOT result EQUAL 0)
         message(WARNING "[thirdparty_cmake_configure] CMake configure failed for ${srcdir}")
+        if(output)
+            message(STATUS "CMake stdout: ${output}")
+        endif()
+        if(error)
+            message(STATUS "CMake stderr: ${error}")
+        endif()
     endif()
 
     set(CMAKE_CURRENT_FUNCTION_RESULT "${result}" PARENT_SCOPE)

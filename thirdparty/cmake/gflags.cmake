@@ -1,7 +1,10 @@
 # gflags third-party integration
 # Reference: https://github.com/gflags/gflags
 
-# Set up directories
+# Check dependencies (gflags has no dependencies)
+thirdparty_check_dependencies("gflags")
+
+# Set up directories (variables from ComponentsInfo.cmake)
 set(GFLAGS_NAME "gflags")
 set(GFLAGS_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/gflags-${GFLAGS_VERSION}.tar.gz")
 set(GFLAGS_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${GFLAGS_NAME}")
@@ -35,6 +38,7 @@ thirdparty_cmake_configure("${GFLAGS_SOURCE_DIR}" "${GFLAGS_BUILD_DIR}"
     -DBUILD_TESTING=OFF
     -DINSTALL_HEADERS=ON
     -DREGISTER_INSTALL_PREFIX=OFF
+    -DGFLAGS_NAMESPACE=gflags
     -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
     -DCMAKE_WARN_DEPRECATED=OFF
     -Wno-dev
@@ -49,12 +53,14 @@ thirdparty_cmake_install("${GFLAGS_BUILD_DIR}" "${GFLAGS_INSTALL_DIR}"
         "${GFLAGS_INSTALL_DIR}/include/gflags/gflags_declare.h"
 )
 
-# Export gflags to global scope
+# Export gflags to global scope with namespace support
 if(EXISTS "${GFLAGS_INSTALL_DIR}/lib/cmake/gflags/gflags-config.cmake")
     list(APPEND CMAKE_PREFIX_PATH "${GFLAGS_INSTALL_DIR}")
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
     set(gflags_DIR "${GFLAGS_INSTALL_DIR}/lib/cmake/gflags" CACHE PATH "Path to installed gflags cmake config" FORCE)
-    message(STATUS "gflags found and exported globally: ${GFLAGS_INSTALL_DIR}")
+    # Enable namespace support for gflags
+    set(GFLAGS_USE_TARGET_NAMESPACE TRUE CACHE BOOL "Use gflags:: namespace" FORCE)
+    message(STATUS "gflags found and exported globally with namespace: ${GFLAGS_INSTALL_DIR}")
 else()
     message(WARNING "gflags installation not found at ${GFLAGS_INSTALL_DIR}")
 endif()

@@ -1,6 +1,7 @@
 # Load common component information and utility functions
 include(ComponentsInfo.cmake)
 include(ThirdpartyUtils.cmake)
+include(ThirdpartyDependencies.cmake)
 
 # Create required directories
 file(MAKE_DIRECTORY ${THIRDPARTY_DOWNLOAD_DIR})
@@ -8,10 +9,18 @@ file(MAKE_DIRECTORY ${THIRDPARTY_SRC_DIR})
 file(MAKE_DIRECTORY ${THIRDPARTY_BUILD_DIR})
 file(MAKE_DIRECTORY ${THIRDPARTY_INSTALL_DIR})
 
-# Integrate third-party libraries
-include(cmake/abseil.cmake)
-include(cmake/gtest.cmake)
-include(cmake/gflags.cmake)
+# Show dependency information
+thirdparty_show_dependencies()
+
+# Get the correct build order based on dependencies
+thirdparty_compute_build_order(_build_order)
+message(STATUS "Building components in order: ${_build_order}")
+
+# Build components in dependency order
+foreach(_component IN LISTS _build_order)
+    message(STATUS "Processing component: ${_component}")
+    include(cmake/${_component}.cmake)
+endforeach()
 
 # Create centralized third-party targets
 # This eliminates the need for find_package calls throughout the project
@@ -20,6 +29,7 @@ include(cmake/gflags.cmake)
 find_package(absl REQUIRED CONFIG)
 find_package(GTest REQUIRED CONFIG)
 find_package(gflags REQUIRED CONFIG)
+find_package(glog REQUIRED CONFIG)
 
 # Create a main third-party interface target for production code
 add_library(halo_thirdparty INTERFACE)
@@ -36,6 +46,8 @@ target_link_libraries(halo_thirdparty
     absl::civil_time
     absl::status
     absl::statusor
+    gflags::gflags
+    glog::glog
 )
 
 # Create a test-specific third-party interface target
@@ -49,7 +61,6 @@ target_link_libraries(halo_thirdparty_test
     GTest::gtest_main
     GTest::gmock
     GTest::gmock_main
-    gflags_static
 )
 
 # Export targets to parent scope for global availability

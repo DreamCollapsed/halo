@@ -1,7 +1,10 @@
 # GoogleTest third-party integration
 # Reference: https://google.github.io/googletest/quickstart-cmake.html
 
-# Set up directories
+# Check dependencies (gtest has no dependencies)
+thirdparty_check_dependencies("gtest")
+
+# Set up directories (variables from ComponentsInfo.cmake)
 set(GTEST_NAME "gtest")
 set(GTEST_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/googletest-${GOOGLETEST_VERSION}.tar.gz")
 set(GTEST_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${GTEST_NAME}")

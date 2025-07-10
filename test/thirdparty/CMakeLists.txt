@@ -41,3 +41,13 @@ add_module_test(thirdparty_gflags
         integration
     TIMEOUT 30
 )
+
+# glog integration test
+add_module_test(thirdparty_glog
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_glog_integration.cpp"
+    LABELS
+        glog
+        thirdparty
+        integration
+    TIMEOUT 30
+)

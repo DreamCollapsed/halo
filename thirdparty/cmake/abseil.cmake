@@ -1,7 +1,10 @@
 # abseil third-party integration
 # Reference: https://abseil.io/docs/cpp/tools/cmake-installs#initialize-your-project
 
-# Set up directories
+# Check dependencies (abseil has no dependencies)
+thirdparty_check_dependencies("abseil")
+
+# Set up directories (variables from ComponentsInfo.cmake)
 set(ABSEIL_NAME "abseil")
 set(ABSEIL_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/abseil-${ABSEIL_VERSION}.tar.gz")
 set(ABSEIL_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${ABSEIL_NAME}")

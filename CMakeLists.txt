@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.24)
+cmake_minimum_required(VERSION 3.25)
 project(halo VERSION 1.0.0 LANGUAGES CXX)
 
 # Set minimum policy version to avoid compatibility issues
-cmake_policy(VERSION 3.5...3.28)
+cmake_policy(VERSION 3.25)
 
 # C++ standard settings
 set(CMAKE_CXX_STANDARD 23)

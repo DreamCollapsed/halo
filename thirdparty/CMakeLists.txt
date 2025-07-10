@@ -11,3 +11,4 @@ file(MAKE_DIRECTORY ${THIRDPARTY_INSTALL_DIR})
 # Integrate third-party libraries
 include(cmake/abseil.cmake)
 include(cmake/gtest.cmake)
+include(cmake/gflags.cmake)

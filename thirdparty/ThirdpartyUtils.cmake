@@ -37,10 +37,6 @@ function(thirdparty_extract_and_rename tarfile srcdir pattern)
             string(TOLOWER "${_ext}" _ext)
         endif()
         
-        # Support .tar.gz/.tgz/.tar.bz2/.tbz2/.tar.xz/.txz/.zip/.tar
-        message(STATUS "filename: ${_filename}")
-        message(STATUS "ext: ${_ext}")
-        
         # Use cmake -E tar to automatically handle all supported compression formats
         if(_ext MATCHES "\\.(tar\\.gz|tgz|tar\\.bz2|tbz2|tar\\.xz|txz|tar)$" OR _ext STREQUAL ".zip")
             execute_process(

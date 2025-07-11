@@ -47,6 +47,9 @@ thirdparty_cmake_configure("${GLOG_SOURCE_DIR}" "${GLOG_BUILD_DIR}"
     -DWITH_GTEST=ON
     -DWITH_GMOCK=ON
     -DGFLAGS_USE_TARGET_NAMESPACE=TRUE
+    -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
+    -DCMAKE_WARN_DEPRECATED=OFF
+    -Wno-dev
     "-DCMAKE_PREFIX_PATH=${_glog_dep_paths}"
     -Dgflags_DIR="${THIRDPARTY_INSTALL_DIR}/gflags/lib/cmake/gflags"
     -DGTest_DIR="${THIRDPARTY_INSTALL_DIR}/gtest/lib/cmake/GTest"

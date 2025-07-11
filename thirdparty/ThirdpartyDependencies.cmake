@@ -136,6 +136,12 @@ thirdparty_register_component(gflags
     SHA256 "${GFLAGS_SHA256}"
 )
 
+thirdparty_register_component(double-conversion
+    VERSION "${DOUBLE_CONVERSION_VERSION}"
+    URL "${DOUBLE_CONVERSION_URL}"
+    SHA256 "${DOUBLE_CONVERSION_SHA256}"
+)
+
 # Components with dependencies
 thirdparty_register_component(glog
     VERSION "${GLOG_VERSION}"

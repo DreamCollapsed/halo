@@ -30,6 +30,7 @@ find_package(absl REQUIRED CONFIG)
 find_package(GTest REQUIRED CONFIG)
 find_package(gflags REQUIRED CONFIG)
 find_package(glog REQUIRED CONFIG)
+find_package(double-conversion REQUIRED CONFIG)
 
 # Create a main third-party interface target for production code
 add_library(halo_thirdparty INTERFACE)
@@ -48,6 +49,7 @@ target_link_libraries(halo_thirdparty
     absl::statusor
     gflags::gflags
     glog::glog
+    double-conversion::double-conversion
 )
 
 # Create a test-specific third-party interface target

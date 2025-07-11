@@ -51,3 +51,13 @@ add_module_test(thirdparty_glog
         integration
     TIMEOUT 30
 )
+
+# double-conversion integration test
+add_module_test(thirdparty_double_conversion
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_double_conversion_integration.cpp"
+    LABELS
+        double-conversion
+        thirdparty
+        integration
+    TIMEOUT 30
+)

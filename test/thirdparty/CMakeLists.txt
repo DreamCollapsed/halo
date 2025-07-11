@@ -61,3 +61,13 @@ add_module_test(thirdparty_double_conversion
         integration
     TIMEOUT 30
 )
+
+# fast-float integration test
+add_module_test(thirdparty_fast_float
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_fast_float_integration.cpp"
+    LABELS
+        fast-float
+        thirdparty
+        integration
+    TIMEOUT 30
+)

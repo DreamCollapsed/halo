@@ -142,6 +142,12 @@ thirdparty_register_component(double-conversion
     SHA256 "${DOUBLE_CONVERSION_SHA256}"
 )
 
+thirdparty_register_component(fast-float
+    VERSION "${FAST_FLOAT_VERSION}"
+    URL "${FAST_FLOAT_URL}"
+    SHA256 "${FAST_FLOAT_SHA256}"
+)
+
 # Components with dependencies
 thirdparty_register_component(glog
     VERSION "${GLOG_VERSION}"

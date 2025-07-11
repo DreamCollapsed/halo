@@ -64,6 +64,7 @@ find_package(GTest REQUIRED CONFIG NAMES GTest gtest)
 find_package(gflags REQUIRED CONFIG)
 find_package(glog REQUIRED CONFIG)
 find_package(double-conversion REQUIRED CONFIG)
+find_package(FastFloat REQUIRED CONFIG)
 
 # Create a main third-party interface target for production code
 add_library(halo_thirdparty INTERFACE)
@@ -83,6 +84,7 @@ target_link_libraries(halo_thirdparty
     gflags::gflags
     glog::glog
     double-conversion::double-conversion
+    FastFloat::fast_float
 )
 
 # Create a test-specific third-party interface target

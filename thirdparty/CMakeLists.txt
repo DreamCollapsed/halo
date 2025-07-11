@@ -3,6 +3,9 @@ include(ComponentsInfo.cmake)
 include(ThirdpartyUtils.cmake)
 include(ThirdpartyDependencies.cmake)
 
+# Setup build optimizations
+thirdparty_setup_ccache()
+
 # Create required directories
 file(MAKE_DIRECTORY ${THIRDPARTY_DOWNLOAD_DIR})
 file(MAKE_DIRECTORY ${THIRDPARTY_SRC_DIR})
@@ -16,18 +19,48 @@ thirdparty_show_dependencies()
 thirdparty_compute_build_order(_build_order)
 message(STATUS "Building components in order: ${_build_order}")
 
-# Build components in dependency order
+# Build components in dependency order with performance monitoring
+set(_build_start_time "${CMAKE_CURRENT_LIST_FILE}")
 foreach(_component IN LISTS _build_order)
     message(STATUS "Processing component: ${_component}")
+    
+    # Record start time for this component
+    string(TIMESTAMP _component_start_time "%s")
+    
     include(cmake/${_component}.cmake)
+    
+    # Record end time and calculate build time
+    string(TIMESTAMP _component_end_time "%s")
+    math(EXPR _component_duration "${_component_end_time} - ${_component_start_time}")
+    message(STATUS "Component ${_component} processed in ${_component_duration} seconds")
 endforeach()
+
+# Display build summary
+message(STATUS "=== Third-party Build Summary ===")
+include(ProcessorCount)
+ProcessorCount(_cpu_count)
+message(STATUS "CPU cores available: ${_cpu_count}")
+
+find_program(CCACHE_FOUND ccache)
+if(CCACHE_FOUND)
+    message(STATUS "Ccache: ENABLED")
+else()
+    message(STATUS "Ccache: NOT FOUND")
+endif()
+
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "CXX Compiler: ${CMAKE_CXX_COMPILER_ID}")
+if(CMAKE_CXX_FLAGS_RELEASE)
+    message(STATUS "Optimization flags: ${CMAKE_CXX_FLAGS_RELEASE}")
+endif()
+message(STATUS "===================================")
 
 # Create centralized third-party targets
 # This eliminates the need for find_package calls throughout the project
 
 # Find all packages after they have been built and installed
 find_package(absl REQUIRED CONFIG)
-find_package(GTest REQUIRED CONFIG)
+find_package(GTest REQUIRED CONFIG NAMES GTest gtest)
 find_package(gflags REQUIRED CONFIG)
 find_package(glog REQUIRED CONFIG)
 find_package(double-conversion REQUIRED CONFIG)

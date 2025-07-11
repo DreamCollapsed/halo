@@ -27,21 +27,22 @@ string(REPLACE "cmake_minimum_required (VERSION 3.0.2 FATAL_ERROR)"
                _cmake_content "${_cmake_content}")
 file(WRITE "${GFLAGS_SOURCE_DIR}/CMakeLists.txt" "${_cmake_content}")
 
-thirdparty_cmake_configure("${GFLAGS_SOURCE_DIR}" "${GFLAGS_BUILD_DIR}"
-    VALIDATION_FILES
-        "${GFLAGS_BUILD_DIR}/CMakeCache.txt"
-        "${GFLAGS_BUILD_DIR}/Makefile"
-    -DCMAKE_INSTALL_PREFIX="${GFLAGS_INSTALL_DIR}"
-    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-    -DBUILD_SHARED_LIBS=OFF
+# Configure gflags with CMake and optimization flags
+thirdparty_get_optimization_flags(_opt_flags)
+list(APPEND _opt_flags
+    -DCMAKE_INSTALL_PREFIX=${GFLAGS_INSTALL_DIR}
     -DBUILD_STATIC_LIBS=ON
     -DBUILD_TESTING=OFF
     -DINSTALL_HEADERS=ON
     -DREGISTER_INSTALL_PREFIX=OFF
     -DGFLAGS_NAMESPACE=gflags
-    -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
-    -DCMAKE_WARN_DEPRECATED=OFF
-    -Wno-dev
+)
+
+thirdparty_cmake_configure("${GFLAGS_SOURCE_DIR}" "${GFLAGS_BUILD_DIR}"
+    VALIDATION_FILES
+        "${GFLAGS_BUILD_DIR}/CMakeCache.txt"
+        "${GFLAGS_BUILD_DIR}/Makefile"
+    ${_opt_flags}
 )
 
 # Build and install gflags

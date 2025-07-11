@@ -71,3 +71,13 @@ add_module_test(thirdparty_fast_float
         integration
     TIMEOUT 30
 )
+
+# fmt integration test
+add_module_test(thirdparty_fmt
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_fmt_integration.cpp"
+    LABELS
+        fmt
+        thirdparty
+        integration
+    TIMEOUT 30
+)

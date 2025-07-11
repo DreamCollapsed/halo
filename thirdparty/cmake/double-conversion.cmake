@@ -26,19 +26,19 @@ string(REPLACE "cmake_minimum_required(VERSION 3.0)"
                _cmake_content "${_cmake_content}")
 file(WRITE "${DOUBLE_CONVERSION_SOURCE_DIR}/CMakeLists.txt" "${_cmake_content}")
 
-# Configure double-conversion with CMake
+# Configure double-conversion with CMake and optimization flags
+thirdparty_get_optimization_flags(_opt_flags)
+list(APPEND _opt_flags
+    -DCMAKE_INSTALL_PREFIX=${DOUBLE_CONVERSION_INSTALL_DIR}
+    -DBUILD_STATIC_LIBS=ON
+    -DBUILD_TESTING=OFF
+)
+
 thirdparty_cmake_configure("${DOUBLE_CONVERSION_SOURCE_DIR}" "${DOUBLE_CONVERSION_BUILD_DIR}"
     VALIDATION_FILES
         "${DOUBLE_CONVERSION_BUILD_DIR}/CMakeCache.txt"
         "${DOUBLE_CONVERSION_BUILD_DIR}/Makefile"
-    -DCMAKE_INSTALL_PREFIX="${DOUBLE_CONVERSION_INSTALL_DIR}"
-    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-    -DBUILD_SHARED_LIBS=OFF
-    -DBUILD_STATIC_LIBS=ON
-    -DBUILD_TESTING=OFF
-    -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
-    -DCMAKE_WARN_DEPRECATED=OFF
-    -Wno-dev
+    ${_opt_flags}
 )
 
 # Build and install double-conversion

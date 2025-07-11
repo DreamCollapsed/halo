@@ -162,9 +162,17 @@ function(thirdparty_cmake_install builddir installdir)
         return()
     endif()
     
-    # Build the project
+    # Build the project with parallel jobs
+    include(ProcessorCount)
+    ProcessorCount(N)
+    if(NOT N EQUAL 0)
+        set(PARALLEL_JOBS ${N})
+    else()
+        set(PARALLEL_JOBS 4)  # Fallback to 4 jobs
+    endif()
+    
     execute_process(
-        COMMAND ${CMAKE_COMMAND} --build "${builddir}"
+        COMMAND ${CMAKE_COMMAND} --build "${builddir}" --parallel ${PARALLEL_JOBS}
         RESULT_VARIABLE _build_result
     )
     
@@ -188,4 +196,37 @@ function(thirdparty_cmake_install builddir installdir)
     endif()
     
     set(${CMAKE_CURRENT_FUNCTION_RESULT} ${_build_result} PARENT_SCOPE)
+endfunction()
+
+# Common optimization flags for all third-party libraries
+function(thirdparty_get_optimization_flags output_var)
+    set(_opt_flags)
+    
+    # Base optimization flags
+    list(APPEND _opt_flags 
+        -DCMAKE_BUILD_TYPE=Release
+        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        -DBUILD_SHARED_LIBS=OFF
+        -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
+        -DCMAKE_WARN_DEPRECATED=OFF
+        -Wno-dev
+        --no-warn-unused-cli
+    )
+    
+    # Add Link Time Optimization (LTO) if supported
+    if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE)
+        list(APPEND _opt_flags -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON)
+    endif()
+    
+    set(${output_var} "${_opt_flags}" PARENT_SCOPE)
+endfunction()
+
+# Function to check if we should use ccache for faster recompilation
+function(thirdparty_setup_ccache)
+    find_program(CCACHE_FOUND ccache)
+    if(CCACHE_FOUND)
+        set(CMAKE_CXX_COMPILER_LAUNCHER ccache CACHE STRING "Use ccache for compilation" FORCE)
+        set(CMAKE_C_COMPILER_LAUNCHER ccache CACHE STRING "Use ccache for compilation" FORCE)
+        message(STATUS "Using ccache for faster recompilation")
+    endif()
 endfunction()

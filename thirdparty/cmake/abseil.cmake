@@ -14,21 +14,24 @@ set(ABSEIL_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${ABSEIL_NAME}")
 # Make sure the installation directory is absolute
 get_filename_component(ABSEIL_INSTALL_DIR "${ABSEIL_INSTALL_DIR}" ABSOLUTE)
 
+# Download and extract Abseil
 thirdparty_download_and_check("${ABSEIL_URL}" "${ABSEIL_DOWNLOAD_FILE}" "${ABSEIL_SHA256}")
-
 thirdparty_extract_and_rename("${ABSEIL_DOWNLOAD_FILE}" "${ABSEIL_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/abseil-cpp-*")
+
+# Configure Abseil with CMake and optimization flags
+thirdparty_get_optimization_flags(_opt_flags)
+list(APPEND _opt_flags
+    -DCMAKE_INSTALL_PREFIX=${ABSEIL_INSTALL_DIR}
+    -DABSL_PROPAGATE_CXX_STD=ON
+)
 
 thirdparty_cmake_configure("${ABSEIL_SOURCE_DIR}" "${ABSEIL_BUILD_DIR}"
     VALIDATION_FILES
         "${ABSEIL_BUILD_DIR}/CMakeCache.txt"
         "${ABSEIL_BUILD_DIR}/Makefile"
         "${ABSEIL_BUILD_DIR}/lib/cmake/absl/abslTargets.cmake"
-    -DCMAKE_INSTALL_PREFIX="${ABSEIL_INSTALL_DIR}"
-    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-    -DBUILD_SHARED_LIBS=OFF
-    -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
-    -DCMAKE_WARN_DEPRECATED=OFF
-    -Wno-dev)
+    ${_opt_flags}
+)
 
 thirdparty_cmake_install("${ABSEIL_BUILD_DIR}" "${ABSEIL_INSTALL_DIR}"
     VALIDATION_FILES

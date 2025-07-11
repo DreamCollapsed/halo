@@ -18,17 +18,20 @@ get_filename_component(GTEST_INSTALL_DIR "${GTEST_INSTALL_DIR}" ABSOLUTE)
 thirdparty_download_and_check("${GOOGLETEST_URL}" "${GTEST_DOWNLOAD_FILE}" "${GOOGLETEST_SHA256}")
 thirdparty_extract_and_rename("${GTEST_DOWNLOAD_FILE}" "${GTEST_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/googletest-*")
 
-# Configure GoogleTest with modern CMake approach
+# Configure GoogleTest with modern CMake approach and optimization flags
+thirdparty_get_optimization_flags(_opt_flags)
+list(APPEND _opt_flags
+    -DCMAKE_INSTALL_PREFIX=${GTEST_INSTALL_DIR}
+    -DINSTALL_GTEST=ON
+    -Dgtest_force_shared_crt=ON  # Use shared (DLL) run-time lib even when Google Test is built as static lib
+    -DBUILD_GMOCK=ON  # Build both gtest and gmock
+)
+
 # Use both exact file validation and pattern matching to ensure all key files exist
 thirdparty_cmake_configure("${GTEST_SOURCE_DIR}" "${GTEST_BUILD_DIR}"
     VALIDATION_PATTERN 
       "${GTEST_BUILD_DIR}/CMakeCache.txt"
-    -DCMAKE_INSTALL_PREFIX="${GTEST_INSTALL_DIR}"
-    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-    -DBUILD_SHARED_LIBS=OFF
-    -DINSTALL_GTEST=ON
-    -Dgtest_force_shared_crt=ON  # Use shared (DLL) run-time lib even when Google Test is built as static lib
-    -DBUILD_GMOCK=ON  # Build both gtest and gmock
+    ${_opt_flags}
 )
 
 # Build and install (only when key files don't exist)

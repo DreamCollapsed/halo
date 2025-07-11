@@ -37,25 +37,24 @@ string(REPLACE "cmake_policy (VERSION 3.3)"
                _get_cache_content "${_get_cache_content}")
 file(WRITE "${GLOG_SOURCE_DIR}/cmake/GetCacheVariables.cmake" "${_get_cache_content}")
 
-# Configure glog with dependencies
-
-thirdparty_cmake_configure("${GLOG_SOURCE_DIR}" "${GLOG_BUILD_DIR}"
-    -DCMAKE_INSTALL_PREFIX="${GLOG_INSTALL_DIR}"
-    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-    -DBUILD_SHARED_LIBS=OFF
+# Configure glog with dependencies and optimization flags
+thirdparty_get_optimization_flags(_opt_flags)
+list(APPEND _opt_flags
+    -DCMAKE_INSTALL_PREFIX=${GLOG_INSTALL_DIR}
     -DWITH_GFLAGS=ON
     -DWITH_GTEST=ON
     -DWITH_GMOCK=ON
     -DGFLAGS_USE_TARGET_NAMESPACE=TRUE
-    -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
-    -DCMAKE_WARN_DEPRECATED=OFF
-    -Wno-dev
     "-DCMAKE_PREFIX_PATH=${_glog_dep_paths}"
     -Dgflags_DIR="${THIRDPARTY_INSTALL_DIR}/gflags/lib/cmake/gflags"
     -DGTest_DIR="${THIRDPARTY_INSTALL_DIR}/gtest/lib/cmake/GTest"
+)
+
+thirdparty_cmake_configure("${GLOG_SOURCE_DIR}" "${GLOG_BUILD_DIR}"
     VALIDATION_FILES
         "${GLOG_BUILD_DIR}/CMakeCache.txt"
         "${GLOG_BUILD_DIR}/Makefile"
+    ${_opt_flags}
 )
 
 # Build and install glog

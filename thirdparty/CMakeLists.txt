@@ -66,6 +66,7 @@ find_package(glog REQUIRED CONFIG)
 find_package(double-conversion REQUIRED CONFIG)
 find_package(FastFloat REQUIRED CONFIG)
 find_package(fmt REQUIRED CONFIG)
+find_package(zstd REQUIRED CONFIG)
 
 # Create a main third-party interface target for production code
 add_library(halo_thirdparty INTERFACE)
@@ -88,6 +89,7 @@ target_link_libraries(halo_thirdparty
     FastFloat::fast_float
     fmt::fmt
     jemalloc::jemalloc_pic  # Use PIC version for compatibility with CMAKE_POSITION_INDEPENDENT_CODE=ON
+    zstd::libzstd_static
 )
 
 # Create a test-specific third-party interface target

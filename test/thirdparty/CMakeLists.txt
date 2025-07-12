@@ -82,6 +82,16 @@ add_module_test(thirdparty_fmt
     TIMEOUT 30
 )
 
+# zstd integration test
+add_module_test(thirdparty_zstd
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_zstd_integration.cpp"
+    LABELS
+        zstd
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
 # jemalloc comprehensive integration test
 add_module_test(thirdparty_jemalloc_comprehensive
     "${CMAKE_CURRENT_SOURCE_DIR}/test_jemalloc_comprehensive.cpp"

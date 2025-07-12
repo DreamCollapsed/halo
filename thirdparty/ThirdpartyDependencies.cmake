@@ -154,6 +154,12 @@ thirdparty_register_component(fmt
     SHA256 "${FMT_SHA256}"
 )
 
+thirdparty_register_component(zstd
+    VERSION "${ZSTD_VERSION}"
+    URL "${ZSTD_URL}"
+    SHA256 "${ZSTD_SHA256}"
+)
+
 # Components with dependencies
 thirdparty_register_component(glog
     VERSION "${GLOG_VERSION}"

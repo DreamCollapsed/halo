@@ -19,13 +19,6 @@ thirdparty_download_and_check("${DOUBLE_CONVERSION_URL}" "${DOUBLE_CONVERSION_DO
 
 thirdparty_extract_and_rename("${DOUBLE_CONVERSION_DOWNLOAD_FILE}" "${DOUBLE_CONVERSION_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/double-conversion-*")
 
-# Patch the CMakeLists.txt to use a higher minimum version
-file(READ "${DOUBLE_CONVERSION_SOURCE_DIR}/CMakeLists.txt" _cmake_content)
-string(REPLACE "cmake_minimum_required(VERSION 3.0)" 
-               "cmake_minimum_required(VERSION 3.25)" 
-               _cmake_content "${_cmake_content}")
-file(WRITE "${DOUBLE_CONVERSION_SOURCE_DIR}/CMakeLists.txt" "${_cmake_content}")
-
 # Configure double-conversion with CMake and optimization flags
 thirdparty_get_optimization_flags(_opt_flags)
 list(APPEND _opt_flags
@@ -37,7 +30,8 @@ thirdparty_cmake_configure("${DOUBLE_CONVERSION_SOURCE_DIR}" "${DOUBLE_CONVERSIO
     VALIDATION_FILES
         "${DOUBLE_CONVERSION_BUILD_DIR}/CMakeCache.txt"
         "${DOUBLE_CONVERSION_BUILD_DIR}/Makefile"
-    ${_opt_flags}
+    CMAKE_ARGS
+        ${_opt_flags}
 )
 
 # Build and install double-conversion

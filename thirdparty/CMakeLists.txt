@@ -87,7 +87,7 @@ target_link_libraries(halo_thirdparty
     double-conversion::double-conversion
     FastFloat::fast_float
     fmt::fmt
-    jemalloc::jemalloc
+    jemalloc::jemalloc_pic  # Use PIC version for compatibility with CMAKE_POSITION_INDEPENDENT_CODE=ON
 )
 
 # Create a test-specific third-party interface target

@@ -19,14 +19,6 @@ thirdparty_download_and_check("${GFLAGS_URL}" "${GFLAGS_DOWNLOAD_FILE}" "${GFLAG
 
 thirdparty_extract_and_rename("${GFLAGS_DOWNLOAD_FILE}" "${GFLAGS_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/gflags-*")
 
-# Configure gflags with CMake
-# Patch the CMakeLists.txt to use a higher minimum version
-file(READ "${GFLAGS_SOURCE_DIR}/CMakeLists.txt" _cmake_content)
-string(REPLACE "cmake_minimum_required (VERSION 3.0.2 FATAL_ERROR)" 
-               "cmake_minimum_required (VERSION 3.25 FATAL_ERROR)" 
-               _cmake_content "${_cmake_content}")
-file(WRITE "${GFLAGS_SOURCE_DIR}/CMakeLists.txt" "${_cmake_content}")
-
 # Configure gflags with CMake and optimization flags
 thirdparty_get_optimization_flags(_opt_flags)
 list(APPEND _opt_flags
@@ -41,7 +33,8 @@ thirdparty_cmake_configure("${GFLAGS_SOURCE_DIR}" "${GFLAGS_BUILD_DIR}"
     VALIDATION_FILES
         "${GFLAGS_BUILD_DIR}/CMakeCache.txt"
         "${GFLAGS_BUILD_DIR}/Makefile"
-    ${_opt_flags}
+    CMAKE_ARGS
+        ${_opt_flags}
 )
 
 # Build and install gflags

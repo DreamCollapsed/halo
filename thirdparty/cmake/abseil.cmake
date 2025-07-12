@@ -30,7 +30,8 @@ thirdparty_cmake_configure("${ABSEIL_SOURCE_DIR}" "${ABSEIL_BUILD_DIR}"
         "${ABSEIL_BUILD_DIR}/CMakeCache.txt"
         "${ABSEIL_BUILD_DIR}/Makefile"
         "${ABSEIL_BUILD_DIR}/lib/cmake/absl/abslTargets.cmake"
-    ${_opt_flags}
+    CMAKE_ARGS
+        ${_opt_flags}
 )
 
 thirdparty_cmake_install("${ABSEIL_BUILD_DIR}" "${ABSEIL_INSTALL_DIR}"

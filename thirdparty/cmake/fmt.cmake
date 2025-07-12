@@ -32,7 +32,8 @@ thirdparty_cmake_configure("${FMT_SOURCE_DIR}" "${FMT_BUILD_DIR}"
     VALIDATION_FILES
         "${FMT_BUILD_DIR}/CMakeCache.txt"
         "${FMT_BUILD_DIR}/Makefile"
-    ${_opt_flags}
+    CMAKE_ARGS
+        ${_opt_flags}
 )
 
 thirdparty_cmake_install("${FMT_BUILD_DIR}" "${FMT_INSTALL_DIR}"

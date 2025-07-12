@@ -31,7 +31,8 @@ thirdparty_cmake_configure("${GTEST_SOURCE_DIR}" "${GTEST_BUILD_DIR}"
     VALIDATION_FILES
       "${GTEST_BUILD_DIR}/CMakeCache.txt"
       "${GTEST_BUILD_DIR}/Makefile"
-    ${_opt_flags}
+    CMAKE_ARGS
+        ${_opt_flags}
 )
 
 # Build and install (only when key files don't exist)

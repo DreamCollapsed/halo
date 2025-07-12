@@ -87,6 +87,7 @@ target_link_libraries(halo_thirdparty
     double-conversion::double-conversion
     FastFloat::fast_float
     fmt::fmt
+    jemalloc::jemalloc
 )
 
 # Create a test-specific third-party interface target

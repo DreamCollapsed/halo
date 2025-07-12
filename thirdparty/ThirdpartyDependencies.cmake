@@ -161,3 +161,10 @@ thirdparty_register_component(glog
     SHA256 "${GLOG_SHA256}"
     DEPENDS_ON gflags gtest
 )
+
+# Register jemalloc component
+thirdparty_register_component(jemalloc
+    URL "${JEMALLOC_URL}"
+    SHA256 "${JEMALLOC_SHA256}"
+    # jemalloc has no dependencies
+)

@@ -30,7 +30,6 @@ file(WRITE "${DOUBLE_CONVERSION_SOURCE_DIR}/CMakeLists.txt" "${_cmake_content}")
 thirdparty_get_optimization_flags(_opt_flags)
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${DOUBLE_CONVERSION_INSTALL_DIR}
-    -DBUILD_STATIC_LIBS=ON
     -DBUILD_TESTING=OFF
 )
 

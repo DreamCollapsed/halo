@@ -206,7 +206,7 @@ function(thirdparty_get_optimization_flags output_var)
     list(APPEND _opt_flags 
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-        -DBUILD_SHARED_LIBS=OFF
+        -DBUILD_SHARED_LIBS:BOOL=OFF
         -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
         -DCMAKE_WARN_DEPRECATED=OFF
         -Wno-dev

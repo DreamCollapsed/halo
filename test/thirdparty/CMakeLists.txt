@@ -92,6 +92,16 @@ add_module_test(thirdparty_zstd
     TIMEOUT 30
 )
 
+# lz4 integration test
+add_module_test(thirdparty_lz4
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_lz4_integration.cpp"
+    LABELS
+        lz4
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
 # jemalloc comprehensive integration test
 add_module_test(thirdparty_jemalloc_comprehensive
     "${CMAKE_CURRENT_SOURCE_DIR}/test_jemalloc_comprehensive.cpp"
@@ -102,4 +112,16 @@ add_module_test(thirdparty_jemalloc_comprehensive
         thirdparty
         integration
     TIMEOUT 60
+)
+
+# lz4-zstd integration test
+add_module_test(thirdparty_lz4_zstd
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_lz4_zstd_integration.cpp"
+    LABELS
+        lz4
+        zstd
+        dictionary
+        integration
+        thirdparty
+    TIMEOUT 30
 )

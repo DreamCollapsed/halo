@@ -67,7 +67,7 @@ function(thirdparty_cmake_configure srcdir builddir)
         ARG
         "FORCE_CONFIGURE"
         "VALIDATION_PATTERN"
-        "VALIDATION_FILES")
+        "VALIDATION_FILES;CMAKE_ARGS")
 
     if(NOT EXISTS "${srcdir}/CMakeLists.txt")
         message(WARNING "[thirdparty_cmake_configure] ${srcdir}/CMakeLists.txt not found, skip configure.")
@@ -101,8 +101,15 @@ function(thirdparty_cmake_configure srcdir builddir)
 
     message(STATUS "[thirdparty_cmake_configure] Configuring ${srcdir} to ${builddir}")
     
+    # Print the complete cmake command for debugging
+    set(_cmake_cmd_str "${CMAKE_COMMAND} -S \"${srcdir}\" -B \"${builddir}\"")
+    foreach(_arg ${ARG_CMAKE_ARGS})
+        set(_cmake_cmd_str "${_cmake_cmd_str} ${_arg}")
+    endforeach()
+    message(STATUS "[thirdparty_cmake_configure] CMake command: ${_cmake_cmd_str}")
+    
     execute_process(
-        COMMAND ${CMAKE_COMMAND} -S "${srcdir}" -B "${builddir}" ${ARG_UNPARSED_ARGUMENTS}
+        COMMAND ${CMAKE_COMMAND} -S "${srcdir}" -B "${builddir}" ${ARG_CMAKE_ARGS}
         RESULT_VARIABLE result
         OUTPUT_VARIABLE output
         ERROR_VARIABLE error
@@ -152,6 +159,7 @@ function(thirdparty_cmake_install builddir installdir)
     endif()
 
     if(NOT _need_install)
+        message(STATUS "[thirdparty_cmake_install] All validation files exist, skip install for ${builddir}")
         set(${CMAKE_CURRENT_FUNCTION_RESULT} 0 PARENT_SCOPE)
         return()
     endif()
@@ -162,6 +170,8 @@ function(thirdparty_cmake_install builddir installdir)
         return()
     endif()
     
+    message(STATUS "[thirdparty_cmake_install] Building and installing from ${builddir} to ${installdir}")
+    
     # Build the project with parallel jobs
     include(ProcessorCount)
     ProcessorCount(N)
@@ -171,6 +181,8 @@ function(thirdparty_cmake_install builddir installdir)
         set(PARALLEL_JOBS 4)  # Fallback to 4 jobs
     endif()
     
+    message(STATUS "[thirdparty_cmake_install] Build command: ${CMAKE_COMMAND} --build \"${builddir}\" --parallel ${PARALLEL_JOBS}")
+    
     execute_process(
         COMMAND ${CMAKE_COMMAND} --build "${builddir}" --parallel ${PARALLEL_JOBS}
         RESULT_VARIABLE _build_result
@@ -179,6 +191,8 @@ function(thirdparty_cmake_install builddir installdir)
     if(_build_result EQUAL 0)
         # Create install directory if it doesn't exist
         file(MAKE_DIRECTORY "${installdir}")
+        
+        message(STATUS "[thirdparty_cmake_install] Install command: ${CMAKE_COMMAND} --install \"${builddir}\" --prefix \"${installdir}\"")
         
         # Install to the specified directory
         execute_process(
@@ -198,8 +212,15 @@ function(thirdparty_cmake_install builddir installdir)
     set(${CMAKE_CURRENT_FUNCTION_RESULT} ${_build_result} PARENT_SCOPE)
 endfunction()
 
-# Common optimization flags for all third-party libraries
+# Common optimization flags and CMake policy settings for all third-party libraries
+# This replaces the need to modify source files with file patches
 function(thirdparty_get_optimization_flags output_var)
+    # Parse optional component name for dependency resolution
+    set(options "")
+    set(oneValueArgs COMPONENT)
+    set(multiValueArgs "")
+    cmake_parse_arguments(PARSE_ARGV 1 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
+    
     set(_opt_flags)
     
     # Base optimization flags
@@ -216,6 +237,52 @@ function(thirdparty_get_optimization_flags output_var)
     # Add Link Time Optimization (LTO) if supported
     if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE)
         list(APPEND _opt_flags -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON)
+    endif()
+    
+    # Modern CMake policy defaults to avoid compatibility issues
+    # This eliminates the need for source file modifications
+    list(APPEND _opt_flags
+        # Force minimum policy version to avoid compatibility errors
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+        # CMP0042: macOS @rpath in target's install name
+        -DCMAKE_POLICY_DEFAULT_CMP0042=NEW
+        # CMP0063: Honor visibility properties for all target types
+        -DCMAKE_POLICY_DEFAULT_CMP0063=NEW
+        # CMP0077: option() honors normal variables (critical for BUILD_SHARED_LIBS)
+        -DCMAKE_POLICY_DEFAULT_CMP0077=NEW
+        # CMP0076: target_sources() command converts relative paths to absolute
+        -DCMAKE_POLICY_DEFAULT_CMP0076=NEW
+        # CMP0079: target_link_libraries() allows use with targets in other directories
+        -DCMAKE_POLICY_DEFAULT_CMP0079=NEW
+    )
+    
+    # Automatically add dependency CMAKE_ARGS if component is specified
+    if(ARG_COMPONENT)
+        # Get dependency paths and generate CMAKE_ARGS
+        get_property(_deps CACHE "${ARG_COMPONENT}_DEPENDENCIES" PROPERTY VALUE)
+        if(_deps)
+            # First, add CMAKE_PREFIX_PATH for general discovery
+            thirdparty_get_dependency_paths("${ARG_COMPONENT}" _dep_paths)
+            if(_dep_paths)
+                list(APPEND _opt_flags "-DCMAKE_PREFIX_PATH=${_dep_paths}")
+            endif()
+            
+            # Then, add specific *_DIR for libraries that need explicit paths
+            foreach(_dep IN LISTS _deps)
+                # Check if this dependency has a standard CMake config
+                if(EXISTS "${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake/${_dep}")
+                    list(APPEND _opt_flags "-D${_dep}_DIR=${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake/${_dep}")
+                elseif(EXISTS "${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake")
+                    # For libraries like GTest that use different naming
+                    file(GLOB _config_dirs "${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake/*")
+                    if(_config_dirs)
+                        list(GET _config_dirs 0 _config_dir)
+                        get_filename_component(_config_name "${_config_dir}" NAME)
+                        list(APPEND _opt_flags "-D${_config_name}_DIR=${_config_dir}")
+                    endif()
+                endif()
+            endforeach()
+        endif()
     endif()
     
     set(${output_var} "${_opt_flags}" PARENT_SCOPE)

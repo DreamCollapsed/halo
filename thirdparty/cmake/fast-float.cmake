@@ -31,7 +31,8 @@ thirdparty_cmake_configure("${FAST_FLOAT_SOURCE_DIR}" "${FAST_FLOAT_BUILD_DIR}"
     VALIDATION_FILES
         "${FAST_FLOAT_BUILD_DIR}/CMakeCache.txt"
         "${FAST_FLOAT_BUILD_DIR}/Makefile"
-    ${_opt_flags}
+    CMAKE_ARGS
+        ${_opt_flags}
 )
 
 # Build and install fast-float

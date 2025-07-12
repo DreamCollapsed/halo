@@ -23,14 +23,14 @@ thirdparty_get_optimization_flags(_opt_flags)
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${GTEST_INSTALL_DIR}
     -DINSTALL_GTEST=ON
-    -Dgtest_force_shared_crt=ON  # Use shared (DLL) run-time lib even when Google Test is built as static lib
-    -DBUILD_GMOCK=ON  # Build both gtest and gmock
+    -DBUILD_GMOCK=ON
 )
 
 # Use both exact file validation and pattern matching to ensure all key files exist
 thirdparty_cmake_configure("${GTEST_SOURCE_DIR}" "${GTEST_BUILD_DIR}"
-    VALIDATION_PATTERN 
+    VALIDATION_FILES
       "${GTEST_BUILD_DIR}/CMakeCache.txt"
+      "${GTEST_BUILD_DIR}/Makefile"
     ${_opt_flags}
 )
 
@@ -44,19 +44,13 @@ thirdparty_cmake_install("${GTEST_BUILD_DIR}" "${GTEST_INSTALL_DIR}"
         "${GTEST_INSTALL_DIR}/lib/libgmock_main.a"
         "${GTEST_INSTALL_DIR}/include/gtest/gtest.h"
         "${GTEST_INSTALL_DIR}/include/gmock/gmock.h"
-    VALIDATION_PATTERN "${GTEST_INSTALL_DIR}/lib/*.a"  # Also use pattern matching to ensure all static libraries exist
 )
 
 # Export GTest to parent scope
 if(EXISTS "${GTEST_INSTALL_DIR}/lib/cmake/GTest/GTestConfig.cmake")
     list(APPEND CMAKE_PREFIX_PATH "${GTEST_INSTALL_DIR}")
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
-    # Export more variables to parent scope
     set(GTest_DIR "${GTEST_INSTALL_DIR}/lib/cmake/GTest" CACHE PATH "Path to installed GTest cmake config" FORCE)
-    set(GMock_DIR "${GTEST_INSTALL_DIR}/lib/cmake/GTest" CACHE PATH "Path to installed GMock cmake config" FORCE)
-    set(GTEST_INCLUDE_DIRS "${GTEST_INSTALL_DIR}/include" CACHE PATH "Path to GTest headers" FORCE)
-    set(GTEST_LIBRARIES "GTest::gtest;GTest::gtest_main" CACHE STRING "GTest libraries" FORCE)
-    set(GMOCK_LIBRARIES "GTest::gmock;GTest::gmock_main" CACHE STRING "GMock libraries" FORCE)
     message(STATUS "GTest/GMock found and exported globally: ${GTEST_INSTALL_DIR}")
 else()
     message(WARNING "GTest installation not found at ${GTEST_INSTALL_DIR}")

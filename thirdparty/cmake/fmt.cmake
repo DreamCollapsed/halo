@@ -26,7 +26,6 @@ list(APPEND _opt_flags
     -DFMT_TEST=OFF
     -DFMT_FUZZ=OFF
     -DFMT_CUDA_TEST=OFF
-    -DBUILD_SHARED_LIBS=OFF
 )
 
 thirdparty_cmake_configure("${FMT_SOURCE_DIR}" "${FMT_BUILD_DIR}"

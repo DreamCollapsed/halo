@@ -28,6 +28,13 @@ file(READ "${GLOG_SOURCE_DIR}/CMakeLists.txt" _cmake_content)
 string(REPLACE "cmake_minimum_required (VERSION 3.16)" 
                "cmake_minimum_required (VERSION 3.25)" 
                _cmake_content "${_cmake_content}")
+
+# Force BUILD_SHARED_LIBS to OFF by patching glog's option() to use static libraries
+# This is necessary because glog's option() command can override -DBUILD_SHARED_LIBS=OFF
+string(REPLACE "option (BUILD_SHARED_LIBS \"Build shared libraries\" ON)" 
+               "set(BUILD_SHARED_LIBS OFF CACHE BOOL \"Build shared libraries\" FORCE)" 
+               _cmake_content "${_cmake_content}")
+
 file(WRITE "${GLOG_SOURCE_DIR}/CMakeLists.txt" "${_cmake_content}")
 
 # Fix GetCacheVariables.cmake policy issue
@@ -38,7 +45,9 @@ string(REPLACE "cmake_policy (VERSION 3.3)"
 file(WRITE "${GLOG_SOURCE_DIR}/cmake/GetCacheVariables.cmake" "${_get_cache_content}")
 
 # Configure glog with dependencies and optimization flags
+
 thirdparty_get_optimization_flags(_opt_flags)
+
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${GLOG_INSTALL_DIR}
     -DWITH_GFLAGS=ON

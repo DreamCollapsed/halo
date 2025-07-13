@@ -166,6 +166,12 @@ thirdparty_register_component(snappy
     SHA256 "${SNAPPY_SHA256}"
 )
 
+thirdparty_register_component(boost
+    VERSION "${BOOST_VERSION}"
+    URL "${BOOST_URL}"
+    SHA256 "${BOOST_SHA256}"
+)
+
 thirdparty_register_component(openssl
     VERSION "${OPENSSL_VERSION}"
     URL "${OPENSSL_URL}"
@@ -189,6 +195,7 @@ thirdparty_register_component(glog
 
 # Register jemalloc component
 thirdparty_register_component(jemalloc
+    VERSION "${JEMALLOC_VERSION}"
     URL "${JEMALLOC_URL}"
     SHA256 "${JEMALLOC_SHA256}"
     # jemalloc has no dependencies

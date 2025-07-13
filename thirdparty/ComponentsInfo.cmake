@@ -35,6 +35,11 @@ set(GOOGLETEST_VERSION "1.17.0")
 set(GOOGLETEST_URL "https://github.com/google/googletest/archive/refs/tags/v${GOOGLETEST_VERSION}.tar.gz")
 set(GOOGLETEST_SHA256 "65fab701d9829d38cb77c14acdc431d2108bfdbf8979e40eb8ae567edf10b27c")
 
+set(ICU4C_VERSION "77-1")
+string(REPLACE "-" "_" ICU4C_VERSION_UNDERSCORE ${ICU4C_VERSION})
+set(ICU4C_URL "https://github.com/unicode-org/icu/releases/download/release-${ICU4C_VERSION}/icu4c-${ICU4C_VERSION_UNDERSCORE}-src.tgz")
+set(ICU4C_SHA256 "588e431f77327c39031ffbb8843c0e3bc122c211374485fa87dc5f3faff24061")
+
 set(JEMALLOC_VERSION "5.3.0")
 set(JEMALLOC_URL "https://github.com/jemalloc/jemalloc/releases/download/${JEMALLOC_VERSION}/jemalloc-${JEMALLOC_VERSION}.tar.bz2")
 set(JEMALLOC_SHA256 "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa")

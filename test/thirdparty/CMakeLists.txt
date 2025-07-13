@@ -125,3 +125,13 @@ add_module_test(thirdparty_lz4_zstd
         thirdparty
     TIMEOUT 30
 )
+
+# snappy integration test
+add_module_test(thirdparty_snappy
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_snappy_integration.cpp"
+    LABELS
+        snappy
+        thirdparty
+        integration
+    TIMEOUT 30
+)

@@ -160,6 +160,12 @@ thirdparty_register_component(zstd
     SHA256 "${ZSTD_SHA256}"
 )
 
+thirdparty_register_component(snappy
+    VERSION "${SNAPPY_VERSION}"
+    URL "${SNAPPY_URL}"
+    SHA256 "${SNAPPY_SHA256}"
+)
+
 thirdparty_register_component(lz4
     VERSION "${LZ4_VERSION}"
     URL "${LZ4_URL}"

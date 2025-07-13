@@ -69,6 +69,7 @@ find_package(fmt REQUIRED CONFIG)
 find_package(zstd REQUIRED CONFIG)
 find_package(lz4 REQUIRED CONFIG)
 find_package(Snappy REQUIRED CONFIG)
+find_package(OpenSSL REQUIRED CONFIG)
 
 # Create a main third-party interface target for production code
 add_library(halo_thirdparty INTERFACE)
@@ -94,6 +95,8 @@ target_link_libraries(halo_thirdparty
     zstd::libzstd
     LZ4::lz4
     Snappy::snappy
+    OpenSSL::SSL
+    OpenSSL::Crypto
 )
 
 # Create a test-specific third-party interface target

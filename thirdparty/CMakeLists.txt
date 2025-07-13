@@ -68,6 +68,7 @@ find_package(FastFloat REQUIRED CONFIG)
 find_package(fmt REQUIRED CONFIG)
 find_package(zstd REQUIRED CONFIG)
 find_package(lz4 REQUIRED CONFIG)
+find_package(Snappy REQUIRED CONFIG)
 
 # Create a main third-party interface target for production code
 add_library(halo_thirdparty INTERFACE)
@@ -92,6 +93,7 @@ target_link_libraries(halo_thirdparty
     jemalloc::jemalloc_pic  # Use PIC version for compatibility with CMAKE_POSITION_INDEPENDENT_CODE=ON
     zstd::libzstd
     LZ4::lz4
+    Snappy::snappy
 )
 
 # Create a test-specific third-party interface target

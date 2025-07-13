@@ -135,3 +135,15 @@ add_module_test(thirdparty_snappy
         integration
     TIMEOUT 30
 )
+
+# OpenSSL integration test
+add_module_test(thirdparty_openssl
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_openssl_integration.cpp"
+    LABELS
+        openssl
+        ssl
+        crypto
+        thirdparty
+        integration
+    TIMEOUT 30
+)

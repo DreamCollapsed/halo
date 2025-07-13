@@ -120,10 +120,11 @@ include(FetchContent)
 set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON CACHE BOOL "Suppress CMake developer warnings")
 set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "Suppress deprecated warnings")
 
-# Global linker settings: suppress duplicate libraries warning
+# Global linker settings: suppress warnings and duplicate libraries
 add_link_options(
-    $<$<PLATFORM_ID:Darwin>:-Wl,-no_warn_duplicate_libraries>
-    $<$<PLATFORM_ID:Linux>:-Wl,--allow-multiple-definition>
+    $<$<PLATFORM_ID:Darwin>:-Wl,-w>                          # Suppress all linker warnings on macOS
+    $<$<PLATFORM_ID:Darwin>:-Wl,-no_warn_duplicate_libraries> # Suppress duplicate library warnings on macOS
+    $<$<PLATFORM_ID:Linux>:-Wl,--allow-multiple-definition>  # Allow multiple definitions on Linux
 )
 
 # Build order: thirdparty -> src -> test

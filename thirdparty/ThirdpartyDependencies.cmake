@@ -166,6 +166,12 @@ thirdparty_register_component(snappy
     SHA256 "${SNAPPY_SHA256}"
 )
 
+thirdparty_register_component(openssl
+    VERSION "${OPENSSL_VERSION}"
+    URL "${OPENSSL_URL}"
+    SHA256 "${OPENSSL_SHA256}"
+)
+
 thirdparty_register_component(lz4
     VERSION "${LZ4_VERSION}"
     URL "${LZ4_URL}"

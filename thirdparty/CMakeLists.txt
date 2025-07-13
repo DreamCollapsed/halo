@@ -60,6 +60,12 @@ message(STATUS "===================================")
 
 # Find all packages after they have been built and installed
 find_package(absl REQUIRED CONFIG)
+
+find_package(Boost REQUIRED CONFIG COMPONENTS 
+    system filesystem thread chrono date_time regex program_options 
+    iostreams random context coroutine atomic container log timer
+    serialization math json stacktrace_basic url wave
+    fiber exception graph)
 find_package(GTest REQUIRED CONFIG NAMES GTest gtest)
 find_package(gflags REQUIRED CONFIG)
 find_package(glog REQUIRED CONFIG)
@@ -86,6 +92,30 @@ target_link_libraries(halo_thirdparty
     absl::civil_time
     absl::status
     absl::statusor
+    Boost::system
+    Boost::filesystem
+    Boost::thread
+    Boost::chrono
+    Boost::date_time
+    Boost::regex
+    Boost::program_options
+    Boost::iostreams
+    Boost::random
+    Boost::context
+    Boost::coroutine
+    Boost::atomic
+    Boost::container
+    Boost::log
+    Boost::timer
+    Boost::serialization
+    Boost::math
+    Boost::json
+    Boost::stacktrace_basic
+    Boost::url
+    Boost::wave
+    Boost::fiber
+    Boost::exception
+    Boost::graph
     gflags::gflags
     glog::glog
     double-conversion::double-conversion

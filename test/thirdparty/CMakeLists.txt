@@ -10,6 +10,16 @@ add_module_test(thirdparty_abseil
     TIMEOUT 30
 )
 
+# Boost integration test
+add_module_test(thirdparty_boost
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_boost_integration.cpp"
+    LABELS
+        boost
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
 # GTest/GMock integration test
 add_module_test(thirdparty_gtest
     "${CMAKE_CURRENT_SOURCE_DIR}/test_gtest_integration.cpp"

@@ -157,3 +157,15 @@ add_module_test(thirdparty_openssl
         integration
     TIMEOUT 30
 )
+
+# libevent integration test
+add_module_test(thirdparty_libevent
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_libevent_integration.cpp"
+    LABELS
+        libevent
+        event
+        http
+        thirdparty
+        integration
+    TIMEOUT 30
+)

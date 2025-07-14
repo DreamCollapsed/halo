@@ -200,3 +200,11 @@ thirdparty_register_component(jemalloc
     SHA256 "${JEMALLOC_SHA256}"
     # jemalloc has no dependencies
 )
+
+# Register libevent component
+thirdparty_register_component(libevent
+    VERSION "${LIBEVENT_VERSION}"
+    URL "${LIBEVENT_URL}"
+    SHA256 "${LIBEVENT_SHA256}"
+    DEPENDS_ON openssl
+)

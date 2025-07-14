@@ -56,3 +56,4 @@ thirdparty/*.log
 *.dylib
 *.so
 *.exe
+.roo/mcp.json

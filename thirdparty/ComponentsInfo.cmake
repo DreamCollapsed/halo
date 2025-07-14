@@ -19,9 +19,9 @@ set(FMT_VERSION "11.2.0")
 set(FMT_URL "https://github.com/fmtlib/fmt/archive/refs/tags/${FMT_VERSION}.tar.gz")
 set(FMT_SHA256 "bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af")
 
-set(FOLLY_VERSION "2025.06.23.00")
+set(FOLLY_VERSION "2025.07.07.00")
 set(FOLLY_URL "https://github.com/facebook/folly/archive/refs/tags/v${FOLLY_VERSION}.tar.gz")
-set(FOLLY_SHA256 "fa4cbe9accbb4fc84b40f610a7a3c1617a2ddc55a11acf9353c8edf5fd0e5547")
+set(FOLLY_SHA256 "cdb272fc277a5b0523eb3b1dd11af0d54880ce9ad229e073583d0383373e4819")
 
 set(GFLAGS_VERSION "2.2.2")
 set(GFLAGS_URL "https://github.com/gflags/gflags/archive/refs/tags/v${GFLAGS_VERSION}.tar.gz")

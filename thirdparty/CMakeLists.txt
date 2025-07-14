@@ -76,6 +76,7 @@ find_package(zstd REQUIRED CONFIG)
 find_package(lz4 REQUIRED CONFIG)
 find_package(Snappy REQUIRED CONFIG)
 find_package(OpenSSL REQUIRED CONFIG)
+find_package(Libevent REQUIRED CONFIG COMPONENTS core extra openssl pthreads)
 
 # Create a main third-party interface target for production code
 add_library(halo_thirdparty INTERFACE)
@@ -127,6 +128,10 @@ target_link_libraries(halo_thirdparty
     Snappy::snappy
     OpenSSL::SSL
     OpenSSL::Crypto
+    libevent::core
+    libevent::extra
+    libevent::openssl
+    libevent::pthreads
 )
 
 # Create a test-specific third-party interface target

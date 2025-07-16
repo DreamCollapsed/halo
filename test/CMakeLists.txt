@@ -1,4 +1,3 @@
-
 # Test Configuration for Halo Project
 
 # Enable testing functionality
@@ -12,7 +11,7 @@ file(MAKE_DIRECTORY "${TEST_OUTPUT_DIR}")
 function(add_module_test module_name test_sources)
     set(options PERFORMANCE)
     set(oneValueArgs TIMEOUT WORKING_DIRECTORY)
-    set(multiValueArgs LIBRARIES LABELS DEPENDENCIES)
+    set(multiValueArgs LIBRARIES LABELS DEPENDENCIES LINK_LIBRARIES HEADER_INCLUDES)
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
     # Create test executable
@@ -33,7 +32,12 @@ function(add_module_test module_name test_sources)
         halo::thirdparty
         halo::thirdparty_test
         ${ARG_LIBRARIES}
+        ${ARG_LINK_LIBRARIES}
     )
+    # Apply additional include directories if provided (e.g., Folly headers)
+    if(ARG_HEADER_INCLUDES)
+        target_include_directories(${test_target} PRIVATE ${ARG_HEADER_INCLUDES})
+    endif()
     
     # Add to CTest
     set(test_name "${module_name}_ut")

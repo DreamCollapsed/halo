@@ -1,17 +1,15 @@
 # GoogleTest third-party integration
 # Reference: https://google.github.io/googletest/quickstart-cmake.html
 
-# Check dependencies (gtest has no dependencies)
+# GoogleTest is special because it uses GOOGLETEST_VERSION instead of GTEST_VERSION
 thirdparty_check_dependencies("gtest")
 
-# Set up directories (variables from ComponentsInfo.cmake)
+# Set up directories with special naming
 set(GTEST_NAME "gtest")
 set(GTEST_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/googletest-${GOOGLETEST_VERSION}.tar.gz")
 set(GTEST_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${GTEST_NAME}")
 set(GTEST_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/${GTEST_NAME}")
 set(GTEST_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${GTEST_NAME}")
-
-# Make sure the installation directory is absolute
 get_filename_component(GTEST_INSTALL_DIR "${GTEST_INSTALL_DIR}" ABSOLUTE)
 
 # Download and extract GoogleTest
@@ -35,7 +33,7 @@ thirdparty_cmake_configure("${GTEST_SOURCE_DIR}" "${GTEST_BUILD_DIR}"
         ${_opt_flags}
 )
 
-# Build and install (only when key files don't exist)
+# Build and install
 thirdparty_cmake_install("${GTEST_BUILD_DIR}" "${GTEST_INSTALL_DIR}"
     VALIDATION_FILES
         "${GTEST_INSTALL_DIR}/lib/cmake/GTest/GTestConfig.cmake"
@@ -47,7 +45,7 @@ thirdparty_cmake_install("${GTEST_BUILD_DIR}" "${GTEST_INSTALL_DIR}"
         "${GTEST_INSTALL_DIR}/include/gmock/gmock.h"
 )
 
-# Export GTest to parent scope
+# Export GTest/GMock to global scope
 if(EXISTS "${GTEST_INSTALL_DIR}/lib/cmake/GTest/GTestConfig.cmake")
     list(APPEND CMAKE_PREFIX_PATH "${GTEST_INSTALL_DIR}")
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)

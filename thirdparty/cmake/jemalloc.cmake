@@ -19,14 +19,14 @@
 # Check dependencies using the new dependency management system
 thirdparty_check_dependencies("jemalloc")
 
-# Set up directories (variables from ComponentsInfo.cmake)
-set(JEMALLOC_NAME "jemalloc")
-set(JEMALLOC_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/jemalloc-${JEMALLOC_VERSION}.tar.bz2")
-set(JEMALLOC_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${JEMALLOC_NAME}")
-set(JEMALLOC_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/${JEMALLOC_NAME}")
-set(JEMALLOC_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${JEMALLOC_NAME}")
+# Set up directories using common function
+thirdparty_setup_directories("jemalloc")
 
-# Make sure the installation directory is absolute
+# Override for jemalloc's .tar.bz2 extension
+set(JEMALLOC_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/jemalloc-${JEMALLOC_VERSION}.tar.bz2")
+set(JEMALLOC_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/jemalloc")
+set(JEMALLOC_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/jemalloc")
+set(JEMALLOC_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/jemalloc")
 get_filename_component(JEMALLOC_INSTALL_DIR "${JEMALLOC_INSTALL_DIR}" ABSOLUTE)
 
 # Download and extract jemalloc
@@ -50,9 +50,10 @@ set(JEMALLOC_CONFIG_ARGS
     --enable-utrace
     --enable-xmalloc
     --enable-munmap
+    # drop the default "je_" prefix so public API functions are bare names
+    --with-jemalloc-prefix=
     # NO prefix = drop-in replacement (malloc/free work)
-    # BUT we also get je_* functions automatically
-    # This is the Facebook/Meta approach
+    # This also makes mallocx, rallocx, etc. available without "je_"
     --enable-opt-safety-checks
 )
 
@@ -77,7 +78,11 @@ if(NOT EXISTS "${JEMALLOC_BUILD_DIR}/Makefile")
     
     # Configure with autotools
     execute_process(
-        COMMAND ${JEMALLOC_SOURCE_DIR}/configure ${JEMALLOC_CONFIG_ARGS}
+        COMMAND ${JEMALLOC_SOURCE_DIR}/configure
+        --prefix=${JEMALLOC_INSTALL_DIR}
+        --disable-shared
+        --enable-static
+        --with-private-namespace=je_halo_
         WORKING_DIRECTORY "${JEMALLOC_BUILD_DIR}"
         RESULT_VARIABLE _configure_result
     )

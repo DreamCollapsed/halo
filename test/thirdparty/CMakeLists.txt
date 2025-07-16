@@ -53,6 +53,7 @@ add_module_test(thirdparty_gflags
 )
 
 # glog integration test
+# glog integration test
 add_module_test(thirdparty_glog
     "${CMAKE_CURRENT_SOURCE_DIR}/test_glog_integration.cpp"
     LABELS
@@ -165,6 +166,17 @@ add_module_test(thirdparty_libevent
         libevent
         event
         http
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
+# Folly integration test
+add_module_test(thirdparty_folly
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_folly_integration.cpp"
+    LABELS
+        folly
+        fbstring
         thirdparty
         integration
     TIMEOUT 30

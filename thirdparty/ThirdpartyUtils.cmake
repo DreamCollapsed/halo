@@ -301,3 +301,164 @@ function(thirdparty_setup_ccache)
         message(STATUS "Using ccache for faster recompilation")
     endif()
 endfunction()
+
+# Standardized function for setting up common third-party library directories
+function(thirdparty_setup_directories library_name)
+    string(TOUPPER "${library_name}" _lib_upper)
+    string(REPLACE "-" "_" _lib_upper "${_lib_upper}")
+    
+    # Set standard directory variables
+    set(${_lib_upper}_NAME "${library_name}" PARENT_SCOPE)
+    set(${_lib_upper}_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/${library_name}-${${_lib_upper}_VERSION}.tar.gz" PARENT_SCOPE)
+    set(${_lib_upper}_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${library_name}" PARENT_SCOPE)
+    set(${_lib_upper}_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/${library_name}" PARENT_SCOPE)
+    set(${_lib_upper}_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${library_name}" PARENT_SCOPE)
+    
+    # Make installation directory absolute
+    get_filename_component(_abs_install_dir "${THIRDPARTY_INSTALL_DIR}/${library_name}" ABSOLUTE)
+    set(${_lib_upper}_INSTALL_DIR "${_abs_install_dir}" PARENT_SCOPE)
+endfunction()
+
+# Standardized function for simple CMake-based third-party libraries
+function(thirdparty_build_cmake_library library_name)
+    set(options)
+    set(oneValueArgs EXTRACT_PATTERN)
+    set(multiValueArgs DEPENDENCIES CMAKE_ARGS VALIDATION_FILES)
+    cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+    
+    string(TOUPPER "${library_name}" _lib_upper)
+    string(REPLACE "-" "_" _lib_upper "${_lib_upper}")
+    
+    # Check dependencies and build CMAKE_PREFIX_PATH for dependencies
+    set(_dep_prefix_paths)
+    if(ARG_DEPENDENCIES)
+        string(REPLACE ";" ";" _deps_list "${ARG_DEPENDENCIES}")
+        thirdparty_check_dependencies("${_deps_list}")
+        
+        # Add dependency paths to CMAKE_PREFIX_PATH for this build
+        foreach(_dep IN LISTS _deps_list)
+            set(_dep_install_dir "${THIRDPARTY_INSTALL_DIR}/${_dep}")
+            if(EXISTS "${_dep_install_dir}")
+                list(APPEND _dep_prefix_paths "${_dep_install_dir}")
+            endif()
+        endforeach()
+    else()
+        thirdparty_check_dependencies("${library_name}")
+    endif()
+    
+    # Set up directories
+    thirdparty_setup_directories("${library_name}")
+    
+    # Get directory variables and component info
+    set(_download_file "${THIRDPARTY_DOWNLOAD_DIR}/${library_name}-${${_lib_upper}_VERSION}.tar.gz")
+    set(_source_dir "${THIRDPARTY_SRC_DIR}/${library_name}")
+    set(_build_dir "${THIRDPARTY_BUILD_DIR}/${library_name}")
+    set(_install_dir "${THIRDPARTY_INSTALL_DIR}/${library_name}")
+    get_filename_component(_install_dir "${_install_dir}" ABSOLUTE)
+    
+    # Get component information from ComponentsInfo.cmake
+    if(DEFINED ${_lib_upper}_URL)
+        set(_url "${${_lib_upper}_URL}")
+    else()
+        message(FATAL_ERROR "URL not defined for ${library_name}. Check ComponentsInfo.cmake for ${_lib_upper}_URL")
+    endif()
+    
+    if(DEFINED ${_lib_upper}_SHA256)
+        set(_sha256 "${${_lib_upper}_SHA256}")
+    else()
+        message(FATAL_ERROR "SHA256 not defined for ${library_name}. Check ComponentsInfo.cmake for ${_lib_upper}_SHA256")
+    endif()
+    
+    # Set extract pattern
+    if(ARG_EXTRACT_PATTERN)
+        set(_extract_pattern "${ARG_EXTRACT_PATTERN}")
+    else()
+        set(_extract_pattern "${THIRDPARTY_SRC_DIR}/${library_name}-*")
+    endif()
+    
+    # Download and extract
+    thirdparty_download_and_check("${_url}" "${_download_file}" "${_sha256}")
+    thirdparty_extract_and_rename("${_download_file}" "${_source_dir}" "${_extract_pattern}")
+    
+    # Configure with optimization flags
+    thirdparty_get_optimization_flags(_opt_flags)
+    
+    # Add dependency paths to CMAKE_PREFIX_PATH for the sub-cmake call
+    if(_dep_prefix_paths)
+        list(JOIN _dep_prefix_paths ";" _prefix_path_str)
+        list(APPEND _opt_flags -DCMAKE_PREFIX_PATH=${_prefix_path_str})
+        message(STATUS "[${library_name}] Using dependency paths: ${_prefix_path_str}")
+    endif()
+    
+    list(APPEND _opt_flags
+        -DCMAKE_INSTALL_PREFIX=${_install_dir}
+        ${ARG_CMAKE_ARGS}
+    )
+    
+    # Set default validation files if not provided
+    if(NOT ARG_VALIDATION_FILES)
+        set(ARG_VALIDATION_FILES
+            "${_build_dir}/CMakeCache.txt"
+            "${_build_dir}/Makefile"
+        )
+    endif()
+    
+    # Configure the project
+    thirdparty_cmake_configure("${_source_dir}" "${_build_dir}"
+        VALIDATION_FILES ${ARG_VALIDATION_FILES}
+        CMAKE_ARGS ${_opt_flags}
+    )
+    
+    # Set default install validation files
+    set(_install_validation_files)
+    
+    # Try different common config file patterns
+    set(_possible_configs
+        "${_install_dir}/lib/cmake/${library_name}/${library_name}-config.cmake"
+        "${_install_dir}/lib/cmake/${library_name}/${library_name}Config.cmake"
+        "${_install_dir}/lib/cmake/${_lib_upper}/${_lib_upper}Config.cmake"
+    )
+    
+    # Use provided validation files if available
+    if(ARG_VALIDATION_FILES)
+        list(APPEND _install_validation_files ${ARG_VALIDATION_FILES})
+    endif()
+    
+    # Build and install
+    thirdparty_cmake_install("${_build_dir}" "${_install_dir}"
+        VALIDATION_FILES ${_install_validation_files}
+    )
+    
+    # Export to global scope - try different config file patterns
+    set(_config_found FALSE)
+    foreach(_config_path IN LISTS _possible_configs)
+        if(EXISTS "${_config_path}")
+            list(APPEND CMAKE_PREFIX_PATH "${_install_dir}")
+            set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+            message(STATUS "Added ${library_name} to CMAKE_PREFIX_PATH: ${_install_dir}")
+            set(_config_found TRUE)
+            break()
+        endif()
+    endforeach()
+    
+    # If standard patterns didn't work, search for any config file
+    if(NOT _config_found)
+        file(GLOB_RECURSE _all_configs "${_install_dir}/lib/cmake/*/*config.cmake")
+        file(GLOB_RECURSE _all_configs_cap "${_install_dir}/lib/cmake/*/*Config.cmake")
+        list(APPEND _all_configs ${_all_configs_cap})
+        
+        if(_all_configs)
+            list(GET _all_configs 0 _found_config)
+            list(APPEND CMAKE_PREFIX_PATH "${_install_dir}")
+            set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+            message(STATUS "Added ${library_name} to CMAKE_PREFIX_PATH: ${_install_dir} (found config: ${_found_config})")
+            set(_config_found TRUE)
+        endif()
+    endif()
+    
+    if(NOT _config_found)
+        message(STATUS "${library_name} config file not found, but ${_install_dir} added to CMAKE_PREFIX_PATH")
+        list(APPEND CMAKE_PREFIX_PATH "${_install_dir}")
+        set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+    endif()
+endfunction()

@@ -36,14 +36,14 @@ TEST_F(OpenSSLIntegrationTest, OpenSSLVersionTest) {
   const char* version_text = OpenSSL_version(OPENSSL_VERSION);
   EXPECT_TRUE(version_text != nullptr);
 
-  // Test that we have the expected version (3.5.1 as specified in
-  // ComponentsInfo.cmake)
+  // Test that we have the expected version (1.1.1w as specified in
+  // openssl.cmake)
   std::string version_str(version_text);
-  EXPECT_TRUE(version_str.find("3.5.1") != std::string::npos);
+  EXPECT_TRUE(version_str.find("1.1.1") != std::string::npos);
 
   // Test numeric version
   unsigned long version_num = OpenSSL_version_num();
-  EXPECT_GT(version_num, 0x30050100UL);  // OpenSSL 3.5.1
+  EXPECT_GT(version_num, 0x1010100FUL);  // OpenSSL 1.1.1w
 }
 
 // Test random number generation

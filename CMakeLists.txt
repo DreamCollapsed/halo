@@ -113,9 +113,6 @@ set(THIRDPARTY_SRC_DIR ${THIRDPARTY_ROOT}/src)
 set(THIRDPARTY_BUILD_DIR ${THIRDPARTY_ROOT}/builds)
 set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_ROOT}/installed)
 
-# Include required modules
-include(FetchContent)
-
 # Suppress CMake developer warnings (including third-party library warnings)
 set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON CACHE BOOL "Suppress CMake developer warnings")
 set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "Suppress deprecated warnings")
@@ -129,6 +126,21 @@ add_link_options(
 
 # Build order: thirdparty -> src -> test
 add_subdirectory(thirdparty)
+
+# Link Folly to main project targets
+if(TARGET folly)
+    # Get all executable and library targets in src/ directory
+    get_property(_all_targets DIRECTORY src PROPERTY BUILDSYSTEM_TARGETS)
+    
+    # Link Folly to all targets except thirdparty_test
+    foreach(_target IN LISTS _all_targets)
+        if(NOT "${_target}" STREQUAL "thirdparty_test")
+            target_link_libraries(${_target} PRIVATE folly)
+            message(STATUS "Linking Folly to target: ${_target}")
+        endif()
+    endforeach()
+endif()
+
 add_subdirectory(src)
 add_subdirectory(test)
 

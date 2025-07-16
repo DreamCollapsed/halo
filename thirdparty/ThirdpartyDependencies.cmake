@@ -208,3 +208,11 @@ thirdparty_register_component(libevent
     SHA256 "${LIBEVENT_SHA256}"
     DEPENDS_ON openssl
 )
+
+# Register folly component
+thirdparty_register_component(folly
+    VERSION "${FOLLY_VERSION}"
+    URL "${FOLLY_URL}"
+    SHA256 "${FOLLY_SHA256}"
+    DEPENDS_ON gflags glog double-conversion libevent openssl zstd lz4 snappy boost
+)

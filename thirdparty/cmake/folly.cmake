@@ -116,50 +116,62 @@ set(_opt_flags
     -DCMAKE_INSTALL_PREFIX=${FOLLY_INSTALL_DIR}
 
     # --- Dependency Discovery Sandbox ---
-    # Force find_* commands to look ONLY in our installed directory.
     -DCMAKE_FIND_ROOT_PATH=${THIRDPARTY_INSTALL_DIR}
     -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY
     -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH
     -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
     
-    # Add jemalloc include path and define symbol mappings for the compiler.
-    # Folly's build system automatically looks for prefixed jemalloc symbols (je_*).
-    # We must define these macros to map the unprefixed calls in Folly's code
-    # to the prefixed symbols that its own build system expects.
-    # Use CMAKE_REQUIRED_INCLUDES for header detection and CMAKE_CXX_FLAGS for symbols
-    -DCMAKE_REQUIRED_INCLUDES=${THIRDPARTY_INSTALL_DIR}/jemalloc/include
-    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -Dmallocx=je_mallocx\ -Drallocx=je_rallocx\ -Dxallocx=je_xallocx\ -Dsallocx=je_sallocx\ -Ddallocx=je_dallocx\ -Dsdallocx=je_sdallocx\ -Dnallocx=je_nallocx\ -Dmallctl=je_mallctl\ -Dmallctlnametomib=je_mallctlnametomib\ -Dmallctlbymib=je_mallctlbymib
-
-    # --- Precise Dependency Injection (Modern `Config` mode) ---
-    # For packages folly finds with `find_package(... CONFIG)`
+    # BOOST
+    -DBOOST_LINK_STATIC:STRING=ON
+    -DBoost_USE_STATIC_RUNTIME:BOOL=ON
     -DBoost_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/boost/lib/cmake/Boost-1.88.0
+
+    # FMT
     -Dfmt_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/fmt/lib/cmake/fmt
 
-    # --- Precise Dependency Injection (Legacy `Module` mode) ---
-    # For packages folly finds with `find_package(... MODULE)`, we must provide
-    # the old-style hint variables that their respective Find*.cmake scripts expect.
+    # DOUBLE_CONVERSION
     -DDOUBLE_CONVERSION_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/double-conversion/include
     -DDOUBLE_CONVERSION_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/double-conversion/lib/libdouble-conversion.a
+
+    # GFLAGS
     -DGFLAGS_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/gflags/include
     -DGFLAGS_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/gflags/lib/libgflags.a
+
+    # GLOG
     -DGLOG_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/glog/include
     -DGLOG_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/glog/lib/libglog.a
+
+    # LIBEVENT
     -DLIBEVENT_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/libevent/include
     -DLIBEVENT_LIB:FILEPATH=${THIRDPARTY_INSTALL_DIR}/libevent/lib/libevent.a
+
+    # OPENSSL
     -DOPENSSL_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/openssl/include
     -DOPENSSL_SSL_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
     -DOPENSSL_CRYPTO_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
+
+    # ZSTD
     -DZSTD_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/zstd/include
     -DZSTD_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/zstd/lib/libzstd.a
+
+    # LZ4
     -DLZ4_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/lz4/include
     -DLZ4_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/lz4/lib/liblz4.a
+
+    # SNAPPY
     -DSNAPPY_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/snappy/include
     -DSNAPPY_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/snappy/lib/libsnappy.a
+
+    # FASTFLOAT
     -DFASTFLOAT_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/fast-float/include
 
-    # --- Boost Variant Control ---
-    -DBOOST_LINK_STATIC:STRING=ON
-    -DBoost_USE_STATIC_RUNTIME:BOOL=ON
+    # Jemalloc
+    -DCMAKE_REQUIRED_INCLUDES=${THIRDPARTY_INSTALL_DIR}/jemalloc/include
+    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -Dmallocx=je_mallocx\ -Drallocx=je_rallocx\ -Dxallocx=je_xallocx\ -Dsallocx=je_sallocx\ -Ddallocx=je_dallocx\ -Dsdallocx=je_sdallocx\ -Dnallocx=je_nallocx\ -Dmallctl=je_mallctl\ -Dmallctlnametomib=je_mallctlnametomib\ -Dmallctlbymib=je_mallctlbymib
+    -DFOLLY_USE_JEMALLOC:BOOL=ON
+    -DJEMALLOC_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/include
+    -DJEMALLOC_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/lib/libjemalloc.a
+    -DCMAKE_EXE_LINKER_FLAGS=-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib\ -ljemalloc
 
     # --- Folly Specifics ---
     -DFOLLY_HAVE_UNALIGNED_ACCESS:BOOL=ON
@@ -167,13 +179,6 @@ set(_opt_flags
     -DFOLLY_HAVE_LIBGFLAGS:BOOL=ON
     -DFOLLY_HAVE_LIBGLOG:BOOL=ON
     -DFOLLY_HAVE_BACKTRACE:BOOL=ON
-    # Enable jemalloc support since main project uses drop-in jemalloc
-    -DFOLLY_USE_JEMALLOC:BOOL=ON
-    # jemalloc include and library paths
-    -DJEMALLOC_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/include
-    -DJEMALLOC_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/lib/libjemalloc.a
-    # Ensure jemalloc is linked into all executables
-    -DCMAKE_EXE_LINKER_FLAGS=-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib\ -ljemalloc
 )
 
 thirdparty_cmake_configure("${FOLLY_SOURCE_DIR}" "${FOLLY_BUILD_DIR}"
@@ -190,3 +195,15 @@ thirdparty_cmake_install("${FOLLY_BUILD_DIR}" "${FOLLY_INSTALL_DIR}"
         "${FOLLY_INSTALL_DIR}/lib/libfolly.a"
         "${FOLLY_INSTALL_DIR}/include/folly/folly-config.h"
 )
+
+# Export Folly configuration for parent scope
+set(FOLLY_INSTALL_DIR "${FOLLY_INSTALL_DIR}" PARENT_SCOPE)
+set(Folly_DIR "${FOLLY_INSTALL_DIR}/lib/cmake/folly" CACHE PATH "Path to installed Folly cmake config" FORCE)
+
+# Import Folly package immediately
+if(EXISTS "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake")
+    find_package(Folly REQUIRED CONFIG QUIET)
+    message(STATUS "Folly found and imported: ${FOLLY_INSTALL_DIR}")
+else()
+    message(WARNING "Folly cmake config not found at ${FOLLY_INSTALL_DIR}")
+endif()

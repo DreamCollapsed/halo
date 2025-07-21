@@ -25,6 +25,10 @@ if(EXISTS "${SNAPPY_INSTALL_DIR}/lib/cmake/Snappy/SnappyConfig.cmake")
     list(APPEND CMAKE_PREFIX_PATH "${SNAPPY_INSTALL_DIR}")
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
     set(Snappy_DIR "${SNAPPY_INSTALL_DIR}/lib/cmake/Snappy" CACHE PATH "Path to installed snappy cmake config" FORCE)
+    
+    # Import snappy package immediately
+    find_package(Snappy REQUIRED CONFIG QUIET)
+    
     message(STATUS "snappy found and exported globally: ${SNAPPY_INSTALL_DIR}")
 else()
     message(WARNING "snappy installation not found at ${SNAPPY_INSTALL_DIR}")

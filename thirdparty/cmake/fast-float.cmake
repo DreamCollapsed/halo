@@ -18,6 +18,10 @@ get_filename_component(FAST_FLOAT_INSTALL_DIR "${FAST_FLOAT_INSTALL_DIR}" ABSOLU
 
 if(EXISTS "${FAST_FLOAT_INSTALL_DIR}/share/cmake/FastFloat/FastFloatConfig.cmake")
     set(FastFloat_DIR "${FAST_FLOAT_INSTALL_DIR}/share/cmake/FastFloat" CACHE PATH "Path to installed fast-float cmake config" FORCE)
+    
+    # Import fast-float package immediately
+    find_package(FastFloat REQUIRED CONFIG QUIET)
+    
     message(STATUS "fast-float found and exported globally: ${FAST_FLOAT_INSTALL_DIR}")
 else()
     message(WARNING "fast-float installation not found at ${FAST_FLOAT_INSTALL_DIR}")

@@ -321,8 +321,8 @@ endfunction()
 
 # Standardized function for simple CMake-based third-party libraries
 function(thirdparty_build_cmake_library library_name)
-    set(options)
-    set(oneValueArgs EXTRACT_PATTERN)
+    set(options FORCE_CONFIGURE)
+    set(oneValueArgs EXTRACT_PATTERN SOURCE_SUBDIR PRE_BUILD_HOOK)
     set(multiValueArgs DEPENDENCIES CMAKE_ARGS VALIDATION_FILES)
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
@@ -350,7 +350,9 @@ function(thirdparty_build_cmake_library library_name)
     thirdparty_setup_directories("${library_name}")
     
     # Get directory variables and component info
-    set(_download_file "${THIRDPARTY_DOWNLOAD_DIR}/${library_name}-${${_lib_upper}_VERSION}.tar.gz")
+    # Extract filename from URL automatically
+    get_filename_component(_url_filename "${${_lib_upper}_URL}" NAME)
+    set(_download_file "${THIRDPARTY_DOWNLOAD_DIR}/${_url_filename}")
     set(_source_dir "${THIRDPARTY_SRC_DIR}/${library_name}")
     set(_build_dir "${THIRDPARTY_BUILD_DIR}/${library_name}")
     set(_install_dir "${THIRDPARTY_INSTALL_DIR}/${library_name}")
@@ -380,6 +382,18 @@ function(thirdparty_build_cmake_library library_name)
     thirdparty_download_and_check("${_url}" "${_download_file}" "${_sha256}")
     thirdparty_extract_and_rename("${_download_file}" "${_source_dir}" "${_extract_pattern}")
     
+    # Execute PRE_BUILD_HOOK if specified
+    if(ARG_PRE_BUILD_HOOK)
+        cmake_language(CALL ${ARG_PRE_BUILD_HOOK})
+    endif()
+    
+    # Handle SOURCE_SUBDIR if specified
+    if(ARG_SOURCE_SUBDIR)
+        set(_cmake_source_dir "${_source_dir}/${ARG_SOURCE_SUBDIR}")
+    else()
+        set(_cmake_source_dir "${_source_dir}")
+    endif()
+    
     # Configure with optimization flags
     thirdparty_get_optimization_flags(_opt_flags)
     
@@ -404,10 +418,18 @@ function(thirdparty_build_cmake_library library_name)
     endif()
     
     # Configure the project
-    thirdparty_cmake_configure("${_source_dir}" "${_build_dir}"
-        VALIDATION_FILES ${ARG_VALIDATION_FILES}
-        CMAKE_ARGS ${_opt_flags}
-    )
+    if(ARG_FORCE_CONFIGURE)
+        thirdparty_cmake_configure("${_cmake_source_dir}" "${_build_dir}"
+            FORCE_CONFIGURE
+            VALIDATION_FILES ${ARG_VALIDATION_FILES}
+            CMAKE_ARGS ${_opt_flags}
+        )
+    else()
+        thirdparty_cmake_configure("${_cmake_source_dir}" "${_build_dir}"
+            VALIDATION_FILES ${ARG_VALIDATION_FILES}
+            CMAKE_ARGS ${_opt_flags}
+        )
+    endif()
     
     # Set default install validation files
     set(_install_validation_files)

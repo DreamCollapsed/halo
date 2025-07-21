@@ -1,38 +1,27 @@
 # Define base paths relative to current directory
 set(THIRDPARTY_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Force Boost to be linked statically throughout this project.
-# This is set as a CACHE variable to ensure it's visible in all scopes,
-# especially for the find_package call at the end of this file.
-set(Boost_USE_STATIC_LIBS ON CACHE BOOL "Force static linking for Boost")
-set(Boost_USE_STATIC_RUNTIME ON CACHE BOOL "Force static runtime for Boost")
 set(THIRDPARTY_DOWNLOAD_DIR ${THIRDPARTY_BASE_DIR}/downloads)
 set(THIRDPARTY_SRC_DIR ${THIRDPARTY_BASE_DIR}/src)
 set(THIRDPARTY_BUILD_DIR ${THIRDPARTY_BASE_DIR}/builds)
 set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_BASE_DIR}/installed)
 
-# Load common component information and utility functions
 include(ComponentsInfo.cmake)
 include(ThirdpartyUtils.cmake)
 include(ThirdpartyDependencies.cmake)
 
-# Setup build optimizations
 thirdparty_setup_ccache()
 
-# Create required directories
 file(MAKE_DIRECTORY ${THIRDPARTY_DOWNLOAD_DIR})
 file(MAKE_DIRECTORY ${THIRDPARTY_SRC_DIR})
 file(MAKE_DIRECTORY ${THIRDPARTY_BUILD_DIR})
 file(MAKE_DIRECTORY ${THIRDPARTY_INSTALL_DIR})
 
-# Show dependency information
 thirdparty_show_dependencies()
 
-# Get the correct build order based on dependencies
 thirdparty_compute_build_order(_build_order)
 message(STATUS "Building components in order: ${_build_order}")
 
-# Build components in dependency order with performance monitoring
 set(_build_start_time "${CMAKE_CURRENT_LIST_FILE}")
 foreach(_component IN LISTS _build_order)
     message(STATUS "Processing component: ${_component}")
@@ -61,43 +50,8 @@ else()
     message(STATUS "Ccache: NOT FOUND")
 endif()
 
-message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "CXX Compiler: ${CMAKE_CXX_COMPILER_ID}")
-if(CMAKE_CXX_FLAGS_RELEASE)
-    message(STATUS "Optimization flags: ${CMAKE_CXX_FLAGS_RELEASE}")
-endif()
-message(STATUS "===================================")
-
-# Create centralized third-party targets
-# This eliminates the need for find_package calls throughout the project
-
-# Find all packages after they have been built and installed
-find_package(absl REQUIRED CONFIG)
-find_package(Boost REQUIRED CONFIG COMPONENTS 
-    system filesystem thread chrono date_time regex program_options 
-    iostreams random context coroutine atomic container log timer
-    serialization math json stacktrace_basic url wave
-    fiber exception graph)
-find_package(GTest REQUIRED CONFIG NAMES GTest gtest)
-find_package(gflags REQUIRED CONFIG)
-find_package(glog REQUIRED CONFIG)
-find_package(double-conversion REQUIRED CONFIG)
-find_package(FastFloat REQUIRED CONFIG)
-find_package(fmt REQUIRED CONFIG)
-find_package(zstd REQUIRED CONFIG)
-find_package(lz4 REQUIRED CONFIG)
-find_package(Snappy REQUIRED CONFIG)
-find_package(OpenSSL REQUIRED CONFIG)
-find_package(Libevent REQUIRED CONFIG COMPONENTS core extra openssl pthreads)
-find_package(Folly REQUIRED CONFIG
-    PATHS ${THIRDPARTY_INSTALL_DIR}/folly/lib/cmake/folly
-)
-
-# Create a main third-party interface target for production code
 add_library(halo_thirdparty INTERFACE)
 add_library(halo::thirdparty ALIAS halo_thirdparty)
-
-# Link core libraries needed by production code (static versions)
 target_link_libraries(halo_thirdparty
     INTERFACE
     absl::strings
@@ -137,7 +91,7 @@ target_link_libraries(halo_thirdparty
     double-conversion::double-conversion
     FastFloat::fast_float
     fmt::fmt
-    jemalloc::jemalloc_pic  # Use PIC version for compatibility with CMAKE_POSITION_INDEPENDENT_CODE=ON
+    jemalloc::jemalloc_pic
     zstd::libzstd
     LZ4::lz4
     Snappy::snappy
@@ -150,11 +104,8 @@ target_link_libraries(halo_thirdparty
     Folly::folly
 )
 
-# Create a test-specific third-party interface target
 add_library(halo_thirdparty_test INTERFACE)
 add_library(halo::thirdparty_test ALIAS halo_thirdparty_test)
-
-# Link all libraries needed by tests (static versions)
 target_link_libraries(halo_thirdparty_test
     INTERFACE
     GTest::gtest
@@ -163,11 +114,5 @@ target_link_libraries(halo_thirdparty_test
     GTest::gmock_main
 )
 
-# Export targets to parent scope for global availability
 set_target_properties(halo_thirdparty PROPERTIES EXPORT_NAME thirdparty)
 set_target_properties(halo_thirdparty_test PROPERTIES EXPORT_NAME thirdparty_test)
-
-# Provide alias for legacy gflags target name used by Folly
-if(TARGET gflags::gflags)
-  add_library(gflags_nothreads_static ALIAS gflags::gflags)
-endif()

@@ -21,6 +21,10 @@ get_filename_component(FMT_INSTALL_DIR "${FMT_INSTALL_DIR}" ABSOLUTE)
 
 if(EXISTS "${FMT_INSTALL_DIR}/lib/cmake/fmt/fmt-config.cmake")
     set(fmt_DIR "${FMT_INSTALL_DIR}/lib/cmake/fmt" CACHE PATH "Path to installed fmt cmake config" FORCE)
+    
+    # Import fmt package immediately
+    find_package(fmt REQUIRED CONFIG QUIET)
+    
     message(STATUS "fmt found and exported globally: ${FMT_INSTALL_DIR}")
 else()
     message(WARNING "fmt installation not found at ${FMT_INSTALL_DIR}")

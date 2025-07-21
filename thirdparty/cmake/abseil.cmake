@@ -18,6 +18,10 @@ get_filename_component(ABSEIL_INSTALL_DIR "${ABSEIL_INSTALL_DIR}" ABSOLUTE)
 
 if(EXISTS "${ABSEIL_INSTALL_DIR}/lib/cmake/absl/abslConfig.cmake")
     set(absl_DIR "${ABSEIL_INSTALL_DIR}/lib/cmake/absl" CACHE PATH "Path to installed abseil cmake config" FORCE)
+    
+    # Import abseil package immediately
+    find_package(absl REQUIRED CONFIG QUIET)
+    
     message(STATUS "Abseil found and exported globally: ${ABSEIL_INSTALL_DIR}")
 else()
     message(WARNING "Abseil installation not found at ${ABSEIL_INSTALL_DIR}")

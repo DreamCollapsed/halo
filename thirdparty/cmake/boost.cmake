@@ -5,6 +5,12 @@
 # This configuration provides Boost static libraries using the official b2 build system
 # and utilizes the official CMake configuration files provided by Boost.
 
+# Force Boost to be linked statically throughout this project.
+# This is set as a CACHE variable to ensure it's visible in all scopes,
+# especially for the find_package call at the end of this file.
+set(Boost_USE_STATIC_LIBS ON CACHE BOOL "Force static linking for Boost")
+set(Boost_USE_STATIC_RUNTIME ON CACHE BOOL "Force static runtime for Boost")
+
 thirdparty_check_dependencies("boost")
 
 # Set up directories
@@ -134,6 +140,14 @@ if(EXISTS "${BOOST_INSTALL_DIR}/lib/cmake/Boost-${BOOST_VERSION}/BoostConfig.cma
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
     set(Boost_DIR "${BOOST_INSTALL_DIR}/lib/cmake/Boost-${BOOST_VERSION}" CACHE PATH "Boost cmake config directory" FORCE)
     set(Boost_USE_STATIC_LIBS ON PARENT_SCOPE)
+    
+    # Import Boost package immediately with all required components
+    find_package(Boost REQUIRED CONFIG COMPONENTS 
+        system filesystem thread chrono date_time regex program_options 
+        iostreams random context coroutine atomic container log timer
+        serialization math json stacktrace_basic url wave
+        fiber exception graph QUIET)
+        
     message(STATUS "Boost found and exported globally: ${BOOST_INSTALL_DIR}")
 else()
     message(FATAL_ERROR "Boost configuration failed - missing config files")

@@ -173,6 +173,10 @@ if(EXISTS "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL/OpenSSLConfig.cmake")
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
     set(OpenSSL_DIR "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL" CACHE PATH "OpenSSL cmake config directory" FORCE)
     set(OPENSSL_FOUND TRUE PARENT_SCOPE)
+    
+    # Import OpenSSL package immediately
+    find_package(OpenSSL REQUIRED CONFIG QUIET)
+    
     message(STATUS "OpenSSL found and exported globally: ${OPENSSL_INSTALL_DIR}")
 else()
     message(FATAL_ERROR "OpenSSL configuration failed - missing config files")

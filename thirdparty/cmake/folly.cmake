@@ -107,20 +107,11 @@ message(STATUS "Appended jemalloc compile definitions to folly-deps.cmake")
 
 # Configure folly with CMake and optimization flags.
 # This is a hybrid approach to satisfy folly's mixed use of modern and legacy
-# find_package modes.
-set(_opt_flags
-    # --- Basic Build Setup ---
-    -DCMAKE_BUILD_TYPE=Release
-    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
-    -DBUILD_SHARED_LIBS=OFF
+thirdparty_get_optimization_flags(_opt_flags COMPONENT folly)
+list(APPEND _opt_flags
+    # Override install prefix
     -DCMAKE_INSTALL_PREFIX=${FOLLY_INSTALL_DIR}
 
-    # --- Dependency Discovery Sandbox ---
-    -DCMAKE_FIND_ROOT_PATH=${THIRDPARTY_INSTALL_DIR}
-    -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY
-    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH
-    -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
-    
     # BOOST
     -DBOOST_LINK_STATIC:STRING=ON
     -DBoost_USE_STATIC_RUNTIME:BOOL=ON

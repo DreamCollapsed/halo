@@ -24,104 +24,19 @@ thirdparty_setup_directories("jemalloc")
 
 # Override for jemalloc's .tar.bz2 extension
 set(JEMALLOC_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/jemalloc-${JEMALLOC_VERSION}.tar.bz2")
-set(JEMALLOC_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/jemalloc")
-set(JEMALLOC_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/jemalloc")
-set(JEMALLOC_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/jemalloc")
 get_filename_component(JEMALLOC_INSTALL_DIR "${JEMALLOC_INSTALL_DIR}" ABSOLUTE)
 
-# Download and extract jemalloc
-thirdparty_download_and_check("${JEMALLOC_URL}" "${JEMALLOC_DOWNLOAD_FILE}" "${JEMALLOC_SHA256}")
-
-if(NOT EXISTS "${JEMALLOC_SOURCE_DIR}/configure")
-    thirdparty_extract_and_rename("${JEMALLOC_DOWNLOAD_FILE}" "${JEMALLOC_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/jemalloc-*")
-endif()
-
-# Configure jemalloc with autotools (jemalloc doesn't use CMake)
-# Enable BOTH drop-in replacement AND public API (like Facebook's usage)
-set(JEMALLOC_CONFIG_ARGS
-    --prefix=${JEMALLOC_INSTALL_DIR}
-    --enable-static
-    --disable-shared
-    --disable-debug
-    --enable-prof
-    --enable-prof-libunwind
-    --enable-stats
-    --enable-fill
-    --enable-utrace
-    --enable-xmalloc
-    --enable-munmap
-    # drop the default "je_" prefix so public API functions are bare names
-    --with-jemalloc-prefix=
-    # NO prefix = drop-in replacement (malloc/free work)
-    # This also makes mallocx, rallocx, etc. available without "je_"
-    --enable-opt-safety-checks
-)
-
-# Configure jemalloc
-if(NOT EXISTS "${JEMALLOC_BUILD_DIR}/Makefile")
-    message(STATUS "Configuring jemalloc...")
-    
-    # Create build directory
-    file(MAKE_DIRECTORY "${JEMALLOC_BUILD_DIR}")
-    
-    # Run autogen.sh if needed
-    if(EXISTS "${JEMALLOC_SOURCE_DIR}/autogen.sh")
-        execute_process(
-            COMMAND bash autogen.sh
-            WORKING_DIRECTORY "${JEMALLOC_SOURCE_DIR}"
-            RESULT_VARIABLE _autogen_result
-        )
-        if(NOT _autogen_result EQUAL 0)
-            message(FATAL_ERROR "Failed to run autogen.sh for jemalloc")
-        endif()
-    endif()
-    
-    # Configure with autotools
-    execute_process(
-        COMMAND ${JEMALLOC_SOURCE_DIR}/configure
-        --prefix=${JEMALLOC_INSTALL_DIR}
+# Build and install jemalloc using the generic autotools function
+thirdparty_build_autotools_library(jemalloc
+    CONFIGURE_ARGS
         --disable-shared
         --enable-static
         --with-private-namespace=je_halo_
-        WORKING_DIRECTORY "${JEMALLOC_BUILD_DIR}"
-        RESULT_VARIABLE _configure_result
-    )
-    
-    if(NOT _configure_result EQUAL 0)
-        message(FATAL_ERROR "Failed to configure jemalloc")
-    endif()
-    
-    message(STATUS "jemalloc configured successfully")
-endif()
-
-# Build jemalloc
-if(NOT EXISTS "${JEMALLOC_INSTALL_DIR}/lib/libjemalloc.a")
-    message(STATUS "Building jemalloc...")
-    
-    # Build
-    execute_process(
-        COMMAND make -j${CMAKE_BUILD_PARALLEL_LEVEL}
-        WORKING_DIRECTORY "${JEMALLOC_BUILD_DIR}"
-        RESULT_VARIABLE _build_result
-    )
-    
-    if(NOT _build_result EQUAL 0)
-        message(FATAL_ERROR "Failed to build jemalloc")
-    endif()
-    
-    # Install
-    execute_process(
-        COMMAND make install
-        WORKING_DIRECTORY "${JEMALLOC_BUILD_DIR}"
-        RESULT_VARIABLE _install_result
-    )
-    
-    if(NOT _install_result EQUAL 0)
-        message(FATAL_ERROR "Failed to install jemalloc")
-    endif()
-    
-    message(STATUS "jemalloc built and installed successfully")
-endif()
+    VALIDATION_FILES
+        "${JEMALLOC_INSTALL_DIR}/lib/libjemalloc.a"
+        "${JEMALLOC_INSTALL_DIR}/lib/libjemalloc_pic.a"
+        "${JEMALLOC_INSTALL_DIR}/include/jemalloc/jemalloc.h"
+)
 
 # Validate installation
 if(NOT EXISTS "${JEMALLOC_INSTALL_DIR}/lib/libjemalloc.a")

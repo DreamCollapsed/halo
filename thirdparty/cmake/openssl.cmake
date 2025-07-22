@@ -86,86 +86,49 @@ set(OPENSSL_SSL_LIBRARIES OpenSSL::SSL)
     message(STATUS "Manually generated modern CMake files for OpenSSL.")
 endfunction()
 
-# Custom OpenSSL configuration and build function
-function(openssl_configure_and_build)
-    if(APPLE)
-        if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
-            set(OPENSSL_PLATFORM "darwin64-arm64-cc")
-        else()
-            set(OPENSSL_PLATFORM "darwin64-x86_64-cc")
-        endif()
-    elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        set(OPENSSL_PLATFORM "linux-x86_64")
+# Determine platform-specific configuration for OpenSSL
+if(APPLE)
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+        set(_openssl_platform "darwin64-arm64-cc")
     else()
-        message(FATAL_ERROR "Unsupported platform for OpenSSL: ${CMAKE_SYSTEM_NAME}")
+        set(_openssl_platform "darwin64-x86_64-cc")
     endif()
-
-    set(OPENSSL_CONFIG_OPTIONS
-        --prefix=${OPENSSL_INSTALL_DIR}
-        --openssldir=${OPENSSL_INSTALL_DIR}/ssl
-        no-shared no-tests no-engine no-deprecated
-        -fPIC
-    )
-    if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-        list(APPEND OPENSSL_CONFIG_OPTIONS -O3)
-    endif()
-
-    message(STATUS "Configuring OpenSSL with platform: ${OPENSSL_PLATFORM}")
-    execute_process(
-        COMMAND ./Configure ${OPENSSL_PLATFORM} ${OPENSSL_CONFIG_OPTIONS}
-        WORKING_DIRECTORY ${OPENSSL_SOURCE_DIR}
-        RESULT_VARIABLE result
-    )
-    if(NOT result EQUAL 0)
-        message(FATAL_ERROR "OpenSSL configuration failed.")
-    endif()
-
-    message(STATUS "Building OpenSSL libraries...")
-    execute_process(
-        COMMAND make -j${CMAKE_BUILD_PARALLEL_LEVEL}
-        WORKING_DIRECTORY ${OPENSSL_SOURCE_DIR}
-        RESULT_VARIABLE result
-    )
-    if(NOT result EQUAL 0)
-        message(FATAL_ERROR "OpenSSL build failed.")
-    endif()
-
-    message(STATUS "Installing OpenSSL...")
-    execute_process(
-        COMMAND make install_sw
-        WORKING_DIRECTORY ${OPENSSL_SOURCE_DIR}
-        RESULT_VARIABLE result
-    )
-    if(NOT result EQUAL 0)
-        message(FATAL_ERROR "OpenSSL installation failed.")
-    endif()
-
-    # Manually generate the CMake config files
-    openssl_create_cmake_config()
-endfunction()
-
-# Check if OpenSSL is already built and installed
-set(OPENSSL_VALIDATION_FILES
-    "${OPENSSL_INSTALL_DIR}/lib/libssl.a"
-    "${OPENSSL_INSTALL_DIR}/lib/libcrypto.a"
-    "${OPENSSL_INSTALL_DIR}/include/openssl/ssl.h"
-    "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL/OpenSSLConfig.cmake"
-)
-
-set(_all_files_exist TRUE)
-foreach(_file IN LISTS OPENSSL_VALIDATION_FILES)
-    if(NOT EXISTS "${_file}")
-        set(_all_files_exist FALSE)
-        break()
-    endif()
-endforeach()
-
-if(NOT _all_files_exist)
-    message(STATUS "OpenSSL not found or incomplete, building...")
-    openssl_configure_and_build()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(_openssl_platform "linux-x86_64")
 else()
-    message(STATUS "OpenSSL already built and configured")
+    message(FATAL_ERROR "Unsupported platform for OpenSSL: ${CMAKE_SYSTEM_NAME}")
 endif()
+
+# Define configuration options
+set(_openssl_config_options
+    ${_openssl_platform}
+    --openssldir=${OPENSSL_INSTALL_DIR}/ssl
+    no-shared
+    no-tests
+    no-engine
+    no-deprecated
+    -fPIC
+)
+if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+    list(APPEND _openssl_config_options -O3)
+endif()
+
+# Build and install OpenSSL using the generic autotools function
+thirdparty_build_autotools_library(openssl
+    BUILD_IN_SOURCE TRUE
+    CONFIGURE_SCRIPT_NAME "Configure"
+    CONFIGURE_ARGS
+        ${_openssl_config_options}
+    INSTALL_ARGS
+        "install_sw"
+    POST_INSTALL_COMMAND
+        openssl_create_cmake_config
+    VALIDATION_FILES
+        "${OPENSSL_INSTALL_DIR}/lib/libssl.a"
+        "${OPENSSL_INSTALL_DIR}/lib/libcrypto.a"
+        "${OPENSSL_INSTALL_DIR}/include/openssl/ssl.h"
+        "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL/OpenSSLConfig.cmake"
+)
 
 # Export OpenSSL following project standards
 if(EXISTS "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL/OpenSSLConfig.cmake")

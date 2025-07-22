@@ -2,22 +2,17 @@
 # Reference: https://github.com/lz4/lz4
 
 # Use the standardized build function for lz4
-# Note: lz4 has CMake files in build/cmake subdirectory and depends on zstd
+# Note: lz4 has CMake files in build/cmake subdirectory
 thirdparty_build_cmake_library("lz4"
-    DEPENDENCIES "zstd"
     SOURCE_SUBDIR "build/cmake"
+    VALIDATION_FILES
+        "${LZ4_INSTALL_DIR}/lib/liblz4.a"
+        "${LZ4_INSTALL_DIR}/include/lz4.h"
     CMAKE_ARGS
         -DLZ4_BUILD_CLI=OFF
-        -DLZ4_BUILD_LEGACY_LZ4C=OFF
-        -DLZ4_BUNDLED_MODE=OFF
-        -DLZ4_POSITION_INDEPENDENT_LIB=ON
-        -DLZ4_BUILD_TESTS=OFF
-        -DZSTD_ROOT=${THIRDPARTY_INSTALL_DIR}/zstd
-        -DZSTD_DIR=${THIRDPARTY_INSTALL_DIR}/zstd/lib/cmake/zstd
-    VALIDATION_FILES
-        "${THIRDPARTY_INSTALL_DIR}/lz4/lib/cmake/lz4/lz4Config.cmake"
-        "${THIRDPARTY_INSTALL_DIR}/lz4/lib/liblz4.a"
-        "${THIRDPARTY_INSTALL_DIR}/lz4/include/lz4.h"
+        -DLZ4_BUILD_LEGACY_LIBS=OFF
+        -DLZ4_BUNDLE_MODE=OFF
+        -DLZ4_POSITION_INDEPENDENT_CODE=ON
 )
 
 # Additional lz4-specific setup

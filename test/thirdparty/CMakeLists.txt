@@ -181,3 +181,15 @@ add_module_test(thirdparty_folly
         integration
     TIMEOUT 30
 )
+
+# ICU4C integration test
+add_module_test(thirdparty_icu4c
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_icu4c_integration.cpp"
+    LABELS
+        icu4c
+        unicode
+        locale
+        thirdparty
+        integration
+    TIMEOUT 30
+)

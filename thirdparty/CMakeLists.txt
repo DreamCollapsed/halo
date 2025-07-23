@@ -101,6 +101,7 @@ target_link_libraries(halo_thirdparty
     libevent::extra
     libevent::openssl
     libevent::pthreads
+    ICU::ICU
     Folly::folly
 )
 

@@ -178,6 +178,12 @@ thirdparty_register_component(openssl
     SHA256 "${OPENSSL_SHA256}"
 )
 
+thirdparty_register_component(icu4c
+    VERSION "${ICU4C_VERSION}"
+    URL "${ICU4C_URL}"
+    SHA256 "${ICU4C_SHA256}"
+)
+
 thirdparty_register_component(lz4
     VERSION "${LZ4_VERSION}"
     URL "${LZ4_URL}"

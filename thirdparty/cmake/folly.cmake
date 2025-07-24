@@ -1,8 +1,8 @@
 # Folly third-party integration
 # Reference: https://github.com/facebook/folly/blob/main/README.md
 
-# Folly has multiple dependencies - temporarily remove jemalloc
-thirdparty_check_dependencies("gflags;glog;double-conversion;libevent;openssl;zstd;lz4;snappy;boost;fmt;jemalloc")
+# Folly has multiple dependencies - include zlib and xz for compression support
+thirdparty_check_dependencies("gflags;glog;double-conversion;libevent;openssl;zstd;lz4;snappy;boost;fmt;jemalloc;zlib;xz")
 
 # Set up directories
 set(FOLLY_NAME "folly")
@@ -112,6 +112,14 @@ list(APPEND _opt_flags
     # Override install prefix
     -DCMAKE_INSTALL_PREFIX=${FOLLY_INSTALL_DIR}
 
+    # Force CMake to use our third-party libraries first
+    -DCMAKE_PREFIX_PATH=${THIRDPARTY_INSTALL_DIR}/zlib\;${THIRDPARTY_INSTALL_DIR}/xz\;${THIRDPARTY_INSTALL_DIR}/boost\;${THIRDPARTY_INSTALL_DIR}/gflags\;${THIRDPARTY_INSTALL_DIR}/glog\;${THIRDPARTY_INSTALL_DIR}/double-conversion\;${THIRDPARTY_INSTALL_DIR}/libevent\;${THIRDPARTY_INSTALL_DIR}/openssl\;${THIRDPARTY_INSTALL_DIR}/zstd\;${THIRDPARTY_INSTALL_DIR}/lz4\;${THIRDPARTY_INSTALL_DIR}/snappy\;${THIRDPARTY_INSTALL_DIR}/fmt\;${THIRDPARTY_INSTALL_DIR}/jemalloc
+    
+    # Disable system library search paths
+    -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
+    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
+    -DCMAKE_FIND_ROOT_PATH=${THIRDPARTY_INSTALL_DIR}
+
     # BOOST
     -DBOOST_LINK_STATIC:STRING=ON
     -DBoost_USE_STATIC_RUNTIME:BOOL=ON
@@ -153,12 +161,25 @@ list(APPEND _opt_flags
     -DSNAPPY_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/snappy/include
     -DSNAPPY_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/snappy/lib/libsnappy.a
 
+    # ZLIB - Force use of third-party library, not system
+    -DZLIB_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/zlib/include
+    -DZLIB_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
+    -DZLIB_ROOT:PATH=${THIRDPARTY_INSTALL_DIR}/zlib
+
+    # LZMA/XZ - Force use of third-party library, not system
+    -DLIBLZMA_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/xz/include
+    -DLIBLZMA_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
+    -DLibLZMA_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/xz/include
+    -DLibLZMA_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
+    -DLZMA_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/xz/include
+    -DLZMA_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
+
     # FASTFLOAT
     -DFASTFLOAT_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/fast-float/include
 
     # Jemalloc
     -DCMAKE_REQUIRED_INCLUDES=${THIRDPARTY_INSTALL_DIR}/jemalloc/include
-    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -Dmallocx=je_mallocx\ -Drallocx=je_rallocx\ -Dxallocx=je_xallocx\ -Dsallocx=je_sallocx\ -Ddallocx=je_dallocx\ -Dsdallocx=je_sdallocx\ -Dnallocx=je_nallocx\ -Dmallctl=je_mallctl\ -Dmallctlnametomib=je_mallctlnametomib\ -Dmallctlbymib=je_mallctlbymib
+    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -Dmallocx=je_mallocx\ -Drallocx=je_rallocx\ -Dxallocx=je_xallocx\ -Dsallocx=je_sallocx\ -Ddallocx=je_dallocx\ -Dsdallocx=je_sdallocx\ -Dnallocx=je_nallocx\ -Dmallctl=je_mallctl\ -Dmallctlnametomib=je_mallctlnametomib\ -Dmallctlbymib=je_mallctlbymib\ -DFOLLY_HAVE_BACKTRACE=1
     -DFOLLY_USE_JEMALLOC:BOOL=ON
     -DJEMALLOC_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/include
     -DJEMALLOC_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/lib/libjemalloc.a

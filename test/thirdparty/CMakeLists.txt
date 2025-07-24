@@ -182,6 +182,18 @@ add_module_test(thirdparty_folly
     TIMEOUT 30
 )
 
+# XZ integration test
+add_module_test(thirdparty_xz
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_xz_integration.cpp"
+    LABELS
+        xz
+        lzma
+        compression
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
 # ICU4C integration test
 add_module_test(thirdparty_icu4c
     "${CMAKE_CURRENT_SOURCE_DIR}/test_icu4c_integration.cpp"

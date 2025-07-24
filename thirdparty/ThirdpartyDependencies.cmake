@@ -154,6 +154,12 @@ thirdparty_register_component(fmt
     SHA256 "${FMT_SHA256}"
 )
 
+thirdparty_register_component(xz
+    VERSION "${XZ_VERSION}"
+    URL "${XZ_URL}"
+    SHA256 "${XZ_SHA256}"
+)
+
 thirdparty_register_component(zstd
     VERSION "${ZSTD_VERSION}"
     URL "${ZSTD_URL}"

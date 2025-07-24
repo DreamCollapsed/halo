@@ -124,6 +124,12 @@ thirdparty_register_component(abseil
     SHA256 "${ABSEIL_SHA256}"
 )
 
+thirdparty_register_component(bison
+    VERSION "${BISON_VERSION}"
+    URL "${BISON_URL}"
+    SHA256 "${BISON_SHA256}"
+)
+
 thirdparty_register_component(gtest
     VERSION "${GOOGLETEST_VERSION}"
     URL "${GOOGLETEST_URL}"
@@ -146,6 +152,12 @@ thirdparty_register_component(fast-float
     VERSION "${FAST_FLOAT_VERSION}"
     URL "${FAST_FLOAT_URL}"
     SHA256 "${FAST_FLOAT_SHA256}"
+)
+
+thirdparty_register_component(bison
+    VERSION "${BISON_VERSION}"
+    URL "${BISON_URL}"
+    SHA256 "${BISON_SHA256}"
 )
 
 thirdparty_register_component(fmt

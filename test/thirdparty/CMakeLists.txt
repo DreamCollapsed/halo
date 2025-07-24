@@ -20,6 +20,18 @@ add_module_test(thirdparty_boost
     TIMEOUT 30
 )
 
+# Bison integration test
+add_module_test(thirdparty_bison
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_bison_integration.cpp"
+    LABELS
+        bison
+        parser
+        build-tools
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
 # GTest/GMock integration test
 add_module_test(thirdparty_gtest
     "${CMAKE_CURRENT_SOURCE_DIR}/test_gtest_integration.cpp"

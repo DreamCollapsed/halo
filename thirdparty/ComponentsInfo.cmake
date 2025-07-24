@@ -2,6 +2,10 @@ set(ABSEIL_VERSION "20250512.1")
 set(ABSEIL_URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/${ABSEIL_VERSION}.tar.gz")
 set(ABSEIL_SHA256 "9b7a064305e9fd94d124ffa6cc358592eb42b5da588fb4e07d09254aa40086db")
 
+set(BISON_VERSION "3.8.2")
+set(BISON_URL "http://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.gz")
+set(BISON_SHA256 "06c9e13bdf7eb24d4ceb6b59205a4f67c2c7e7213119644430fe82fbd14a0abb")
+
 set(BOOST_VERSION "1.88.0")
 string(REPLACE "." "_" BOOST_VERSION_UNDERSCORE ${BOOST_VERSION})
 set(BOOST_URL "https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_UNDERSCORE}.tar.gz")

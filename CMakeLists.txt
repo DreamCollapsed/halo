@@ -126,21 +126,6 @@ add_link_options(
 
 # Build order: thirdparty -> src -> test
 add_subdirectory(thirdparty)
-
-# Link Folly to main project targets
-if(TARGET folly)
-    # Get all executable and library targets in src/ directory
-    get_property(_all_targets DIRECTORY src PROPERTY BUILDSYSTEM_TARGETS)
-    
-    # Link Folly to all targets except thirdparty_test
-    foreach(_target IN LISTS _all_targets)
-        if(NOT "${_target}" STREQUAL "thirdparty_test")
-            target_link_libraries(${_target} PRIVATE folly)
-            message(STATUS "Linking Folly to target: ${_target}")
-        endif()
-    endforeach()
-endif()
-
 add_subdirectory(src)
 add_subdirectory(test)
 

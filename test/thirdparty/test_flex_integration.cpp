@@ -15,23 +15,6 @@ class FlexIntegrationTest : public ::testing::Test {
     // Use CMake-provided flex executable path if available
 #ifdef FLEX_EXECUTABLE_PATH
     flex_path = FLEX_EXECUTABLE_PATH;
-    if (!std::filesystem::exists(flex_path)) {
-      flex_path = "flex";  // Fallback to system flex
-    }
-#else
-    // Find flex executable using relative path from test binary location
-    // Test binaries run from build/test/thirdparty/, so flex is at
-    // ../../../thirdparty/installed/flex/bin/flex
-    std::filesystem::path test_binary_dir = std::filesystem::current_path();
-    std::filesystem::path project_flex = test_binary_dir / ".." / ".." / ".." /
-                                         "thirdparty" / "installed" / "flex" /
-                                         "bin" / "flex";
-
-    if (std::filesystem::exists(project_flex)) {
-      flex_path = std::filesystem::canonical(project_flex).string();
-    } else {
-      flex_path = "flex";  // Fallback to system flex
-    }
 #endif
 
     // Create a simple lexer file for testing

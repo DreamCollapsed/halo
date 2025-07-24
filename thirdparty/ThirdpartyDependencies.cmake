@@ -130,6 +130,12 @@ thirdparty_register_component(bison
     SHA256 "${BISON_SHA256}"
 )
 
+thirdparty_register_component(flex
+    VERSION "${FLEX_VERSION}"
+    URL "${FLEX_URL}"
+    SHA256 "${FLEX_SHA256}"
+)
+
 thirdparty_register_component(gtest
     VERSION "${GOOGLETEST_VERSION}"
     URL "${GOOGLETEST_URL}"

@@ -12,21 +12,27 @@ class BisonIntegrationTest : public ::testing::Test {
     test_dir = std::filesystem::temp_directory_path() / "bison_test";
     std::filesystem::create_directories(test_dir);
 
+    // Use CMake-provided bison executable path if available
+#ifdef BISON_EXECUTABLE_PATH
+    bison_path = BISON_EXECUTABLE_PATH;
+    if (!std::filesystem::exists(bison_path)) {
+      bison_path = "bison";  // Fallback to system bison
+    }
+#else
     // Find bison executable using relative path from test binary location
-    // Test binaries are in build/test/, so bison is at
-    // ../thirdparty/installed/bison/bin/bison
+    // Test binaries run from build/test/thirdparty/, so bison is at
+    // ../../../thirdparty/installed/bison/bin/bison
     std::filesystem::path test_binary_dir = std::filesystem::current_path();
-    std::filesystem::path project_bison = test_binary_dir / ".." /
+    std::filesystem::path project_bison = test_binary_dir / ".." / ".." / ".." /
                                           "thirdparty" / "installed" / "bison" /
                                           "bin" / "bison";
 
     if (std::filesystem::exists(project_bison)) {
       bison_path = std::filesystem::canonical(project_bison).string();
     } else {
-      // Fallback: let system resolve the path
-      bison_path = "bison";
+      bison_path = "bison";  // Fallback to system bison
     }
-
+#endif
     // Create a simple grammar file for testing
     grammar_file = test_dir / "test.y";
     createTestGrammar();

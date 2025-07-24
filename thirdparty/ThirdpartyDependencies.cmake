@@ -178,6 +178,12 @@ thirdparty_register_component(xz
     SHA256 "${XZ_SHA256}"
 )
 
+thirdparty_register_component(zlib
+    VERSION "${ZLIB_VERSION}"
+    URL "${ZLIB_URL}"
+    SHA256 "${ZLIB_SHA256}"
+)
+
 thirdparty_register_component(zstd
     VERSION "${ZSTD_VERSION}"
     URL "${ZSTD_URL}"
@@ -194,6 +200,7 @@ thirdparty_register_component(boost
     VERSION "${BOOST_VERSION}"
     URL "${BOOST_URL}"
     SHA256 "${BOOST_SHA256}"
+    DEPENDS_ON xz zlib
 )
 
 thirdparty_register_component(openssl

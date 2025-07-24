@@ -11,7 +11,8 @@
 set(Boost_USE_STATIC_LIBS ON CACHE BOOL "Force static linking for Boost")
 set(Boost_USE_STATIC_RUNTIME ON CACHE BOOL "Force static runtime for Boost")
 
-thirdparty_check_dependencies("boost")
+# Ensure xz and zlib dependencies are available before building boost
+thirdparty_check_dependencies("boost" "xz" "zlib")
 
 # Set up directories
 set(BOOST_NAME "boost")
@@ -44,6 +45,7 @@ function(boost_configure_and_build)
 
     # Configure build options for b2.
     # We build ONLY the required static release libraries to avoid ambiguity.
+    # Force use of our third-party compression libraries instead of system libraries
     set(BOOST_B2_OPTIONS
         variant=release
         link=static
@@ -55,6 +57,26 @@ function(boost_configure_and_build)
         --layout=tagged
         --prefix=${BOOST_INSTALL_DIR}
         --build-dir=${BOOST_BUILD_DIR}
+        # Force iostreams to use our third-party libraries with absolute paths
+        -sZLIB_INCLUDE=${THIRDPARTY_INSTALL_DIR}/zlib/include
+        -sZLIB_LIBPATH=${THIRDPARTY_INSTALL_DIR}/zlib/lib
+        -sZLIB_LIBRARY=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
+        -sLZMA_INCLUDE=${THIRDPARTY_INSTALL_DIR}/xz/include
+        -sLZMA_LIBPATH=${THIRDPARTY_INSTALL_DIR}/xz/lib
+        -sLZMA_LIBRARY=${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
+        # Completely disable system library discovery
+        -sNO_ZLIB=1
+        -sNO_LZMA=1
+        -sNO_BZIP2=1
+        # Force static linking only - disable search in system paths
+        -sZLIB_NAME=
+        -sLZMA_NAME=
+        # Additional compiler flags to exclude system library paths
+        linkflags=-L${THIRDPARTY_INSTALL_DIR}/zlib/lib
+        linkflags=-L${THIRDPARTY_INSTALL_DIR}/xz/lib
+        linkflags=-Wl,-search_paths_first
+        linkflags=-Wl,-force_load,${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
+        linkflags=-Wl,-force_load,${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
         # Folly's required components
         --with-atomic
         --with-chrono

@@ -85,7 +85,6 @@ add_module_test(thirdparty_gflags
 )
 
 # glog integration test
-# glog integration test
 add_module_test(thirdparty_glog
     "${CMAKE_CURRENT_SOURCE_DIR}/test_glog_integration.cpp"
     LABELS
@@ -120,6 +119,17 @@ add_module_test(thirdparty_fmt
     "${CMAKE_CURRENT_SOURCE_DIR}/test_fmt_integration.cpp"
     LABELS
         fmt
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
+# zlib integration test
+add_module_test(thirdparty_zlib
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_zlib_integration.cpp"
+    LABELS
+        zlib
+        compression
         thirdparty
         integration
     TIMEOUT 30

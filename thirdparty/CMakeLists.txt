@@ -94,6 +94,7 @@ target_link_libraries(halo_thirdparty
     jemalloc::jemalloc_pic
     zstd::libzstd
     LZ4::lz4
+    liblzma::liblzma
     Snappy::snappy
     OpenSSL::SSL
     OpenSSL::Crypto

@@ -60,6 +60,10 @@ set(SNAPPY_VERSION "1.2.2")
 set(SNAPPY_URL "https://github.com/google/snappy/archive/refs/tags/${SNAPPY_VERSION}.tar.gz")
 set(SNAPPY_SHA256 "90f74bc1fbf78a6c56b3c4a082a05103b3a56bb17bca1a27e052ea11723292dc")
 
+set(XZ_VERSION "5.8.1")
+set(XZ_URL "https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz")
+set(XZ_SHA256 "507825b599356c10dca1cd720c9d0d0c9d5400b9de300af00e4d1ea150795543")
+
 set(ZSTD_VERSION "1.5.7")
 set(ZSTD_URL "https://github.com/facebook/zstd/archive/refs/tags/v${ZSTD_VERSION}.tar.gz")
 set(ZSTD_SHA256 "37d7284556b20954e56e1ca85b80226768902e2edabd3b649e9e72c0c9012ee3")

@@ -11,6 +11,10 @@ string(REPLACE "." "_" BOOST_VERSION_UNDERSCORE ${BOOST_VERSION})
 set(BOOST_URL "https://archives.boost.io/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_UNDERSCORE}.tar.gz")
 set(BOOST_SHA256 "3621533e820dcab1e8012afd583c0c73cf0f77694952b81352bf38c1488f9cb4")
 
+set(BZIP2_VERSION "1.0.8")
+set(BZIP2_URL "https://sourceware.org/pub/bzip2/bzip2-${BZIP2_VERSION}.tar.gz")
+set(BZIP2_SHA256 "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269")
+
 set(DOUBLE_CONVERSION_VERSION "3.3.1")
 set(DOUBLE_CONVERSION_URL "https://github.com/google/double-conversion/archive/refs/tags/v${DOUBLE_CONVERSION_VERSION}.tar.gz")
 set(DOUBLE_CONVERSION_SHA256 "fe54901055c71302dcdc5c3ccbe265a6c191978f3761ce1414d0895d6b0ea90e")
@@ -18,6 +22,14 @@ set(DOUBLE_CONVERSION_SHA256 "fe54901055c71302dcdc5c3ccbe265a6c191978f3761ce1414
 set(FAST_FLOAT_VERSION "8.0.2")
 set(FAST_FLOAT_URL "https://github.com/fastfloat/fast_float/archive/refs/tags/v${FAST_FLOAT_VERSION}.tar.gz")
 set(FAST_FLOAT_SHA256 "e14a33089712b681d74d94e2a11362643bd7d769ae8f7e7caefe955f57f7eacd")
+
+set(FBTHRIFT_VERSION "2025.07.21.00")
+set(FBTHRIFT_URL "https://github.com/facebook/fbthrift/archive/refs/tags/v${FBTHRIFT_VERSION}.zip")
+set(FBTHRIFT_SHA256 "35664f7feb9597eb9b369dc5337f3513a791404f2e72f2ee7236b968f2e87c7f")
+
+set(FIZZ_VERSION "2025.07.21.00")
+set(FIZZ_URL "https://github.com/facebookincubator/fizz/releases/download/v${FIZZ_VERSION}/fizz-v${FIZZ_VERSION}.zip")
+set(FIZZ_SHA256 "25ea5cc2fe9cd1b78fb5c80bf4a4c5bbbfc8628c1efba7592fc4c141472fa114")
 
 set(FLEX_VERSION "2.6.4")
 set(FLEX_URL "https://github.com/westes/flex/releases/download/v${FLEX_VERSION}/flex-${FLEX_VERSION}.tar.gz")
@@ -30,6 +42,10 @@ set(FMT_SHA256 "bc23066d87ab3168f27cef3e97d545fa63314f5c79df5ea444d41d56f962c6af
 set(FOLLY_VERSION "2025.07.14.00")
 set(FOLLY_URL "https://github.com/facebook/folly/archive/refs/tags/v${FOLLY_VERSION}.tar.gz")
 set(FOLLY_SHA256 "0bcb9c2ba00fe56fb0228c9a663e5a08414f59b3430e0f9f8724af0ef6e7df56")
+
+set(GEOS_VERSION "3.13.1")
+set(GEOS_URL "https://download.osgeo.org/geos/geos-${GEOS_VERSION}.tar.bz2")
+set(GEOS_SHA256 "df2c50503295f325e7c8d7b783aca8ba4773919cde984193850cf9e361dfd28c")
 
 set(GFLAGS_VERSION "2.2.2")
 set(GFLAGS_URL "https://github.com/gflags/gflags/archive/refs/tags/v${GFLAGS_VERSION}.tar.gz")
@@ -56,6 +72,14 @@ set(LIBEVENT_VERSION "2.1.12")
 set(LIBEVENT_URL "https://github.com/libevent/libevent/releases/download/release-${LIBEVENT_VERSION}-stable/libevent-${LIBEVENT_VERSION}-stable.tar.gz")
 set(LIBEVENT_SHA256 "92e6de1be9ec176428fd2367677e61ceffc2ee1cb119035037a27d346b0403bb")
 
+set(LIBSODIUM_VERSION "1.0.20")
+set(LIBSODIUM_URL "https://github.com/jedisct1/libsodium/releases/download/${LIBSODIUM_VERSION}-RELEASE/libsodium-${LIBSODIUM_VERSION}.tar.gz")
+set(LIBSODIUM_SHA256 "ebb65ef6ca439333c2bb41a0c1990587288da07f6c7fd07cb3a18cc18d30ce19")
+
+set(LIBSTEMMER_VERSION "3.0.1")
+set(LIBSTEMMER_URL "https://snowballstem.org/dist/libstemmer_c-${LIBSTEMMER_VERSION}.tar.gz")
+set(LIBSTEMMER_SHA256 "419db89961cf2e30e6417265a4f3c903632d47d6917e7f8c6ae0e4d998743aad")
+
 set(LZ4_VERSION "1.10.0")
 set(LZ4_URL "https://github.com/lz4/lz4/archive/refs/tags/v${LZ4_VERSION}.tar.gz")
 set(LZ4_SHA256 "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b")
@@ -64,9 +88,29 @@ set(OPENSSL_VERSION "1.1.1w")
 set(OPENSSL_URL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz")
 set(OPENSSL_SHA256 "cf3098950cb4d853ad95c0841f1f9c6d3dc102dccfcacd521d93925208b76ac8")
 
+set(RE2_VERSION "2025-07-22")
+set(RE2_URL "https://github.com/google/re2/releases/download/${RE2_VERSION}/re2-${RE2_VERSION}.tar.gz")
+set(RE2_SHA256 "f54c29f1c3e13e12693e3d6d1230554df3ab3a1066b2e1f28c5330bfbf6db1e3")
+
+set(SIMDJSON_VERSION "3.13.0")
+set(SIMDJSON_URL "https://github.com/simdjson/simdjson/archive/refs/tags/v${SIMDJSON_VERSION}.zip")
+set(SIMDJSON_SHA256 "72a9d9d01c57a9b1d7b7d7026041e1ca2897be6a05dbde5bd753043a10a712f4")
+
 set(SNAPPY_VERSION "1.2.2")
 set(SNAPPY_URL "https://github.com/google/snappy/archive/refs/tags/${SNAPPY_VERSION}.tar.gz")
 set(SNAPPY_SHA256 "90f74bc1fbf78a6c56b3c4a082a05103b3a56bb17bca1a27e052ea11723292dc")
+
+set(WANGLE_VERSION "2025.07.21.00")
+set(WANGLE_URL "https://github.com/facebook/wangle/releases/download/v${WANGLE_VERSION}/wangle-v${WANGLE_VERSION}.zip")
+set(WANGLE_SHA256 "900a73498f6e99c7e0fc7aa15b3f6947a8bd02f64a4a24a99380d2b7ec639310")
+
+set(XSIMD_VERSION "13.2.0")
+set(XSIMD_URL "https://github.com/xtensor-stack/xsimd/archive/refs/tags/${XSIMD_VERSION}.zip")
+set(XSIMD_SHA256 "3ff360dc82109b11b35389a5dfed8ac15155f356f39840dff2be2e230b935b8c")
+
+set(XTL_VERSION "0.8.0")
+set(XTL_URL "https://github.com/xtensor-stack/xtl/archive/refs/tags/${XTL_VERSION}.tar.gz")
+set(XTL_SHA256 "ee38153b7dd0ec84cee3361f5488a4e7e6ddd26392612ac8821cbc76e740273a")
 
 set(XZ_VERSION "5.8.1")
 set(XZ_URL "https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz")

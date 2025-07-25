@@ -271,3 +271,16 @@ add_module_test(thirdparty_libsodium
         integration
     TIMEOUT 30
 )
+
+# libstemmer integration test
+add_module_test(thirdparty_libstemmer
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_libstemmer_integration.cpp"
+    LABELS
+        libstemmer
+        nlp
+        stemming
+        text-processing
+        thirdparty
+        integration
+    TIMEOUT 30
+)

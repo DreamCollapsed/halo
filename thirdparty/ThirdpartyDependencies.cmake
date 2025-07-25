@@ -276,6 +276,14 @@ thirdparty_register_component(protobuf
     DEPENDS_ON abseil
 )
 
+# Register thrift component
+thirdparty_register_component(thrift
+    VERSION "${THRIFT_VERSION}"
+    URL "${THRIFT_URL}"
+    SHA256 "${THRIFT_SHA256}"
+    DEPENDS_ON boost bison flex zlib
+)
+
 # Register folly component
 thirdparty_register_component(folly
     VERSION "${FOLLY_VERSION}"

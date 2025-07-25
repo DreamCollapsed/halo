@@ -247,3 +247,14 @@ add_module_test(thirdparty_icu4c
         integration
     TIMEOUT 30
 )
+
+# bzip2 integration test
+add_module_test(thirdparty_bzip2
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_bzip2_integration.cpp"
+    LABELS
+        bzip2
+        compression
+        thirdparty
+        integration
+    TIMEOUT 30
+)

@@ -190,6 +190,12 @@ thirdparty_register_component(zstd
     SHA256 "${ZSTD_SHA256}"
 )
 
+thirdparty_register_component(bzip2
+    VERSION "${BZIP2_VERSION}"
+    URL "${BZIP2_URL}"
+    SHA256 "${BZIP2_SHA256}"
+)
+
 thirdparty_register_component(snappy
     VERSION "${SNAPPY_VERSION}"
     URL "${SNAPPY_URL}"
@@ -251,5 +257,5 @@ thirdparty_register_component(folly
     VERSION "${FOLLY_VERSION}"
     URL "${FOLLY_URL}"
     SHA256 "${FOLLY_SHA256}"
-    DEPENDS_ON gflags glog double-conversion libevent openssl zstd lz4 snappy boost jemalloc fast-float fmt zlib xz
+    DEPENDS_ON gflags glog double-conversion libevent openssl zstd lz4 snappy boost jemalloc fast-float fmt zlib xz bzip2
 )

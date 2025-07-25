@@ -1,8 +1,8 @@
 # Folly third-party integration
 # Reference: https://github.com/facebook/folly/blob/main/README.md
 
-# Folly has multiple dependencies - include zlib and xz for compression support
-thirdparty_check_dependencies("gflags;glog;double-conversion;libevent;openssl;zstd;lz4;snappy;boost;fmt;jemalloc;zlib;xz")
+# Folly has multiple dependencies - include zlib, xz, and bzip2 for compression support
+thirdparty_check_dependencies("gflags;glog;double-conversion;libevent;openssl;zstd;lz4;snappy;boost;fmt;jemalloc;zlib;xz;bzip2")
 
 # Set up directories
 set(FOLLY_NAME "folly")
@@ -113,7 +113,7 @@ list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${FOLLY_INSTALL_DIR}
 
     # Force CMake to use our third-party libraries first
-    -DCMAKE_PREFIX_PATH=${THIRDPARTY_INSTALL_DIR}/zlib\;${THIRDPARTY_INSTALL_DIR}/xz\;${THIRDPARTY_INSTALL_DIR}/boost\;${THIRDPARTY_INSTALL_DIR}/gflags\;${THIRDPARTY_INSTALL_DIR}/glog\;${THIRDPARTY_INSTALL_DIR}/double-conversion\;${THIRDPARTY_INSTALL_DIR}/libevent\;${THIRDPARTY_INSTALL_DIR}/openssl\;${THIRDPARTY_INSTALL_DIR}/zstd\;${THIRDPARTY_INSTALL_DIR}/lz4\;${THIRDPARTY_INSTALL_DIR}/snappy\;${THIRDPARTY_INSTALL_DIR}/fmt\;${THIRDPARTY_INSTALL_DIR}/jemalloc
+    -DCMAKE_PREFIX_PATH=${THIRDPARTY_INSTALL_DIR}/zlib\;${THIRDPARTY_INSTALL_DIR}/xz\;${THIRDPARTY_INSTALL_DIR}/boost\;${THIRDPARTY_INSTALL_DIR}/gflags\;${THIRDPARTY_INSTALL_DIR}/glog\;${THIRDPARTY_INSTALL_DIR}/double-conversion\;${THIRDPARTY_INSTALL_DIR}/libevent\;${THIRDPARTY_INSTALL_DIR}/openssl\;${THIRDPARTY_INSTALL_DIR}/zstd\;${THIRDPARTY_INSTALL_DIR}/lz4\;${THIRDPARTY_INSTALL_DIR}/snappy\;${THIRDPARTY_INSTALL_DIR}/fmt\;${THIRDPARTY_INSTALL_DIR}/jemalloc\;${THIRDPARTY_INSTALL_DIR}/bzip2
     
     # Disable system library search paths
     -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
@@ -166,13 +166,15 @@ list(APPEND _opt_flags
     -DZLIB_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
     -DZLIB_ROOT:PATH=${THIRDPARTY_INSTALL_DIR}/zlib
 
-    # LZMA/XZ - Force use of third-party library, not system
+    # LZMA/XZ - Use standard FindLibLZMA variables
     -DLIBLZMA_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/xz/include
     -DLIBLZMA_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
-    -DLibLZMA_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/xz/include
-    -DLibLZMA_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
-    -DLZMA_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/xz/include
-    -DLZMA_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
+
+    # BZIP2 - Use standard FindBZip2 variables (both singular and plural needed)
+    -DBZIP2_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/bzip2/include
+    -DBZIP2_INCLUDE_DIRS:PATH=${THIRDPARTY_INSTALL_DIR}/bzip2/include
+    -DBZIP2_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/bzip2/lib/libbz2.a
+    -DBZIP2_LIBRARIES:FILEPATH=${THIRDPARTY_INSTALL_DIR}/bzip2/lib/libbz2.a
 
     # FASTFLOAT
     -DFASTFLOAT_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/fast-float/include

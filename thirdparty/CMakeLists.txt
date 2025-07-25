@@ -104,6 +104,7 @@ target_link_libraries(halo_thirdparty
     libevent::pthreads
     ICU::ICU
     zlib::zlib
+    BZip2::BZip2
     Folly::folly
 )
 

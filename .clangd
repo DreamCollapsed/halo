@@ -1,0 +1,11 @@
+# .clangd configuration file
+# This file tells clangd to ignore certain directories for diagnostics.
+# While indexing is controlled by compile_commands.json, this will hide warnings and errors from the specified paths.
+
+If:
+  PathMatch:
+    - "thirdparty/src/.*"
+
+Diagnostics:
+  # Suppress all diagnostics for the matched paths.
+  Suppress: "*"

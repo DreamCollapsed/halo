@@ -258,3 +258,16 @@ add_module_test(thirdparty_bzip2
         integration
     TIMEOUT 30
 )
+
+# libsodium integration test
+add_module_test(thirdparty_libsodium
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_libsodium_integration.cpp"
+    LABELS
+        libsodium
+        crypto
+        encryption
+        security
+        thirdparty
+        integration
+    TIMEOUT 30
+)

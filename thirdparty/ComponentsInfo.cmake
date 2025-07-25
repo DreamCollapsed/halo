@@ -88,6 +88,10 @@ set(OPENSSL_VERSION "1.1.1w")
 set(OPENSSL_URL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz")
 set(OPENSSL_SHA256 "cf3098950cb4d853ad95c0841f1f9c6d3dc102dccfcacd521d93925208b76ac8")
 
+set(PROTOBUF_VERSION "31.1")
+set(PROTOBUF_URL "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-${PROTOBUF_VERSION}.tar.gz")
+set(PROTOBUF_SHA256 "12bfd76d27b9ac3d65c00966901609e020481b9474ef75c7ff4601ac06fa0b82")
+
 set(RE2_VERSION "2025-07-22")
 set(RE2_URL "https://github.com/google/re2/releases/download/${RE2_VERSION}/re2-${RE2_VERSION}.tar.gz")
 set(RE2_SHA256 "f54c29f1c3e13e12693e3d6d1230554df3ab3a1066b2e1f28c5330bfbf6db1e3")
@@ -100,6 +104,10 @@ set(SNAPPY_VERSION "1.2.2")
 set(SNAPPY_URL "https://github.com/google/snappy/archive/refs/tags/${SNAPPY_VERSION}.tar.gz")
 set(SNAPPY_SHA256 "90f74bc1fbf78a6c56b3c4a082a05103b3a56bb17bca1a27e052ea11723292dc")
 
+set(THRIFT_VERSION "0.22.0")
+set(THRIFT_URL "https://github.com/apache/thrift/archive/refs/tags/v${THRIFT_VERSION}.tar.gz")
+set(THRIFT_SHA256 "c4649c5879dd56c88f1e7a1c03e0fbfcc3b2a2872fb81616bffba5aa8a225a37")
+
 set(WANGLE_VERSION "2025.07.21.00")
 set(WANGLE_URL "https://github.com/facebook/wangle/releases/download/v${WANGLE_VERSION}/wangle-v${WANGLE_VERSION}.zip")
 set(WANGLE_SHA256 "900a73498f6e99c7e0fc7aa15b3f6947a8bd02f64a4a24a99380d2b7ec639310")
@@ -111,6 +119,10 @@ set(XSIMD_SHA256 "3ff360dc82109b11b35389a5dfed8ac15155f356f39840dff2be2e230b935b
 set(XTL_VERSION "0.8.0")
 set(XTL_URL "https://github.com/xtensor-stack/xtl/archive/refs/tags/${XTL_VERSION}.tar.gz")
 set(XTL_SHA256 "ee38153b7dd0ec84cee3361f5488a4e7e6ddd26392612ac8821cbc76e740273a")
+
+set(XXHASH_VERSION "0.8.3")
+set(XXHASH_URL "https://github.com/Cyan4973/xxHash/archive/refs/tags/v${XXHASH_VERSION}.tar.gz")
+set(XXHASH_SHA256 "f4c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1")
 
 set(XZ_VERSION "5.8.1")
 set(XZ_URL "https://github.com/tukaani-project/xz/releases/download/v${XZ_VERSION}/xz-${XZ_VERSION}.tar.gz")

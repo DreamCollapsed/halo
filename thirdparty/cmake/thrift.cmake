@@ -1,40 +1,106 @@
 # Apache Thrift integration for the Halo project
 # This file handles downloading, building, and installing Apache Thrift
 
-include(${CMAKE_CURRENT_LIST_DIR}/../ThirdpartyUtils.cmake)
+# Check dependencies first (all variables defined in ComponentsInfo.cmake)
+thirdparty_check_dependencies("thrift")
 
-# Ensure Bison is available since thrift depends on it for code generation
-if(NOT TARGET bison::bison)
-    # Load bison if not already loaded
-    include(${CMAKE_CURRENT_LIST_DIR}/bison.cmake)
+# Set up directories following boost.cmake naming convention
+set(THRIFT_NAME "thrift")
+set(THRIFT_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/${THRIFT_NAME}-${THRIFT_VERSION}.tar.gz")
+set(THRIFT_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${THRIFT_NAME}")
+set(THRIFT_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/${THRIFT_NAME}")
+set(THRIFT_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${THRIFT_NAME}")
+
+# Download and extract
+thirdparty_download_and_check("${THRIFT_URL}" "${THRIFT_DOWNLOAD_FILE}" "${THRIFT_SHA256}")
+thirdparty_extract_and_rename("${THRIFT_DOWNLOAD_FILE}" "${THRIFT_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/${THRIFT_NAME}-*")
+
+# Apply OpenSSL compatibility fixes to TSSLSocket.cpp
+set(THRIFT_TSSL_FILE "${THRIFT_SOURCE_DIR}/lib/cpp/src/thrift/transport/TSSLSocket.cpp")
+if(EXISTS "${THRIFT_TSSL_FILE}")
+    message(STATUS "Applying OpenSSL compatibility fixes to TSSLSocket.cpp")
+    file(READ "${THRIFT_TSSL_FILE}" THRIFT_FILE_CONTENT)
+    
+    # Fix CRYPTO_num_locks() for OpenSSL 1.1+
+    string(REPLACE 
+        "mutexes = boost::shared_array<Mutex>(new Mutex[ ::CRYPTO_num_locks()]);"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n  mutexes = boost::shared_array<Mutex>(new Mutex[CRYPTO_num_locks()]);\n#else\n  // OpenSSL 1.1.0+ handles locking internally\n  mutexes = boost::shared_array<Mutex>(new Mutex[1]);\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    # Fix CRYPTO_LOCK usage
+    string(REPLACE 
+        "if (mode & CRYPTO_LOCK) {"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n  if (mode & CRYPTO_LOCK) {\n#else\n  if (mode & 1) {\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    # Fix SSL initialization functions
+    string(REPLACE 
+        "SSL_library_init();\n  SSL_load_error_strings();\n  ERR_load_crypto_strings();"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n  SSL_library_init();\n  SSL_load_error_strings();\n  ERR_load_crypto_strings();\n#else\n  OPENSSL_init_ssl(0, NULL);\n  OPENSSL_init_crypto(0, NULL);\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    # Fix CRYPTO locking callbacks
+    string(REPLACE 
+        "CRYPTO_set_locking_callback(callbackLocking);\n\n  // dynamic locking\n  CRYPTO_set_dynlock_create_callback(dyn_create);\n  CRYPTO_set_dynlock_lock_callback(dyn_lock);\n  CRYPTO_set_dynlock_destroy_callback(dyn_destroy);"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n  CRYPTO_set_locking_callback(callbackLocking);\n\n  // dynamic locking\n  CRYPTO_set_dynlock_create_callback(dyn_create);\n  CRYPTO_set_dynlock_lock_callback(dyn_lock);\n  CRYPTO_set_dynlock_destroy_callback(dyn_destroy);\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    # Fix SSL cleanup functions - more comprehensive patterns
+    string(REPLACE 
+        "EVP_cleanup();\n  CRYPTO_cleanup_all_ex_data();"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n  EVP_cleanup();\n  CRYPTO_cleanup_all_ex_data();\n#else\n  // OpenSSL 1.1.0+ cleans up automatically\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    string(REPLACE 
+        "ERR_free_strings();"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n  ERR_free_strings();\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    string(REPLACE 
+        "CRYPTO_set_locking_callback(nullptr);\n  CRYPTO_set_dynlock_create_callback(nullptr);\n  CRYPTO_set_dynlock_lock_callback(nullptr);\n  CRYPTO_set_dynlock_destroy_callback(nullptr);"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n  CRYPTO_set_locking_callback(nullptr);\n  CRYPTO_set_dynlock_create_callback(nullptr);\n  CRYPTO_set_dynlock_lock_callback(nullptr);\n  CRYPTO_set_dynlock_destroy_callback(nullptr);\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    # Fix deprecated SSL method functions
+    string(REPLACE 
+        "ctx_ = SSL_CTX_new(TLSv1_method());"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n    ctx_ = SSL_CTX_new(TLSv1_method());\n#else\n    ctx_ = SSL_CTX_new(TLS_method());\n    SSL_CTX_set_min_proto_version(ctx_, TLS1_VERSION);\n    SSL_CTX_set_max_proto_version(ctx_, TLS1_VERSION);\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    string(REPLACE 
+        "ctx_ = SSL_CTX_new(TLSv1_1_method());"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n    ctx_ = SSL_CTX_new(TLSv1_1_method());\n#else\n    ctx_ = SSL_CTX_new(TLS_method());\n    SSL_CTX_set_min_proto_version(ctx_, TLS1_1_VERSION);\n    SSL_CTX_set_max_proto_version(ctx_, TLS1_1_VERSION);\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    string(REPLACE 
+        "ctx_ = SSL_CTX_new(TLSv1_2_method());"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n    ctx_ = SSL_CTX_new(TLSv1_2_method());\n#else\n    ctx_ = SSL_CTX_new(TLS_method());\n    SSL_CTX_set_min_proto_version(ctx_, TLS1_2_VERSION);\n    SSL_CTX_set_max_proto_version(ctx_, TLS1_2_VERSION);\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    # Fix ASN1_STRING_data deprecation
+    string(REPLACE 
+        "char* data = (char*)ASN1_STRING_data(name->d.ia5);"
+        "#if OPENSSL_VERSION_NUMBER < 0x10100000L\n        char* data = (char*)ASN1_STRING_data(name->d.ia5);\n#else\n        char* data = (char*)ASN1_STRING_get0_data(name->d.ia5);\n#endif"
+        THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
+    
+    file(WRITE "${THRIFT_TSSL_FILE}" "${THRIFT_FILE_CONTENT}")
+    message(STATUS "OpenSSL compatibility fixes applied successfully")
 endif()
 
-# Ensure Flex is available since thrift depends on it for code generation
-if(NOT TARGET flex::flex)
-    # Load flex if not already loaded
-    include(${CMAKE_CURRENT_LIST_DIR}/flex.cmake)
-endif()
+# Get common optimization flags
+thirdparty_get_optimization_flags(THRIFT_CMAKE_ARGS COMPONENT "${THRIFT_NAME}")
 
-# Ensure Boost is available since thrift depends on it
-if(NOT TARGET Boost::headers)
-    # Load Boost if not already loaded
-    include(${CMAKE_CURRENT_LIST_DIR}/boost.cmake)
-endif()
-
-# Ensure ZLIB is available since thrift can use it for compression
-if(NOT TARGET zlib::zlib)
-    # Load zlib if not already loaded
-    include(${CMAKE_CURRENT_LIST_DIR}/zlib.cmake)
-endif()
-
-# Use the standardized build function for thrift
-thirdparty_build_cmake_library("thrift"
-    EXTRACT_PATTERN "${THIRDPARTY_SRC_DIR}/thrift-*"
+# Configure
+thirdparty_cmake_configure("${THRIFT_SOURCE_DIR}" "${THRIFT_BUILD_DIR}"
+    VALIDATION_FILES
+        "${THRIFT_BUILD_DIR}/Makefile"
+        "${THRIFT_BUILD_DIR}/build.ninja"
     CMAKE_ARGS
+        -DCMAKE_INSTALL_PREFIX=${THRIFT_INSTALL_DIR}
+        ${THRIFT_CMAKE_ARGS}
         -DBUILD_TESTING=OFF
         -DBUILD_TUTORIALS=OFF
         -DBUILD_EXAMPLES=OFF
-        -DBUILD_SHARED_LIBS=OFF
         -DWITH_QT5=OFF
         -DWITH_QT6=OFF
         -DWITH_JAVA=OFF
@@ -44,7 +110,7 @@ thirdparty_build_cmake_library("thrift"
         -DWITH_CPP=ON
         -DWITH_C_GLIB=OFF
         -DWITH_LIBEVENT=OFF
-        -DWITH_OPENSSL=OFF
+        -DWITH_OPENSSL=ON
         -DWITH_ZLIB=ON
         -DWITH_STATIC_LIB=ON
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
@@ -53,44 +119,58 @@ thirdparty_build_cmake_library("thrift"
         -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
         -DZLIB_LIBRARY=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
         -DZLIB_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/zlib/include
+        -DOPENSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
+        -DOPENSSL_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/openssl/include
+        -DOPENSSL_SSL_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
+        -DOPENSSL_CRYPTO_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
         -DBISON_EXECUTABLE=${THIRDPARTY_INSTALL_DIR}/bison/bin/bison
         -DFLEX_EXECUTABLE=${THIRDPARTY_INSTALL_DIR}/flex/bin/flex
-    VALIDATION_FILES
-        "${THIRDPARTY_INSTALL_DIR}/thrift/lib/libthrift.a"
-        "${THIRDPARTY_INSTALL_DIR}/thrift/lib/libthriftz.a"
-        "${THIRDPARTY_INSTALL_DIR}/thrift/include/thrift/Thrift.h"
-        "${THIRDPARTY_INSTALL_DIR}/thrift/bin/thrift"
 )
 
-# Export thrift for use by other components using official CMake targets
-set(THRIFT_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/thrift")
+# Build and install
+thirdparty_cmake_install("${THRIFT_BUILD_DIR}" "${THRIFT_INSTALL_DIR}"
+    VALIDATION_FILES 
+        "${THRIFT_INSTALL_DIR}/lib/libthrift.a"
+        "${THRIFT_INSTALL_DIR}/lib/libthriftz.a"
+        "${THRIFT_INSTALL_DIR}/include/thrift/Thrift.h"
+        "${THRIFT_INSTALL_DIR}/include/thrift/transport/TSSLSocket.h"
+        "${THRIFT_INSTALL_DIR}/bin/thrift"
+)
+
+# Export the installation directory for other components to find
+set(THRIFT_INSTALL_DIR "${THRIFT_INSTALL_DIR}" PARENT_SCOPE)
 get_filename_component(THRIFT_INSTALL_DIR "${THRIFT_INSTALL_DIR}" ABSOLUTE)
+list(APPEND CMAKE_PREFIX_PATH "${THRIFT_INSTALL_DIR}")
+set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
 
-if(EXISTS "${THRIFT_INSTALL_DIR}/lib/cmake/thrift/ThriftConfig.cmake")
-    # Set the cache path for thrift cmake config (similar to gtest pattern)
-    set(Thrift_DIR "${THRIFT_INSTALL_DIR}/lib/cmake/thrift" CACHE PATH "Path to installed Thrift cmake config" FORCE)
+# Import the thrift targets if they don't exist
+if(NOT TARGET thrift::thrift)
+    # Try to find thrift package first
+    find_package(thrift QUIET PATHS "${THRIFT_INSTALL_DIR}" NO_DEFAULT_PATH)
     
-    # Temporarily disable CMAKE_DISABLE_FIND_PACKAGE_ZLIB to allow thrift's find_dependency(ZLIB)
-    set(_original_disable_zlib_state ${CMAKE_DISABLE_FIND_PACKAGE_ZLIB})
-    unset(CMAKE_DISABLE_FIND_PACKAGE_ZLIB CACHE)
-    unset(CMAKE_DISABLE_FIND_PACKAGE_ZLIB)
-    
-    # Import Thrift package with QUIET flag
-    find_package(Thrift REQUIRED CONFIG QUIET)
-    
-    # Restore the original ZLIB disable state
-    set(CMAKE_DISABLE_FIND_PACKAGE_ZLIB ${_original_disable_zlib_state} CACHE BOOL "Disable ZLIB finding" FORCE)
-    
-    # The official ThriftConfig.cmake sets THRIFT_LIBRARIES to either thrift::thrift or thriftz::thriftz
-    # based on the configuration (ZLIB support enabled = thriftz::thriftz)
-    if(NOT TARGET ${THRIFT_LIBRARIES})
-        message(FATAL_ERROR "Expected thrift target ${THRIFT_LIBRARIES} not found")
+    # If not found, create the target manually
+    if(NOT TARGET thrift::thrift)
+        add_library(thrift::thrift STATIC IMPORTED GLOBAL)
+        set_target_properties(thrift::thrift PROPERTIES
+            IMPORTED_LOCATION "${THRIFT_INSTALL_DIR}/lib/libthrift.a"
+            INTERFACE_INCLUDE_DIRECTORIES "${THRIFT_INSTALL_DIR}/include"
+            INTERFACE_LINK_LIBRARIES "Boost::boost;OpenSSL::SSL;OpenSSL::Crypto;ZLIB::ZLIB"
+        )
+        
+        # Create the thriftz target as well
+        if(EXISTS "${THRIFT_INSTALL_DIR}/lib/libthriftz.a")
+            add_library(thrift::thriftz STATIC IMPORTED GLOBAL)
+            set_target_properties(thrift::thriftz PROPERTIES
+                IMPORTED_LOCATION "${THRIFT_INSTALL_DIR}/lib/libthriftz.a"
+                INTERFACE_INCLUDE_DIRECTORIES "${THRIFT_INSTALL_DIR}/include"
+                INTERFACE_LINK_LIBRARIES "thrift::thrift;ZLIB::ZLIB"
+            )
+        endif()
+        
+        message(STATUS "Created thrift::thrift target manually")
+    else()
+        message(STATUS "Found thrift package with thrift::thrift target")
     endif()
-
-    message(STATUS "Using official thrift targets: ${THRIFT_LIBRARIES}")
-    message(STATUS "Thrift version: ${THRIFT_VERSION}")
-    message(STATUS "Thrift compiler: ${THRIFT_COMPILER}")
-    message(STATUS "Thrift install dir: ${THRIFT_INSTALL_DIR}")
-else()
-    message(WARNING "Thrift installation not found at ${THRIFT_INSTALL_DIR}")
 endif()
+
+message(STATUS "Finished building ${THRIFT_NAME}. Installed at: ${THRIFT_INSTALL_DIR}")

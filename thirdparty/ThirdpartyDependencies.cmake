@@ -260,6 +260,14 @@ thirdparty_register_component(libsodium
     # libsodium has no dependencies
 )
 
+# Register libstemmer component
+thirdparty_register_component(libstemmer
+    VERSION "${LIBSTEMMER_VERSION}"
+    URL "${LIBSTEMMER_URL}"
+    SHA256 "${LIBSTEMMER_SHA256}"
+    # libstemmer has no dependencies
+)
+
 # Register folly component
 thirdparty_register_component(folly
     VERSION "${FOLLY_VERSION}"

@@ -107,6 +107,7 @@ target_link_libraries(halo_thirdparty
     BZip2::BZip2
     Folly::folly
     libsodium::libsodium
+    libstemmer::libstemmer
 )
 
 add_library(halo_thirdparty_test INTERFACE)

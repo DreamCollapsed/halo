@@ -106,6 +106,7 @@ target_link_libraries(halo_thirdparty
     zlib::zlib
     BZip2::BZip2
     Folly::folly
+    libsodium::libsodium
 )
 
 add_library(halo_thirdparty_test INTERFACE)

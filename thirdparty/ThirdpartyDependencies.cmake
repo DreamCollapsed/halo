@@ -252,6 +252,14 @@ thirdparty_register_component(libevent
     DEPENDS_ON openssl
 )
 
+# Register libsodium component
+thirdparty_register_component(libsodium
+    VERSION "${LIBSODIUM_VERSION}"
+    URL "${LIBSODIUM_URL}"
+    SHA256 "${LIBSODIUM_SHA256}"
+    # libsodium has no dependencies
+)
+
 # Register folly component
 thirdparty_register_component(folly
     VERSION "${FOLLY_VERSION}"

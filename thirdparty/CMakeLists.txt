@@ -108,6 +108,7 @@ target_link_libraries(halo_thirdparty
     Folly::folly
     libsodium::libsodium
     libstemmer::libstemmer
+    protobuf::libprotobuf
 )
 
 add_library(halo_thirdparty_test INTERFACE)

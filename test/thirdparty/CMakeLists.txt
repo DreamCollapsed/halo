@@ -284,3 +284,16 @@ add_module_test(thirdparty_libstemmer
         integration
     TIMEOUT 30
 )
+
+# protobuf integration test
+add_module_test(thirdparty_protobuf
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_protobuf_integration.cpp"
+    LABELS
+        protobuf
+        serialization
+        rpc
+        data-formats
+        thirdparty
+        integration
+    TIMEOUT 30
+)

@@ -268,6 +268,14 @@ thirdparty_register_component(libstemmer
     # libstemmer has no dependencies
 )
 
+# Register protobuf component
+thirdparty_register_component(protobuf
+    VERSION "${PROTOBUF_VERSION}"
+    URL "${PROTOBUF_URL}"
+    SHA256 "${PROTOBUF_SHA256}"
+    DEPENDS_ON abseil
+)
+
 # Register folly component
 thirdparty_register_component(folly
     VERSION "${FOLLY_VERSION}"

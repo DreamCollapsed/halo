@@ -109,6 +109,8 @@ target_link_libraries(halo_thirdparty
     libsodium::libsodium
     libstemmer::libstemmer
     protobuf::libprotobuf
+    thrift::thrift
+    thriftz::thriftz
 )
 
 add_library(halo_thirdparty_test INTERFACE)

@@ -297,3 +297,16 @@ add_module_test(thirdparty_protobuf
         integration
     TIMEOUT 30
 )
+
+# thrift integration test
+add_module_test(thirdparty_thrift
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_thrift_integration.cpp"
+    LABELS
+        thrift
+        serialization
+        rpc
+        data-formats
+        thirdparty
+        integration
+    TIMEOUT 30
+)

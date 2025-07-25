@@ -281,7 +281,7 @@ thirdparty_register_component(thrift
     VERSION "${THRIFT_VERSION}"
     URL "${THRIFT_URL}"
     SHA256 "${THRIFT_SHA256}"
-    DEPENDS_ON boost bison flex zlib
+    DEPENDS_ON boost bison flex zlib openssl
 )
 
 # Register folly component

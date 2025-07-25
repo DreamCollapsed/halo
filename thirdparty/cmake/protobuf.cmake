@@ -3,7 +3,7 @@
 
 include(${CMAKE_CURRENT_LIST_DIR}/../ThirdpartyUtils.cmake)
 
-# Ensure abseil is available since protobuf depends on it
+# Ensure abseil is available since protobuf will embed it
 if(NOT TARGET absl::strings)
     # Load abseil if not already loaded
     include(${CMAKE_CURRENT_LIST_DIR}/abseil.cmake)
@@ -25,6 +25,9 @@ thirdparty_build_cmake_library("protobuf"
         -Dutf8_range_ENABLE_INSTALL=ON
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -Dabsl_DIR=${THIRDPARTY_INSTALL_DIR}/abseil/lib/cmake/absl
+        # Force static linking of Abseil into protobuf
+        -DCMAKE_FIND_LIBRARY_SUFFIXES=.a
+        -DBUILD_SHARED_LIBS=OFF
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/protobuf/lib/libprotobuf.a"
         "${THIRDPARTY_INSTALL_DIR}/protobuf/include/google/protobuf/message.h"
@@ -45,28 +48,62 @@ if(EXISTS "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
         list(APPEND UTF8_RANGE_LIB "${PROTOBUF_INSTALL_DIR}/lib/libutf8_validity.a")
     endif()
     
-    # Find all abseil libraries in protobuf installation
-    file(GLOB PROTOBUF_ABSL_LIBS "${PROTOBUF_INSTALL_DIR}/lib/libabsl_*.a")
+    # List of required Abseil libraries for protobuf
+    set(PROTOBUF_REQUIRED_ABSEIL_LIBS
+        absl::strings
+        absl::str_format
+        absl::flat_hash_map
+        absl::hash
+        absl::time
+        absl::civil_time
+        absl::status
+        absl::statusor
+        absl::log_internal_message
+        absl::log_internal_check_op
+        absl::log_internal_conditions
+        absl::raw_logging_internal
+        absl::base
+        absl::synchronization
+        absl::stacktrace
+        absl::symbolize
+        absl::malloc_internal
+        absl::examine_stack
+        absl::failure_signal_handler
+        absl::debugging_internal
+        absl::demangle_internal
+        absl::cord
+        absl::cord_internal
+        absl::cordz_functions
+        absl::cordz_handle
+        absl::cordz_info
+        absl::cordz_sample_token
+        absl::int128
+        absl::throw_delegate
+        absl::strerror
+        absl::str_format_internal
+        absl::strings_internal
+        absl::string_view
+    )
     
-    # Create the protobuf::libprotobuf target
+    # Create the protobuf::libprotobuf target with embedded Abseil dependencies
     if(NOT TARGET protobuf::libprotobuf)
         add_library(protobuf::libprotobuf STATIC IMPORTED GLOBAL)
         set_target_properties(protobuf::libprotobuf PROPERTIES
             IMPORTED_LOCATION "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a"
             INTERFACE_INCLUDE_DIRECTORIES "${PROTOBUF_INSTALL_DIR}/include"
             INTERFACE_COMPILE_FEATURES cxx_std_17
-            INTERFACE_LINK_LIBRARIES "${UTF8_RANGE_LIB};${PROTOBUF_ABSL_LIBS}"
+            INTERFACE_LINK_LIBRARIES "${UTF8_RANGE_LIB};${PROTOBUF_REQUIRED_ABSEIL_LIBS}"
         )
     endif()
     
-    # Create the protobuf::libprotobuf-lite target
+    # Create the protobuf::libprotobuf-lite target with embedded Abseil dependencies
     if(NOT TARGET protobuf::libprotobuf-lite)
         add_library(protobuf::libprotobuf-lite STATIC IMPORTED GLOBAL)
         set_target_properties(protobuf::libprotobuf-lite PROPERTIES
             IMPORTED_LOCATION "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf-lite.a"
             INTERFACE_INCLUDE_DIRECTORIES "${PROTOBUF_INSTALL_DIR}/include"
             INTERFACE_COMPILE_FEATURES cxx_std_17
-            INTERFACE_LINK_LIBRARIES "${UTF8_RANGE_LIB};${PROTOBUF_ABSL_LIBS}"
+            INTERFACE_LINK_LIBRARIES "${UTF8_RANGE_LIB};${PROTOBUF_REQUIRED_ABSEIL_LIBS}"
         )
     endif()
     

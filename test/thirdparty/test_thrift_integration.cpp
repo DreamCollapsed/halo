@@ -6,6 +6,7 @@
 #include <thrift/protocol/TJSONProtocol.h>
 #include <thrift/server/TSimpleServer.h>
 #include <thrift/transport/TBufferTransports.h>
+#include <thrift/transport/TSSLSocket.h>
 #include <thrift/transport/TSocket.h>
 #include <thrift/transport/TTransportUtils.h>
 #include <thrift/transport/TZlibTransport.h>
@@ -273,6 +274,34 @@ TEST_F(ThriftIntegrationTest, ZlibTransportCompression) {
   std::string decompressed_data(
       reinterpret_cast<char*>(decompressed_buffer.data()), bytes_read);
   EXPECT_EQ(decompressed_data, test_data);
+}
+
+// Test: SSL Socket Support (OpenSSL integration)
+TEST_F(ThriftIntegrationTest, SSLSocketSupport) {
+  using namespace apache::thrift::transport;
+  using namespace apache::thrift::protocol;
+
+  // Test creating basic transport (without connecting)
+  auto socket = std::make_shared<TSocket>("localhost", 9090);
+  EXPECT_TRUE(socket != nullptr);
+  EXPECT_EQ(socket->getHost(), "localhost");
+  EXPECT_EQ(socket->getPort(), 9090);
+
+  // Test SSL socket creation using TSSLSocketFactory (with OpenSSL support)
+  TSSLSocketFactory ssl_factory;
+  auto ssl_socket = ssl_factory.createSocket("localhost", 9090);
+  EXPECT_TRUE(ssl_socket != nullptr);
+  EXPECT_EQ(ssl_socket->getHost(), "localhost");
+  EXPECT_EQ(ssl_socket->getPort(), 9090);
+
+  // Test protocol creation with SSL socket
+  auto protocol =
+      std::make_shared<apache::thrift::protocol::TBinaryProtocol>(ssl_socket);
+  EXPECT_TRUE(protocol != nullptr);
+
+  // Test that SSL socket behaves like a regular socket for basic operations
+  // (without actually connecting, just testing object creation)
+  EXPECT_FALSE(ssl_socket->isOpen());
 }
 
 int main(int argc, char** argv) {

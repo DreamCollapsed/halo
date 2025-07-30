@@ -39,15 +39,21 @@ endforeach()
 
 # Display build summary
 message(STATUS "=== Third-party Build Summary ===")
-include(ProcessorCount)
-ProcessorCount(_cpu_count)
-message(STATUS "CPU cores available: ${_cpu_count}")
+thirdparty_get_build_jobs(OUTPUT_COMPILE_JOBS _compile_jobs OUTPUT_LINK_JOBS _link_jobs OUTPUT_MAKE_JOBS _make_jobs)
+message(STATUS "Build job configuration: compile=${_compile_jobs}, link=${_link_jobs}, make=${_make_jobs}")
 
-find_program(CCACHE_FOUND ccache)
-if(CCACHE_FOUND)
-    message(STATUS "Ccache: ENABLED")
+thirdparty_get_ccache_executable(_ccache_path)
+if(_ccache_path)
+    message(STATUS "Ccache: ENABLED (${_ccache_path})")
 else()
-    message(STATUS "Ccache: NOT FOUND")
+    message(STATUS "Ccache: NOT AVAILABLE")
+endif()
+
+find_program(NINJA_EXECUTABLE ninja)
+if(NINJA_EXECUTABLE)
+    message(STATUS "Build generator: Ninja (${NINJA_EXECUTABLE})")
+else()
+    message(STATUS "Build generator: ${CMAKE_GENERATOR}")
 endif()
 
 add_library(halo_thirdparty INTERFACE)

@@ -5,12 +5,10 @@
 thirdparty_build_cmake_library("glog"
     DEPENDENCIES "gflags"
     CMAKE_ARGS
-        -DBUILD_TESTING=OFF
         -DWITH_GFLAGS=ON
         -DWITH_GTEST=OFF
         -DWITH_PKGCONFIG=OFF
         -DWITH_UNWIND=OFF
-        -DBUILD_SHARED_LIBS=OFF
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/glog/lib/cmake/glog/glog-config.cmake"
         "${THIRDPARTY_INSTALL_DIR}/glog/lib/libglog.a"

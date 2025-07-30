@@ -5,7 +5,6 @@
 thirdparty_build_cmake_library("gflags"
     CMAKE_ARGS
         -DBUILD_STATIC_LIBS=ON
-        -DBUILD_TESTING=OFF
         -DINSTALL_HEADERS=ON
         -DGFLAGS_NAMESPACE=gflags
     VALIDATION_FILES

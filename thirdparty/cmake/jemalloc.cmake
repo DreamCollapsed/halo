@@ -81,7 +81,7 @@ add_library(jemalloc::jemalloc_default ALIAS jemalloc::jemalloc_pic)
 
 # Export jemalloc to global scope
 list(APPEND CMAKE_PREFIX_PATH "${JEMALLOC_INSTALL_DIR}")
-set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" CACHE INTERNAL "Updated CMAKE_PREFIX_PATH with jemalloc" FORCE)
 set(jemalloc_DIR "${JEMALLOC_INSTALL_DIR}" CACHE PATH "Path to installed jemalloc" FORCE)
 
 message(STATUS "jemalloc integration completed successfully")

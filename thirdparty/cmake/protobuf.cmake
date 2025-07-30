@@ -23,11 +23,9 @@ thirdparty_build_cmake_library("protobuf"
         -Dprotobuf_ABSL_PROVIDER=package
         -Dprotobuf_BUILD_LIBPROTOC=ON
         -Dutf8_range_ENABLE_INSTALL=ON
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -Dabsl_DIR=${THIRDPARTY_INSTALL_DIR}/abseil/lib/cmake/absl
         # Force static linking of Abseil into protobuf
         -DCMAKE_FIND_LIBRARY_SUFFIXES=.a
-        -DBUILD_SHARED_LIBS=OFF
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/protobuf/lib/libprotobuf.a"
         "${THIRDPARTY_INSTALL_DIR}/protobuf/include/google/protobuf/message.h"
@@ -125,10 +123,10 @@ if(EXISTS "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
     endif()
     
     # Set variables for find_package compatibility
-    set(Protobuf_FOUND TRUE PARENT_SCOPE)
-    set(Protobuf_INCLUDE_DIRS "${PROTOBUF_INSTALL_DIR}/include" PARENT_SCOPE)
-    set(Protobuf_LIBRARIES "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a" PARENT_SCOPE)
-    set(Protobuf_PROTOC_EXECUTABLE "${PROTOBUF_INSTALL_DIR}/bin/protoc" PARENT_SCOPE)
+    thirdparty_safe_set_parent_scope(Protobuf_FOUND TRUE)
+    thirdparty_safe_set_parent_scope(Protobuf_INCLUDE_DIRS "${PROTOBUF_INSTALL_DIR}/include")
+    thirdparty_safe_set_parent_scope(Protobuf_LIBRARIES "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
+    thirdparty_safe_set_parent_scope(Protobuf_PROTOC_EXECUTABLE "${PROTOBUF_INSTALL_DIR}/bin/protoc")
     
     message(STATUS "protobuf found and exported globally: ${PROTOBUF_INSTALL_DIR}")
 else()

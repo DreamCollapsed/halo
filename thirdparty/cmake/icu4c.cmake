@@ -49,7 +49,8 @@ function(icu4c_configure_and_build)
         list(APPEND ICU4C_CONFIGURE_ARGS --build=aarch64-apple-darwin)
     endif()
 
-    # Set compiler flags for static linking
+    # Set compiler flags for static linking and get parallel job count
+    thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _parallel_jobs)
     set(ENV{CXXFLAGS} "-fPIC -O2")
     set(ENV{CFLAGS} "-fPIC -O2")
 
@@ -88,11 +89,11 @@ function(icu4c_configure_and_build)
         set(PARALLEL_JOBS 4)
     endif()
 
-    message(STATUS "Building ICU4C with ${PARALLEL_JOBS} parallel jobs...")
+    message(STATUS "Building ICU4C with ${_parallel_jobs} parallel jobs...")
     
     # Build ICU4C
     execute_process(
-        COMMAND make -j${PARALLEL_JOBS}
+        COMMAND make -j${_parallel_jobs}
         WORKING_DIRECTORY "${ICU4C_BUILD_DIR}"
         RESULT_VARIABLE _build_result
     )
@@ -142,7 +143,7 @@ endif()
 # Export ICU4C following project standards
 if(EXISTS "${ICU4C_INSTALL_DIR}/lib/libicuuc.a")
     list(APPEND CMAKE_PREFIX_PATH "${ICU4C_INSTALL_DIR}")
-    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+    thirdparty_safe_set_parent_scope(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}")
     
     # Create imported targets for ICU4C components
     if(NOT TARGET ICU::uc)

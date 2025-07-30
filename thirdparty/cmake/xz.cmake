@@ -5,7 +5,6 @@
 # Note: XZ uses autotools for official releases, but also has CMake support
 thirdparty_build_cmake_library("xz"
     CMAKE_ARGS
-        -DBUILD_SHARED_LIBS=OFF
         -DCREATE_XZ_SYMLINKS=OFF
         -DCREATE_LZMA_SYMLINKS=OFF
         -DENABLE_STATIC=ON
@@ -20,7 +19,6 @@ thirdparty_build_cmake_library("xz"
         -DENABLE_THREADING=ON
         -DENABLE_NLS=OFF
         -DENABLE_DOXYGEN=OFF
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a"
         "${THIRDPARTY_INSTALL_DIR}/xz/include/lzma.h"

@@ -98,7 +98,6 @@ thirdparty_cmake_configure("${THRIFT_SOURCE_DIR}" "${THRIFT_BUILD_DIR}"
     CMAKE_ARGS
         -DCMAKE_INSTALL_PREFIX=${THRIFT_INSTALL_DIR}
         ${THRIFT_CMAKE_ARGS}
-        -DBUILD_TESTING=OFF
         -DBUILD_TUTORIALS=OFF
         -DBUILD_EXAMPLES=OFF
         -DWITH_QT5=OFF
@@ -113,7 +112,6 @@ thirdparty_cmake_configure("${THRIFT_SOURCE_DIR}" "${THRIFT_BUILD_DIR}"
         -DWITH_OPENSSL=ON
         -DWITH_ZLIB=ON
         -DWITH_STATIC_LIB=ON
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DBoost_USE_STATIC_LIBS=ON
         -DBoost_ROOT=${THIRDPARTY_INSTALL_DIR}/boost
         -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
@@ -138,10 +136,10 @@ thirdparty_cmake_install("${THRIFT_BUILD_DIR}" "${THRIFT_INSTALL_DIR}"
 )
 
 # Export the installation directory for other components to find
-set(THRIFT_INSTALL_DIR "${THRIFT_INSTALL_DIR}" PARENT_SCOPE)
+thirdparty_safe_set_parent_scope(THRIFT_INSTALL_DIR "${THRIFT_INSTALL_DIR}")
 get_filename_component(THRIFT_INSTALL_DIR "${THRIFT_INSTALL_DIR}" ABSOLUTE)
 list(APPEND CMAKE_PREFIX_PATH "${THRIFT_INSTALL_DIR}")
-set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+thirdparty_safe_set_parent_scope(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}")
 
 # Import the thrift targets if they don't exist
 if(NOT TARGET thrift::thrift)

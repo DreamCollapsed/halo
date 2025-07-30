@@ -34,143 +34,60 @@ file(APPEND "${FOLLY_SOURCE_DIR}/CMake/folly-deps.cmake" "
   )
 ")
 
-# Create FindGlog.cmake directly in folly's CMake directory for MODULE-mode compatibility
-set(_findglog_content "# FindGlog.cmake - Auto-generated bridge module
-# This bridges CONFIG-mode glog to MODULE-mode find_package calls
-
-# Find glog using CONFIG mode
-find_package(glog QUIET CONFIG HINTS \"${THIRDPARTY_INSTALL_DIR}/glog/lib/cmake/glog\")
-
-if(glog_FOUND)
-    # Extract information from the CONFIG-mode target
-    get_target_property(GLOG_INCLUDE_DIR glog::glog INTERFACE_INCLUDE_DIRECTORIES)
-    get_target_property(GLOG_LIBRARY glog::glog IMPORTED_LOCATION)
-    
-    # Try different configurations if IMPORTED_LOCATION is not available
-    if(NOT GLOG_LIBRARY)
-        get_target_property(GLOG_LIBRARY glog::glog IMPORTED_LOCATION_RELEASE)
-    endif()
-    if(NOT GLOG_LIBRARY)
-        get_target_property(GLOG_LIBRARY glog::glog IMPORTED_LOCATION_DEBUG)
-    endif()
-    if(NOT GLOG_LIBRARY)
-        set(GLOG_LIBRARY \"${THIRDPARTY_INSTALL_DIR}/glog/lib/libglog.a\")
-    endif()
-    
-    # Set MODULE-mode variables
-    set(GLOG_LIBRARIES \\\${GLOG_LIBRARY})
-    set(GLOG_FOUND TRUE)
-    
-    # Some projects expect these legacy variables
-    set(LIBGLOG_FOUND TRUE)
-    
-    mark_as_advanced(GLOG_INCLUDE_DIR GLOG_LIBRARY)
-    
-    if(NOT TARGET Glog::glog)
-        add_library(Glog::glog ALIAS glog::glog)
-    endif()
-else()
-    # Fallback: Manual search if CONFIG mode fails
-    find_path(GLOG_INCLUDE_DIR
-        NAMES glog/logging.h
-        HINTS \"${THIRDPARTY_INSTALL_DIR}/glog/include\"
-    )
-    
-    find_library(GLOG_LIBRARY
-        NAMES glog libglog
-        HINTS \"${THIRDPARTY_INSTALL_DIR}/glog/lib\"
-    )
-    
-    include(FindPackageHandleStandardArgs)
-    find_package_handle_standard_args(Glog
-        REQUIRED_VARS GLOG_LIBRARY GLOG_INCLUDE_DIR
-    )
-    
-    if(GLOG_FOUND)
-        set(GLOG_LIBRARIES \\\${GLOG_LIBRARY})
-        set(LIBGLOG_FOUND TRUE)
-        
-        if(NOT TARGET Glog::glog)
-            add_library(Glog::glog UNKNOWN IMPORTED)
-            set_target_properties(Glog::glog PROPERTIES
-                IMPORTED_LOCATION \\\"\\\${GLOG_LIBRARY}\\\"
-                INTERFACE_INCLUDE_DIRECTORIES \\\"\\\${GLOG_INCLUDE_DIR}\\\"
-            )
-        endif()
-    endif()
-endif()
-")
-
-file(WRITE "${FOLLY_SOURCE_DIR}/CMake/FindGlog.cmake" "${_findglog_content}")
-message(STATUS "Created FindGlog.cmake bridge module at ${FOLLY_SOURCE_DIR}/CMake/FindGlog.cmake")
 message(STATUS "Appended jemalloc compile definitions to folly-deps.cmake")
 
-# Configure folly with CMake and optimization flags.
-# This is a hybrid approach to satisfy folly's mixed use of modern and legacy
+# Modern approach: Modify folly-deps.cmake to use CONFIG mode for glog and Boost instead of MODULE mode
+# This leverages modern CMake config support and eliminates the need for FindGlog.cmake and FindBoost.cmake patches
+file(READ "${FOLLY_SOURCE_DIR}/CMake/folly-deps.cmake" _folly_deps_content)
+
+# Fix glog to use CONFIG mode
+string(REPLACE 
+    "find_package(Glog MODULE)" 
+    "find_package(glog CONFIG REQUIRED)" 
+    _folly_deps_content "${_folly_deps_content}")
+string(REPLACE 
+    "set(FOLLY_HAVE_LIBGLOG \${GLOG_FOUND})" 
+    "set(FOLLY_HAVE_LIBGLOG \${glog_FOUND})" 
+    _folly_deps_content "${_folly_deps_content}")
+string(REPLACE 
+    "list(APPEND FOLLY_LINK_LIBRARIES \${GLOG_LIBRARY})" 
+    "list(APPEND FOLLY_LINK_LIBRARIES glog::glog)" 
+    _folly_deps_content "${_folly_deps_content}")
+string(REPLACE 
+    "list(APPEND FOLLY_INCLUDE_DIRECTORIES \${GLOG_INCLUDE_DIR})" 
+    "# glog::glog target provides include directories automatically" 
+    _folly_deps_content "${_folly_deps_content}")
+
+# Fix Boost to use CONFIG mode instead of MODULE mode
+string(REPLACE 
+    "find_package(Boost 1.51.0 MODULE" 
+    "find_package(Boost 1.51.0 CONFIG" 
+    _folly_deps_content "${_folly_deps_content}")
+
+file(WRITE "${FOLLY_SOURCE_DIR}/CMake/folly-deps.cmake" "${_folly_deps_content}")
+message(STATUS "Modified folly-deps.cmake to use glog and Boost CONFIG mode (modern CMake approach)")
+
 thirdparty_get_optimization_flags(_opt_flags COMPONENT folly)
 list(APPEND _opt_flags
-    # Override install prefix
     -DCMAKE_INSTALL_PREFIX=${FOLLY_INSTALL_DIR}
 
-    # Force CMake to use our third-party libraries first
-    -DCMAKE_PREFIX_PATH=${THIRDPARTY_INSTALL_DIR}/zlib\;${THIRDPARTY_INSTALL_DIR}/xz\;${THIRDPARTY_INSTALL_DIR}/boost\;${THIRDPARTY_INSTALL_DIR}/gflags\;${THIRDPARTY_INSTALL_DIR}/glog\;${THIRDPARTY_INSTALL_DIR}/double-conversion\;${THIRDPARTY_INSTALL_DIR}/libevent\;${THIRDPARTY_INSTALL_DIR}/openssl\;${THIRDPARTY_INSTALL_DIR}/zstd\;${THIRDPARTY_INSTALL_DIR}/lz4\;${THIRDPARTY_INSTALL_DIR}/snappy\;${THIRDPARTY_INSTALL_DIR}/fmt\;${THIRDPARTY_INSTALL_DIR}/jemalloc\;${THIRDPARTY_INSTALL_DIR}/bzip2
-    
-    # Disable system library search paths
-    -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY
-    -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY
-    -DCMAKE_FIND_ROOT_PATH=${THIRDPARTY_INSTALL_DIR}
-
-    # BOOST
-    -DBOOST_LINK_STATIC:STRING=ON
+    # --- Boost Configuration (Using CONFIG mode - modern CMake approach) ---
+    -DBOOST_LINK_STATIC:BOOL=ON
+    -DBOOST_ROOT:PATH=${THIRDPARTY_INSTALL_DIR}/boost
+    -DBOOST_INCLUDEDIR:PATH=${THIRDPARTY_INSTALL_DIR}/boost/include
+    -DBOOST_LIBRARYDIR:PATH=${THIRDPARTY_INSTALL_DIR}/boost/lib
+    -DBoost_USE_MULTITHREADED:BOOL=ON
     -DBoost_USE_STATIC_RUNTIME:BOOL=ON
+    -DBoost_NO_SYSTEM_PATHS:BOOL=ON
+    -DBoost_NO_BOOST_CMAKE:BOOL=OFF
     -DBoost_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/boost/lib/cmake/Boost-1.88.0
-
-    # FMT
-    -Dfmt_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/fmt/lib/cmake/fmt
-
-    # DOUBLE_CONVERSION
-    -DDOUBLE_CONVERSION_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/double-conversion/include
-    -DDOUBLE_CONVERSION_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/double-conversion/lib/libdouble-conversion.a
-
-    # GFLAGS
-    -DGFLAGS_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/gflags/include
-    -DGFLAGS_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/gflags/lib/libgflags.a
-
-    # GLOG
-    -DGLOG_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/glog/include
-    -DGLOG_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/glog/lib/libglog.a
-
-    # LIBEVENT
-    -DLIBEVENT_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/libevent/include
-    -DLIBEVENT_LIB:FILEPATH=${THIRDPARTY_INSTALL_DIR}/libevent/lib/libevent.a
-
-    # OPENSSL
-    -DOPENSSL_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/openssl/include
-    -DOPENSSL_SSL_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
-    -DOPENSSL_CRYPTO_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
-
-    # ZSTD
-    -DZSTD_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/zstd/include
-    -DZSTD_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/zstd/lib/libzstd.a
-
-    # LZ4
-    -DLZ4_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/lz4/include
-    -DLZ4_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/lz4/lib/liblz4.a
-
-    # SNAPPY
-    -DSNAPPY_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/snappy/include
-    -DSNAPPY_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/snappy/lib/libsnappy.a
-
-    # ZLIB - Force use of third-party library, not system
+    
+    # ZLIB - Force use of third-party library, not system (no config file)
     -DZLIB_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/zlib/include
     -DZLIB_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
     -DZLIB_ROOT:PATH=${THIRDPARTY_INSTALL_DIR}/zlib
 
-    # LZMA/XZ - Use standard FindLibLZMA variables
-    -DLIBLZMA_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/xz/include
-    -DLIBLZMA_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
-
-    # BZIP2 - Use standard FindBZip2 variables (both singular and plural needed)
+    # BZIP2 - Use standard FindBZip2 variables (no config file)
     -DBZIP2_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/bzip2/include
     -DBZIP2_INCLUDE_DIRS:PATH=${THIRDPARTY_INSTALL_DIR}/bzip2/include
     -DBZIP2_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/bzip2/lib/libbz2.a
@@ -178,6 +95,14 @@ list(APPEND _opt_flags
 
     # FASTFLOAT
     -DFASTFLOAT_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/fast-float/include
+
+    # DOUBLE_CONVERSION - Use FindDoubleConversion.cmake variables (no config file)
+    -DDOUBLE_CONVERSION_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/double-conversion/include
+    -DDOUBLE_CONVERSION_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/double-conversion/lib/libdouble-conversion.a
+
+    # LIBEVENT - Use FindLibEvent.cmake variables (Folly's custom module)
+    -DLIBEVENT_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/libevent/include
+    -DLIBEVENT_LIB:FILEPATH=${THIRDPARTY_INSTALL_DIR}/libevent/lib/libevent.a
 
     # Jemalloc
     -DCMAKE_REQUIRED_INCLUDES=${THIRDPARTY_INSTALL_DIR}/jemalloc/include
@@ -210,8 +135,8 @@ thirdparty_cmake_install("${FOLLY_BUILD_DIR}" "${FOLLY_INSTALL_DIR}"
         "${FOLLY_INSTALL_DIR}/include/folly/folly-config.h"
 )
 
-# Export Folly configuration for parent scope
-set(FOLLY_INSTALL_DIR "${FOLLY_INSTALL_DIR}" PARENT_SCOPE)
+# Export Folly configuration for parent scope (safely handled)
+thirdparty_safe_set_parent_scope(FOLLY_INSTALL_DIR "${FOLLY_INSTALL_DIR}")
 set(Folly_DIR "${FOLLY_INSTALL_DIR}/lib/cmake/folly" CACHE PATH "Path to installed Folly cmake config" FORCE)
 
 # Import Folly package immediately

@@ -72,8 +72,8 @@ set_target_properties(OpenSSL::SSL PROPERTIES
 include(CMakeFindDependencyMacro)
 find_dependency(Threads)
 
-include("\${CMAKE_CURRENT_LIST_DIR}/OpenSSLTargets.cmake")
-include("\${CMAKE_CURRENT_LIST_DIR}/OpenSSLTargets-release.cmake")
+include(\"\${CMAKE_CURRENT_LIST_DIR}/OpenSSLTargets.cmake\")
+include(\"\${CMAKE_CURRENT_LIST_DIR}/OpenSSLTargets-release.cmake\")
 
 set(OPENSSL_FOUND TRUE)
 set(OPENSSL_VERSION \"${OPENSSL_VERSION}\")
@@ -133,9 +133,9 @@ thirdparty_build_autotools_library(openssl
 # Export OpenSSL following project standards
 if(EXISTS "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL/OpenSSLConfig.cmake")
     list(APPEND CMAKE_PREFIX_PATH "${OPENSSL_INSTALL_DIR}")
-    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+    thirdparty_safe_set_parent_scope(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}")
     set(OpenSSL_DIR "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL" CACHE PATH "OpenSSL cmake config directory" FORCE)
-    set(OPENSSL_FOUND TRUE PARENT_SCOPE)
+    thirdparty_safe_set_parent_scope(OPENSSL_FOUND TRUE)
     
     # Import OpenSSL package immediately
     find_package(OpenSSL REQUIRED CONFIG QUIET)

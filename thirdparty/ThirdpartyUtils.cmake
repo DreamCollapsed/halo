@@ -1,3 +1,71 @@
+# --- Safe Parent Scope Setting Utility ---
+# This function safely sets variables in parent scope, avoiding warnings when no parent exists
+function(thirdparty_safe_set_parent_scope variable_name value)
+    # Check if we have a parent scope by testing if we can access CMAKE_CURRENT_SOURCE_DIR
+    # from both current and what would be parent context
+    get_directory_property(_has_parent PARENT_DIRECTORY)
+    if(_has_parent)
+        set(${variable_name} "${value}" PARENT_SCOPE)
+    else()
+        # No parent scope, set as cache variable instead
+        set(${variable_name} "${value}" CACHE INTERNAL "Thirdparty variable: ${variable_name}" FORCE)
+    endif()
+endfunction()
+
+# --- Centralized Build Job Configuration ---
+# This function provides unified thread/job count configuration for all build systems
+function(thirdparty_get_build_jobs)
+    # Parse optional parameters for different build systems
+    set(options "")
+    set(oneValueArgs "OUTPUT_COMPILE_JOBS;OUTPUT_LINK_JOBS;OUTPUT_MAKE_JOBS;BUILD_TYPE")
+    set(multiValueArgs "")
+    cmake_parse_arguments(PARSE_ARGV 0 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
+    
+    include(ProcessorCount)
+    ProcessorCount(_cpu_count)
+    
+    # Set default values if CPU count detection fails
+    if(NOT _cpu_count OR _cpu_count EQUAL 0)
+        set(_cpu_count 4)
+        message(STATUS "[thirdparty] CPU count detection failed, using fallback: ${_cpu_count}")
+    endif()
+    
+    # Configure different job types based on system capabilities and build type
+    set(_compile_jobs ${_cpu_count})
+    set(_link_jobs 2)
+    set(_make_jobs ${_cpu_count})
+    
+    # Adjust for high-end systems (more conservative linking to avoid memory pressure)
+    if(_cpu_count GREATER 8)
+        set(_link_jobs 4)
+    elseif(_cpu_count GREATER 16)
+        set(_link_jobs 6)
+    endif()
+    
+    # Special handling for debug builds (use fewer jobs to reduce memory usage)
+    if(ARG_BUILD_TYPE AND ARG_BUILD_TYPE STREQUAL "Debug")
+        math(EXPR _compile_jobs "${_cpu_count} / 2")
+        math(EXPR _link_jobs "2")
+        if(_compile_jobs LESS 2)
+            set(_compile_jobs 2)
+        endif()
+        message(STATUS "[thirdparty] Debug build detected, using conservative job counts")
+    endif()
+    
+    # Output the results to the specified variables
+    if(ARG_OUTPUT_COMPILE_JOBS)
+        set(${ARG_OUTPUT_COMPILE_JOBS} ${_compile_jobs} PARENT_SCOPE)
+    endif()
+    if(ARG_OUTPUT_LINK_JOBS)
+        set(${ARG_OUTPUT_LINK_JOBS} ${_link_jobs} PARENT_SCOPE)
+    endif()
+    if(ARG_OUTPUT_MAKE_JOBS)
+        set(${ARG_OUTPUT_MAKE_JOBS} ${_make_jobs} PARENT_SCOPE)
+    endif()
+    
+    message(STATUS "[thirdparty] Build job configuration: compile=${_compile_jobs}, link=${_link_jobs}, make=${_make_jobs} (${_cpu_count} CPUs available)")
+endfunction()
+
 function(thirdparty_download_and_check url file hash)
     set(_need_download TRUE)
     if(EXISTS "${file}")
@@ -110,15 +178,19 @@ function(thirdparty_cmake_configure srcdir builddir)
 
     message(STATUS "[thirdparty_cmake_configure] Configuring ${_actual_src_dir} to ${builddir}")
     
+    # Apply Ninja optimizations to the cmake arguments
+    set(_cmake_args ${ARG_CMAKE_ARGS})
+    thirdparty_configure_ninja_optimization(_cmake_args)
+    
     # Print the complete cmake command for debugging
     set(_cmake_cmd_str "${CMAKE_COMMAND} -S \"${_actual_src_dir}\" -B \"${builddir}\"")
-    foreach(_arg ${ARG_CMAKE_ARGS})
+    foreach(_arg ${_cmake_args})
         set(_cmake_cmd_str "${_cmake_cmd_str} ${_arg}")
     endforeach()
     message(STATUS "[thirdparty_cmake_configure] CMake command: ${_cmake_cmd_str}")
     
     execute_process(
-        COMMAND ${CMAKE_COMMAND} -S "${_actual_src_dir}" -B "${builddir}" ${ARG_CMAKE_ARGS}
+        COMMAND ${CMAKE_COMMAND} -S "${_actual_src_dir}" -B "${builddir}" ${_cmake_args}
         RESULT_VARIABLE result
         OUTPUT_VARIABLE output
         ERROR_VARIABLE error
@@ -181,21 +253,26 @@ function(thirdparty_cmake_install builddir installdir)
     
     message(STATUS "[thirdparty_cmake_install] Building and installing from ${builddir} to ${installdir}")
     
-    # Build the project with parallel jobs
-    include(ProcessorCount)
-    ProcessorCount(N)
-    if(NOT N EQUAL 0)
-        set(PARALLEL_JOBS ${N})
+    # Use optimized build command based on generator
+    find_program(NINJA_EXECUTABLE ninja)
+    if(NINJA_EXECUTABLE AND EXISTS "${builddir}/build.ninja")
+        # Use Ninja directly for better performance
+        message(STATUS "[thirdparty_cmake_install] Using Ninja for optimized build")
+        execute_process(
+            COMMAND ${NINJA_EXECUTABLE} -C "${builddir}"
+            RESULT_VARIABLE _build_result
+        )
     else()
-        set(PARALLEL_JOBS 4)  # Fallback to 4 jobs
+        # Fallback to standard CMake build with centralized job configuration
+        thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _parallel_jobs)
+        
+        message(STATUS "[thirdparty_cmake_install] Build command: ${CMAKE_COMMAND} --build \"${builddir}\" --parallel ${_parallel_jobs}")
+        
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} --build "${builddir}" --parallel ${_parallel_jobs}
+            RESULT_VARIABLE _build_result
+        )
     endif()
-    
-    message(STATUS "[thirdparty_cmake_install] Build command: ${CMAKE_COMMAND} --build \"${builddir}\" --parallel ${PARALLEL_JOBS}")
-    
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} --build "${builddir}" --parallel ${PARALLEL_JOBS}
-        RESULT_VARIABLE _build_result
-    )
     
     if(_build_result EQUAL 0)
         # Create install directory if it doesn't exist
@@ -237,22 +314,54 @@ function(thirdparty_get_optimization_flags output_var)
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DBUILD_SHARED_LIBS:BOOL=OFF
+        -DBUILD_TESTING=OFF
         -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
         -DCMAKE_WARN_DEPRECATED=OFF
-
-        # Sandbox mode: use thirdparty install dir for find_package searches
-        -DCMAKE_FIND_ROOT_PATH=${THIRDPARTY_INSTALL_DIR}
-        -DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH
-        -DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH
-        -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH
 
         -Wno-dev
         --no-warn-unused-cli
     )
     
+    # --- Build CMAKE_FIND_ROOT_PATH from installed components ---
+    # For each component to find its dependencies correctly, we need to set CMAKE_FIND_ROOT_PATH
+    # to point to the individual component installation directories, not the parent directory
+    thirdparty_build_find_root_path(_find_root_paths)
+    if(_find_root_paths)
+        list(APPEND _opt_flags "-DCMAKE_FIND_ROOT_PATH=${_find_root_paths}")
+        list(APPEND _opt_flags "-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH")
+        list(APPEND _opt_flags "-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH") 
+        list(APPEND _opt_flags "-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH")
+    endif()
+    
+    # --- Ninja Generator Support for faster builds ---
+    # Check if Ninja is available and use it for third-party libraries
+    find_program(NINJA_EXECUTABLE ninja)
+    if(NINJA_EXECUTABLE)
+        list(APPEND _opt_flags -GNinja)
+        message(STATUS "[thirdparty] Using Ninja generator for faster third-party builds")
+    else()
+        # Fallback to default generator with parallel make support
+        thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _make_jobs)
+        list(APPEND _opt_flags -DCMAKE_BUILD_PARALLEL_LEVEL=${_make_jobs})
+        message(STATUS "[thirdparty] Ninja not found, using default generator with ${_make_jobs} parallel jobs")
+    endif()
+    
     # Add Link Time Optimization (LTO) if supported
     if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE)
         list(APPEND _opt_flags -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON)
+    endif()
+    
+    # --- ccache Support for faster rebuilds ---
+    # ccache is configured globally by thirdparty_setup_ccache()
+    # Here we ensure it's applied to individual third-party library builds
+    thirdparty_get_ccache_executable(_ccache_path)
+    if(_ccache_path)
+        # Add explicit compiler launcher flags to ensure ccache works even if 
+        # the third-party library doesn't inherit global CMAKE_*_COMPILER_LAUNCHER
+        list(APPEND _opt_flags 
+            -DCMAKE_C_COMPILER_LAUNCHER=${_ccache_path}
+            -DCMAKE_CXX_COMPILER_LAUNCHER=${_ccache_path}
+        )
     endif()
     
     # Modern CMake policy defaults to avoid compatibility issues
@@ -271,6 +380,12 @@ function(thirdparty_get_optimization_flags output_var)
         # CMP0079: target_link_libraries() allows use with targets in other directories
         -DCMAKE_POLICY_DEFAULT_CMP0079=NEW
     )
+    
+    # Handle FindBoost module removal in newer CMake versions (CMP0167)
+    # This prevents warnings when folly or other libraries try to use FindBoost
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
+        list(APPEND _opt_flags -DCMAKE_POLICY_DEFAULT_CMP0167=NEW)
+    endif()
     
     # Automatically add dependency CMAKE_ARGS if component is specified
     if(ARG_COMPONENT)
@@ -304,14 +419,103 @@ function(thirdparty_get_optimization_flags output_var)
     set(${output_var} "${_opt_flags}" PARENT_SCOPE)
 endfunction()
 
-# Function to check if we should use ccache for faster recompilation
+# --- Centralized ccache Configuration ---
+# This function configures ccache globally for the entire build system
+# It should be called once at the beginning of the third-party build process
 function(thirdparty_setup_ccache)
-    find_program(CCACHE_FOUND ccache)
-    if(CCACHE_FOUND)
-        set(CMAKE_CXX_COMPILER_LAUNCHER ccache CACHE STRING "Use ccache for compilation" FORCE)
-        set(CMAKE_C_COMPILER_LAUNCHER ccache CACHE STRING "Use ccache for compilation" FORCE)
-        message(STATUS "Using ccache for faster recompilation")
+    find_program(CCACHE_EXECUTABLE ccache)
+    if(CCACHE_EXECUTABLE)
+        # ============================================================
+        # Global ccache configuration for main project
+        # ============================================================
+        # Set ccache as the compiler launcher for the main project
+        set(CMAKE_CXX_COMPILER_LAUNCHER ${CCACHE_EXECUTABLE} CACHE STRING "Use ccache for C++ compilation" FORCE)
+        set(CMAKE_C_COMPILER_LAUNCHER ${CCACHE_EXECUTABLE} CACHE STRING "Use ccache for C compilation" FORCE)
+        
+        # ============================================================
+        # ccache Performance Optimization
+        # ============================================================
+        # Set cache size to 5GB (adjust based on available disk space)
+        execute_process(
+            COMMAND ${CCACHE_EXECUTABLE} --max-size=5G
+            OUTPUT_QUIET ERROR_QUIET
+        )
+        
+        # Enable compression to save disk space
+        execute_process(
+            COMMAND ${CCACHE_EXECUTABLE} --set-config=compression=true
+            OUTPUT_QUIET ERROR_QUIET
+        )
+        
+        # Enable statistics for monitoring
+        execute_process(
+            COMMAND ${CCACHE_EXECUTABLE} --set-config=stats=true
+            OUTPUT_QUIET ERROR_QUIET
+        )
+        
+        # Set reasonable cache file limit
+        execute_process(
+            COMMAND ${CCACHE_EXECUTABLE} --max-files=0
+            OUTPUT_QUIET ERROR_QUIET
+        )
+        
+        message(STATUS "ccache configured globally: ${CCACHE_EXECUTABLE}")
+        
+        # ============================================================
+        # Display ccache Status and Statistics
+        # ============================================================
+        execute_process(
+            COMMAND ${CCACHE_EXECUTABLE} --show-stats
+            OUTPUT_VARIABLE _ccache_stats
+            ERROR_QUIET
+        )
+        if(_ccache_stats)
+            # Extract key statistics for summary
+            string(REGEX MATCH "Hits: *([0-9]+) */ *([0-9]+)" _hit_match "${_ccache_stats}")
+            if(_hit_match)
+                string(REGEX REPLACE ".*Hits: *([0-9]+) */ *([0-9]+).*" "\\1" _hits "${_ccache_stats}")
+                string(REGEX REPLACE ".*Hits: *([0-9]+) */ *([0-9]+).*" "\\2" _total "${_ccache_stats}")
+                if(_total GREATER 0)
+                    math(EXPR _hit_rate "100 * ${_hits} / ${_total}")
+                    message(STATUS "ccache hit rate: ${_hit_rate}% (${_hits}/${_total})")
+                endif()
+            endif()
+            
+            # Show cache size info
+            string(REGEX MATCH "Cache size \\(GB\\): *([0-9.]+) */ *([0-9.]+)" _size_match "${_ccache_stats}")
+            if(_size_match)
+                string(REGEX REPLACE ".*Cache size \\(GB\\): *([0-9.]+) */ *([0-9.]+).*" "\\1" _used "${_ccache_stats}")
+                string(REGEX REPLACE ".*Cache size \\(GB\\): *([0-9.]+) */ *([0-9.]+).*" "\\2" _max "${_ccache_stats}")
+                message(STATUS "ccache storage: ${_used}GB / ${_max}GB used")
+            endif()
+        endif()
+        
+        # Export ccache path for use by other functions
+        set(THIRDPARTY_CCACHE_EXECUTABLE ${CCACHE_EXECUTABLE} CACHE INTERNAL "ccache executable path")
+        
+    else()
+        message(STATUS "ccache not found")
+        message(STATUS "  Install with:")
+        message(STATUS "  macOS: brew install ccache")
+        message(STATUS "  Ubuntu/Debian: apt install ccache") 
+        message(STATUS "  CentOS/RHEL: yum install ccache")
+        message(STATUS "  ccache can significantly speed up rebuilds of third-party libraries")
     endif()
+endfunction()
+
+# --- Utility function to get ccache path if available ---
+# This function provides a centralized way to check for ccache availability
+function(thirdparty_get_ccache_executable output_var)
+    # First check if we have a cached value from thirdparty_setup_ccache()
+    get_property(_cached_ccache CACHE THIRDPARTY_CCACHE_EXECUTABLE PROPERTY VALUE)
+    if(_cached_ccache)
+        set(${output_var} ${_cached_ccache} PARENT_SCOPE)
+        return()
+    endif()
+    
+    # Fallback to direct detection
+    find_program(_ccache_exec ccache)
+    set(${output_var} ${_ccache_exec} PARENT_SCOPE)
 endfunction()
 
 # Standardized function for setting up common third-party library directories
@@ -523,13 +727,8 @@ function(thirdparty_build_autotools_library library_name)
     endif()
 
     # --- Build and Install Step ---
-    include(ProcessorCount)
-    ProcessorCount(N)
-    if(NOT N EQUAL 0)
-        set(PARALLEL_JOBS "-j${N}")
-    else()
-        set(PARALLEL_JOBS "-j4")  # Fallback
-    endif()
+    thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _make_jobs)
+    set(PARALLEL_JOBS "-j${_make_jobs}")
 
     message(STATUS "[thirdparty_build_autotools_library] Building ${library_name}...")
     execute_process(
@@ -631,5 +830,87 @@ function(thirdparty_apply_common_settings)
                 endif()
             endforeach()
         endif()
+    endif()
+endfunction()
+
+# --- Ninja Build System Optimization for Third-party Libraries ---
+# This function provides additional optimizations when Ninja is used as the generator
+function(thirdparty_configure_ninja_optimization cmake_args_var)
+    find_program(NINJA_EXECUTABLE ninja)
+    if(NOT NINJA_EXECUTABLE)
+        return()
+    endif()
+    
+    # Get reference to the cmake args list
+    set(_args ${${cmake_args_var}})
+    
+    # Check if we're already using Ninja generator
+    list(FIND _args "-GNinja" _ninja_index)
+    if(_ninja_index EQUAL -1)
+        list(APPEND _args -GNinja)
+    endif()
+    
+    # Check if job pools are already configured
+    set(_has_job_pools FALSE)
+    foreach(_arg IN LISTS _args)
+        if(_arg MATCHES "^-DCMAKE_JOB_POOLS=")
+            set(_has_job_pools TRUE)
+            break()
+        endif()
+    endforeach()
+    
+    if(NOT _has_job_pools)
+        # Configure parallel jobs for optimal resource usage
+        thirdparty_get_build_jobs(OUTPUT_COMPILE_JOBS _compile_jobs OUTPUT_LINK_JOBS _link_jobs)
+        
+        list(APPEND _args 
+            # Use CMake's built-in parallel job configuration
+            -DCMAKE_BUILD_PARALLEL_LEVEL=${_compile_jobs}
+        )
+        
+        message(STATUS "[thirdparty] Ninja: configured with ${_compile_jobs} parallel jobs")
+    endif()
+    
+    # Set the modified args back to the variable
+    set(${cmake_args_var} ${_args} PARENT_SCOPE)
+endfunction()
+
+# --- Build CMAKE_FIND_ROOT_PATH from installed components ---
+# This function scans the thirdparty installation directory and builds a list
+# of component paths for CMAKE_FIND_ROOT_PATH, ensuring CMake can find dependencies
+function(thirdparty_build_find_root_path output_var)
+    set(_root_paths)
+    
+    # Scan for installed components
+    if(EXISTS "${THIRDPARTY_INSTALL_DIR}")
+        file(GLOB _component_dirs "${THIRDPARTY_INSTALL_DIR}/*")
+        foreach(_dir IN LISTS _component_dirs)
+            if(IS_DIRECTORY "${_dir}")
+                get_filename_component(_component_name "${_dir}" NAME)
+                
+                # Skip common non-component directories
+                if(_component_name MATCHES "^(tmp|temp|build|src|downloads)$")
+                    continue()
+                endif()
+                
+                # Check if this looks like a valid component installation
+                # (has lib, include, or lib/cmake subdirectories)
+                if(EXISTS "${_dir}/lib" OR EXISTS "${_dir}/include" OR EXISTS "${_dir}/lib/cmake")
+                    list(APPEND _root_paths "${_dir}")
+                    message(STATUS "[thirdparty] Found component for CMAKE_FIND_ROOT_PATH: ${_component_name}")
+                endif()
+            endif()
+        endforeach()
+    endif()
+    
+    # Convert list to semicolon-separated string as expected by CMake
+    if(_root_paths)
+        string(REPLACE ";" ";" _root_paths_str "${_root_paths}")
+        set(${output_var} "${_root_paths_str}" PARENT_SCOPE)
+        list(LENGTH _root_paths _path_count)
+        message(STATUS "[thirdparty] CMAKE_FIND_ROOT_PATH contains ${_path_count} component paths")
+    else()
+        set(${output_var} "" PARENT_SCOPE)
+        message(STATUS "[thirdparty] No installed components found for CMAKE_FIND_ROOT_PATH")
     endif()
 endfunction()

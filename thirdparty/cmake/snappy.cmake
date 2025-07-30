@@ -9,7 +9,6 @@ thirdparty_build_cmake_library("snappy"
         -DSNAPPY_INSTALL=ON
         -DSNAPPY_REQUIRE_AVX=OFF
         -DSNAPPY_REQUIRE_AVX2=OFF
-        -DBUILD_SHARED_LIBS=OFF
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/snappy/lib/cmake/Snappy/SnappyConfig.cmake"
         "${THIRDPARTY_INSTALL_DIR}/snappy/lib/libsnappy.a"
@@ -23,7 +22,7 @@ get_filename_component(SNAPPY_INSTALL_DIR "${SNAPPY_INSTALL_DIR}" ABSOLUTE)
 # No additional warning needed - the standardized function handles this
 if(EXISTS "${SNAPPY_INSTALL_DIR}/lib/cmake/Snappy/SnappyConfig.cmake")
     list(APPEND CMAKE_PREFIX_PATH "${SNAPPY_INSTALL_DIR}")
-    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+    thirdparty_safe_set_parent_scope(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}")
     set(Snappy_DIR "${SNAPPY_INSTALL_DIR}/lib/cmake/Snappy" CACHE PATH "Path to installed snappy cmake config" FORCE)
     
     # Import snappy package immediately

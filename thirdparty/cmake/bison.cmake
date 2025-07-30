@@ -5,8 +5,6 @@
 # Note: Bison uses autotools (configure/make) build system
 thirdparty_build_autotools_library("bison"
     CONFIGURE_ARGS
-        --enable-static
-        --disable-shared
         --disable-nls
         --disable-dependency-tracking
         --without-libintl-prefix

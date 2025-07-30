@@ -31,9 +31,8 @@ endif()
 
 # Custom Boost configuration and build function
 function(boost_configure_and_build)
-    if(NOT CMAKE_BUILD_PARALLEL_LEVEL)
-        set(CMAKE_BUILD_PARALLEL_LEVEL 4)
-    endif()
+    # Use centralized build job configuration
+    thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _parallel_jobs)
 
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
         set(BOOST_ARCHITECTURE "arm")
@@ -103,7 +102,7 @@ function(boost_configure_and_build)
         --with-url
         --with-wave
         headers
-        -j${CMAKE_BUILD_PARALLEL_LEVEL}
+        -j${_parallel_jobs}
     )
 
     if(NOT EXISTS "${BOOST_SOURCE_DIR}/b2")
@@ -159,9 +158,9 @@ endif()
 # Export Boost following project standards
 if(EXISTS "${BOOST_INSTALL_DIR}/lib/cmake/Boost-${BOOST_VERSION}/BoostConfig.cmake")
     list(APPEND CMAKE_PREFIX_PATH "${BOOST_INSTALL_DIR}")
-    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+    thirdparty_safe_set_parent_scope(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}")
     set(Boost_DIR "${BOOST_INSTALL_DIR}/lib/cmake/Boost-${BOOST_VERSION}" CACHE PATH "Boost cmake config directory" FORCE)
-    set(Boost_USE_STATIC_LIBS ON PARENT_SCOPE)
+    thirdparty_safe_set_parent_scope(Boost_USE_STATIC_LIBS ON)
     
     # Import Boost package immediately with all required components
     find_package(Boost REQUIRED CONFIG COMPONENTS 

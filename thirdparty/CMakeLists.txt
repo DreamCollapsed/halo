@@ -86,14 +86,14 @@ target_link_libraries(halo_thirdparty
     Boost::fiber
     Boost::exception
     Boost::graph
-    gflags::gflags
+    gflags::gflags_static
     glog::glog
     double-conversion::double-conversion
     FastFloat::fast_float
     fmt::fmt
     jemalloc::jemalloc_pic
-    zstd::libzstd
-    LZ4::lz4
+    zstd::libzstd_static
+    LZ4::lz4_static
     liblzma::liblzma
     Snappy::snappy
     OpenSSL::SSL

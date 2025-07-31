@@ -322,17 +322,6 @@ function(thirdparty_get_optimization_flags output_var)
         --no-warn-unused-cli
     )
     
-    # --- Build CMAKE_FIND_ROOT_PATH from installed components ---
-    # For each component to find its dependencies correctly, we need to set CMAKE_FIND_ROOT_PATH
-    # to point to the individual component installation directories, not the parent directory
-    thirdparty_build_find_root_path(_find_root_paths)
-    if(_find_root_paths)
-        list(APPEND _opt_flags "-DCMAKE_FIND_ROOT_PATH=${_find_root_paths}")
-        list(APPEND _opt_flags "-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=BOTH")
-        list(APPEND _opt_flags "-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=BOTH") 
-        list(APPEND _opt_flags "-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=BOTH")
-    endif()
-    
     # --- Ninja Generator Support for faster builds ---
     # Check if Ninja is available and use it for third-party libraries
     find_program(NINJA_EXECUTABLE ninja)
@@ -607,7 +596,7 @@ function(thirdparty_build_cmake_library library_name)
     # Export the installation directory for other components to find
     set(${_upper_name}_INSTALL_DIR "${_install_dir}" PARENT_SCOPE)
     get_filename_component(${_upper_name}_INSTALL_DIR "${_install_dir}" ABSOLUTE)
-    list(APPEND CMAKE_PREFIX_PATH "${_install_dir}")
+    list(PREPEND CMAKE_PREFIX_PATH "${_install_dir}")
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
     
     message(STATUS "Finished building ${library_name}. Installed at: ${_install_dir}")
@@ -672,7 +661,7 @@ function(thirdparty_build_autotools_library library_name)
         # Still need to export variables
         set(${_upper_name}_INSTALL_DIR "${_install_dir}" PARENT_SCOPE)
         get_filename_component(${_upper_name}_INSTALL_DIR "${_install_dir}" ABSOLUTE)
-        list(APPEND CMAKE_PREFIX_PATH "${_install_dir}")
+        list(PREPEND CMAKE_PREFIX_PATH "${_install_dir}")
         set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
         return()
     endif()
@@ -766,71 +755,10 @@ function(thirdparty_build_autotools_library library_name)
     # Export the installation directory for other components to find
     set(${_upper_name}_INSTALL_DIR "${_install_dir}" PARENT_SCOPE)
     get_filename_component(${_upper_name}_INSTALL_DIR "${_install_dir}" ABSOLUTE)
-    list(APPEND CMAKE_PREFIX_PATH "${_install_dir}")
+    list(PREPEND CMAKE_PREFIX_PATH "${_install_dir}")
     set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
     
     message(STATUS "Finished building ${library_name}. Installed at: ${_install_dir}")
-endfunction()
-
-# Common optimization flags and CMake policy settings for all third-party libraries
-# This replaces the need to modify source files with file patches
-function(thirdparty_apply_common_settings)
-    # Parse optional component name for dependency resolution
-    set(options "")
-    set(oneValueArgs COMPONENT)
-    set(multiValueArgs "")
-    cmake_parse_arguments(PARSE_ARGV 1 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
-    
-    # --- Compiler and Linker Flags ---
-    # Base optimization flags
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -DNDEBUG")
-    
-    # Position Independent Code (for shared libraries)
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-    
-    # Link Time Optimization (LTO) if supported
-    if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE)
-        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-    endif()
-    
-    # --- CMake Policy Settings ---
-    # Modern CMake policy defaults to avoid compatibility issues
-    # This eliminates the need for source file modifications
-    cmake_policy(SET CMP0042 NEW) # macOS @rpath in target's install name
-    cmake_policy(SET CMP0063 NEW) # Honor visibility properties for all target types
-    cmake_policy(SET CMP0077 NEW) # option() honors normal variables (critical for BUILD_SHARED_LIBS)
-    cmake_policy(SET CMP0076 NEW) # target_sources() command converts relative paths to absolute
-    cmake_policy(SET CMP0079 NEW) # target_link_libraries() allows use with targets in other directories
-    
-    # Automatically add dependency CMAKE_ARGS if component is specified
-    if(ARG_COMPONENT)
-        # Get dependency paths and generate CMAKE_ARGS
-        get_property(_deps CACHE "${ARG_COMPONENT}_DEPENDENCIES" PROPERTY VALUE)
-        if(_deps)
-            # First, add CMAKE_PREFIX_PATH for general discovery
-            thirdparty_get_dependency_paths("${ARG_COMPONENT}" _dep_paths)
-            if(_dep_paths)
-                list(APPEND CMAKE_PREFIX_PATH "${_dep_paths}")
-            endif()
-            
-            # Then, add specific *_DIR for libraries that need explicit paths
-            foreach(_dep IN LISTS _deps)
-                # Check if this dependency has a standard CMake config
-                if(EXISTS "${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake/${_dep}")
-                    list(APPEND CMAKE_PREFIX_PATH "${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake/${_dep}")
-                elseif(EXISTS "${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake")
-                    # For libraries like GTest that use different naming
-                    file(GLOB _config_dirs "${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake/*")
-                    if(_config_dirs)
-                        list(GET _config_dirs 0 _config_dir)
-                        get_filename_component(_config_name "${_config_dir}" NAME)
-                        list(APPEND CMAKE_PREFIX_PATH "${_config_dir}")
-                    endif()
-                endif()
-            endforeach()
-        endif()
-    endif()
 endfunction()
 
 # --- Ninja Build System Optimization for Third-party Libraries ---
@@ -873,44 +801,4 @@ function(thirdparty_configure_ninja_optimization cmake_args_var)
     
     # Set the modified args back to the variable
     set(${cmake_args_var} ${_args} PARENT_SCOPE)
-endfunction()
-
-# --- Build CMAKE_FIND_ROOT_PATH from installed components ---
-# This function scans the thirdparty installation directory and builds a list
-# of component paths for CMAKE_FIND_ROOT_PATH, ensuring CMake can find dependencies
-function(thirdparty_build_find_root_path output_var)
-    set(_root_paths)
-    
-    # Scan for installed components
-    if(EXISTS "${THIRDPARTY_INSTALL_DIR}")
-        file(GLOB _component_dirs "${THIRDPARTY_INSTALL_DIR}/*")
-        foreach(_dir IN LISTS _component_dirs)
-            if(IS_DIRECTORY "${_dir}")
-                get_filename_component(_component_name "${_dir}" NAME)
-                
-                # Skip common non-component directories
-                if(_component_name MATCHES "^(tmp|temp|build|src|downloads)$")
-                    continue()
-                endif()
-                
-                # Check if this looks like a valid component installation
-                # (has lib, include, or lib/cmake subdirectories)
-                if(EXISTS "${_dir}/lib" OR EXISTS "${_dir}/include" OR EXISTS "${_dir}/lib/cmake")
-                    list(APPEND _root_paths "${_dir}")
-                    message(STATUS "[thirdparty] Found component for CMAKE_FIND_ROOT_PATH: ${_component_name}")
-                endif()
-            endif()
-        endforeach()
-    endif()
-    
-    # Convert list to semicolon-separated string as expected by CMake
-    if(_root_paths)
-        string(REPLACE ";" ";" _root_paths_str "${_root_paths}")
-        set(${output_var} "${_root_paths_str}" PARENT_SCOPE)
-        list(LENGTH _root_paths _path_count)
-        message(STATUS "[thirdparty] CMAKE_FIND_ROOT_PATH contains ${_path_count} component paths")
-    else()
-        set(${output_var} "" PARENT_SCOPE)
-        message(STATUS "[thirdparty] No installed components found for CMAKE_FIND_ROOT_PATH")
-    endif()
 endfunction()

@@ -9,20 +9,20 @@ set(XXHASH_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/xxhash")
 thirdparty_download_and_check("${XXHASH_URL}" "${THIRDPARTY_DOWNLOAD_DIR}/xxhash-${XXHASH_VERSION}.tar.gz" "${XXHASH_SHA256}")
 thirdparty_extract_and_rename("${THIRDPARTY_DOWNLOAD_DIR}/xxhash-${XXHASH_VERSION}.tar.gz" "${XXHASH_SRC_DIR}" "${THIRDPARTY_SRC_DIR}/xxHash-*")
 
-# Build and install using Makefile.
-# We use add_custom_command and add_custom_target to integrate the Makefile build into CMake's dependency graph.
-add_custom_command(
-    OUTPUT 
-        "${XXHASH_INSTALL_DIR}/lib/libxxhash.a"
-        "${XXHASH_INSTALL_DIR}/include/xxhash.h"
-    COMMAND make -C "${XXHASH_SRC_DIR}" install_libxxhash.a install_libxxhash.includes "PREFIX=${XXHASH_INSTALL_DIR}" CFLAGS=-fPIC
-    COMMENT "Building and installing xxhash static library and headers via Makefile"
-    VERBATIM
-)
-
-add_custom_target(xxhash_build ALL DEPENDS 
-    "${XXHASH_INSTALL_DIR}/lib/libxxhash.a"
-)
+# Build and install xxhash during CMake configure time using execute_process
+# This ensures xxhash is built before the main project, not during ninja build
+if(NOT EXISTS "${XXHASH_INSTALL_DIR}/lib/libxxhash.a")
+    message(STATUS "Building xxhash during configure time...")
+    execute_process(
+        COMMAND make install_libxxhash.a install_libxxhash.includes "PREFIX=${XXHASH_INSTALL_DIR}" CFLAGS=-fPIC
+        WORKING_DIRECTORY "${XXHASH_SRC_DIR}"
+        RESULT_VARIABLE _xxhash_build_result
+    )
+    if(_xxhash_build_result)
+        message(FATAL_ERROR "Failed to build xxhash")
+    endif()
+    message(STATUS "xxhash built and installed successfully")
+endif()
 
 # Create an imported target for xxhash so other CMake targets can link against it.
 add_library(xxhash_thirdparty_static STATIC IMPORTED GLOBAL)
@@ -31,10 +31,7 @@ set_target_properties(xxhash_thirdparty_static PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${XXHASH_INSTALL_DIR}/include"
 )
 
-# Ensure the custom build target runs before anything tries to use the imported target.
-add_dependencies(xxhash_thirdparty_static xxhash_build)
-
 # Create a modern CMake alias for easier consumption.
 add_library(xxhash::xxhash ALIAS xxhash_thirdparty_static)
 
-message(STATUS "xxhash build configured using Makefile.")
+message(STATUS "xxhash build configured and completed during configure time.")

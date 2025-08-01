@@ -290,6 +290,12 @@ function(thirdparty_cmake_install builddir installdir)
             set(_build_result ${_install_result})
         else()
             message(STATUS "[thirdparty_cmake_install] Successfully installed to ${installdir}")
+            
+            # Always register to CMAKE_PREFIX_PATH for other components to find
+            get_filename_component(_abs_install_dir "${installdir}" ABSOLUTE)
+            list(PREPEND CMAKE_PREFIX_PATH "${_abs_install_dir}")
+            set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+            message(STATUS "[thirdparty_cmake_install] Registered ${_abs_install_dir} to CMAKE_PREFIX_PATH")
         endif()
     else()
         message(WARNING "[thirdparty_cmake_install] Build failed for ${builddir}, skip install.")
@@ -378,30 +384,8 @@ function(thirdparty_get_optimization_flags output_var)
     
     # Automatically add dependency CMAKE_ARGS if component is specified
     if(ARG_COMPONENT)
-        # Get dependency paths and generate CMAKE_ARGS
-        get_property(_deps CACHE "${ARG_COMPONENT}_DEPENDENCIES" PROPERTY VALUE)
-        if(_deps)
-            # First, add CMAKE_PREFIX_PATH for general discovery
-            thirdparty_get_dependency_paths("${ARG_COMPONENT}" _dep_paths)
-            if(_dep_paths)
-                list(APPEND _opt_flags "-DCMAKE_PREFIX_PATH=${_dep_paths}")
-            endif()
-            
-            # Then, add specific *_DIR for libraries that need explicit paths
-            foreach(_dep IN LISTS _deps)
-                # Check if this dependency has a standard CMake config
-                if(EXISTS "${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake/${_dep}")
-                    list(APPEND _opt_flags "-D${_dep}_DIR=${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake/${_dep}")
-                elseif(EXISTS "${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake")
-                    # For libraries like GTest that use different naming
-                    file(GLOB _config_dirs "${THIRDPARTY_INSTALL_DIR}/${_dep}/lib/cmake/*")
-                    if(_config_dirs)
-                        list(GET _config_dirs 0 _config_dir)
-                        get_filename_component(_config_name "${_config_dir}" NAME)
-                        list(APPEND _opt_flags "-D${_config_name}_DIR=${_config_dir}")
-                    endif()
-                endif()
-            endforeach()
+        if(CMAKE_PREFIX_PATH)
+            list(APPEND _opt_flags "-DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}")
         endif()
     endif()
     

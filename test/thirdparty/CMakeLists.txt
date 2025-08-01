@@ -199,6 +199,17 @@ add_module_test(thirdparty_xxhash
     TIMEOUT 30
 )
 
+# fizz integration test
+add_module_test(thirdparty_fizz
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_fizz_integration.cpp"
+    LABELS
+        fizz
+        tls
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
 # OpenSSL integration test
 add_module_test(thirdparty_openssl
     "${CMAKE_CURRENT_SOURCE_DIR}/test_openssl_integration.cpp"

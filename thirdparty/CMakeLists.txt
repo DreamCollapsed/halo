@@ -118,6 +118,7 @@ target_link_libraries(halo_thirdparty
     thrift::thrift
     thriftz::thriftz
     xxhash::xxhash
+    fizz::fizz
 )
 
 add_library(halo_thirdparty_test INTERFACE)

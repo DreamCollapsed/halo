@@ -40,10 +40,10 @@ message(STATUS "Appended jemalloc compile definitions to folly-deps.cmake")
 # This leverages modern CMake config support and eliminates the need for FindGlog.cmake and FindBoost.cmake patches
 file(READ "${FOLLY_SOURCE_DIR}/CMake/folly-deps.cmake" _folly_deps_content)
 
-# Fix glog to use CONFIG mode
+# Fix glog to use CONFIG mode - use actual config file name
 string(REPLACE 
     "find_package(Glog MODULE)" 
-    "find_package(glog CONFIG REQUIRED)" 
+    "find_package(glog CONFIG REQUIRED NAMES glog)" 
     _folly_deps_content "${_folly_deps_content}")
 string(REPLACE 
     "set(FOLLY_HAVE_LIBGLOG \${GLOG_FOUND})" 
@@ -82,17 +82,6 @@ list(APPEND _opt_flags
     -DBoost_NO_BOOST_CMAKE:BOOL=OFF
     -DBoost_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/boost/lib/cmake/Boost-1.88.0
     
-    # ZLIB - Force use of third-party library, not system (no config file)
-    -DZLIB_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/zlib/include
-    -DZLIB_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
-    -DZLIB_ROOT:PATH=${THIRDPARTY_INSTALL_DIR}/zlib
-
-    # BZIP2 - Use standard FindBZip2 variables (no config file)
-    -DBZIP2_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/bzip2/include
-    -DBZIP2_INCLUDE_DIRS:PATH=${THIRDPARTY_INSTALL_DIR}/bzip2/include
-    -DBZIP2_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/bzip2/lib/libbz2.a
-    -DBZIP2_LIBRARIES:FILEPATH=${THIRDPARTY_INSTALL_DIR}/bzip2/lib/libbz2.a
-
     # FASTFLOAT
     -DFASTFLOAT_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/fast-float/include
 
@@ -112,12 +101,31 @@ list(APPEND _opt_flags
     -DJEMALLOC_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/lib/libjemalloc.a
     -DCMAKE_EXE_LINKER_FLAGS=-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib\ -ljemalloc
 
+    # --- Compression Libraries (no CMake config files) ---
+    # ZLIB
+    -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
+    -DZLIB_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/zlib/include
+    -DZLIB_LIBRARY=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
+    
+    # BZIP2
+    -DBZIP2_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/bzip2/include
+    -DBZIP2_INCLUDE_DIRS=${THIRDPARTY_INSTALL_DIR}/bzip2/include
+    -DBZIP2_LIBRARY=${THIRDPARTY_INSTALL_DIR}/bzip2/lib/libbz2.a
+    -DBZIP2_LIBRARIES=${THIRDPARTY_INSTALL_DIR}/bzip2/lib/libbz2.a
+    
+    # XZ/LZMA
+    -DLIBLZMA_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/xz/include
+    -DLIBLZMA_LIBRARY=${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
+
     # --- Folly Specifics ---
     -DFOLLY_HAVE_UNALIGNED_ACCESS:BOOL=ON
     -DFOLLY_USE_SYMBOLIZER:BOOL=ON
     -DFOLLY_HAVE_LIBGFLAGS:BOOL=ON
     -DFOLLY_HAVE_LIBGLOG:BOOL=ON
     -DFOLLY_HAVE_BACKTRACE:BOOL=ON
+    
+    # Explicitly set glog CONFIG path to help find_package locate it
+    -Dglog_DIR=${THIRDPARTY_INSTALL_DIR}/glog/lib/cmake/glog
 )
 
 thirdparty_cmake_configure("${FOLLY_SOURCE_DIR}" "${FOLLY_BUILD_DIR}"

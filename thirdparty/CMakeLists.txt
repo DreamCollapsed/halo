@@ -117,6 +117,7 @@ target_link_libraries(halo_thirdparty
     protobuf::libprotobuf
     thrift::thrift
     thriftz::thriftz
+    xxhash::xxhash
 )
 
 add_library(halo_thirdparty_test INTERFACE)

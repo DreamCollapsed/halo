@@ -189,6 +189,16 @@ add_module_test(thirdparty_snappy
     TIMEOUT 30
 )
 
+# xxhash integration test
+add_module_test(thirdparty_xxhash
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_xxhash_integration.cpp"
+    LABELS
+        xxhash
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
 # OpenSSL integration test
 add_module_test(thirdparty_openssl
     "${CMAKE_CURRENT_SOURCE_DIR}/test_openssl_integration.cpp"

@@ -202,6 +202,12 @@ thirdparty_register_component(snappy
     SHA256 "${SNAPPY_SHA256}"
 )
 
+thirdparty_register_component(xxhash
+    VERSION "${XXHASH_VERSION}"
+    URL "${XXHASH_URL}"
+    SHA256 "${XXHASH_SHA256}"
+)
+
 thirdparty_register_component(boost
     VERSION "${BOOST_VERSION}"
     URL "${BOOST_URL}"

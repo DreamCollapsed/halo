@@ -295,7 +295,7 @@ thirdparty_register_component(folly
     VERSION "${FOLLY_VERSION}"
     URL "${FOLLY_URL}"
     SHA256 "${FOLLY_SHA256}"
-    DEPENDS_ON gflags glog double-conversion libevent openssl zstd lz4 snappy boost jemalloc fast-float fmt zlib xz bzip2
+    DEPENDS_ON gflags glog double-conversion libevent openssl zstd lz4 snappy boost jemalloc fast-float fmt zlib xz bzip2 libsodium
 )
 
 # Register fizz component

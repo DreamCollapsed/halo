@@ -132,13 +132,13 @@ thirdparty_build_autotools_library(openssl
 
 # Export OpenSSL following project standards
 if(EXISTS "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL/OpenSSLConfig.cmake")
-    list(APPEND CMAKE_PREFIX_PATH "${OPENSSL_INSTALL_DIR}")
-    thirdparty_safe_set_parent_scope(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}")
     set(OpenSSL_DIR "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL" CACHE PATH "OpenSSL cmake config directory" FORCE)
     thirdparty_safe_set_parent_scope(OPENSSL_FOUND TRUE)
     
-    # Import OpenSSL package immediately
-    find_package(OpenSSL REQUIRED CONFIG QUIET)
+    # Import OpenSSL package immediately with explicit path
+    set(OPENSSL_CMAKE_DIR "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL")
+    set(OpenSSL_DIR "${OPENSSL_CMAKE_DIR}" CACHE PATH "Path to OpenSSL config" FORCE)
+    find_package(OpenSSL REQUIRED CONFIG QUIET PATHS "${OPENSSL_CMAKE_DIR}" NO_DEFAULT_PATH)
     
     message(STATUS "OpenSSL found and exported globally: ${OPENSSL_INSTALL_DIR}")
 else()

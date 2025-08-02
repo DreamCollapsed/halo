@@ -157,7 +157,7 @@ endif()
 
 # Export Boost following project standards
 if(EXISTS "${BOOST_INSTALL_DIR}/lib/cmake/Boost-${BOOST_VERSION}/BoostConfig.cmake")
-    list(APPEND CMAKE_PREFIX_PATH "${BOOST_INSTALL_DIR}")
+    thirdparty_register_to_cmake_prefix_path("${BOOST_INSTALL_DIR}")
     thirdparty_safe_set_parent_scope(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}")
     set(Boost_DIR "${BOOST_INSTALL_DIR}/lib/cmake/Boost-${BOOST_VERSION}" CACHE PATH "Boost cmake config directory" FORCE)
     thirdparty_safe_set_parent_scope(Boost_USE_STATIC_LIBS ON)

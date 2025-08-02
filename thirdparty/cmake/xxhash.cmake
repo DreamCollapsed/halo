@@ -34,4 +34,7 @@ set_target_properties(xxhash_thirdparty_static PROPERTIES
 # Create a modern CMake alias for easier consumption.
 add_library(xxhash::xxhash ALIAS xxhash_thirdparty_static)
 
+# Register to CMAKE_PREFIX_PATH for other components to find
+thirdparty_register_to_cmake_prefix_path("${XXHASH_INSTALL_DIR}")
+
 message(STATUS "xxhash build configured and completed during configure time.")

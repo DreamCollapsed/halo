@@ -142,7 +142,7 @@ endif()
 
 # Export ICU4C following project standards
 if(EXISTS "${ICU4C_INSTALL_DIR}/lib/libicuuc.a")
-    list(APPEND CMAKE_PREFIX_PATH "${ICU4C_INSTALL_DIR}")
+    thirdparty_register_to_cmake_prefix_path("${ICU4C_INSTALL_DIR}")
     thirdparty_safe_set_parent_scope(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}")
     
     # Create imported targets for ICU4C components

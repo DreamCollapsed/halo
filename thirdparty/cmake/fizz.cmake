@@ -13,10 +13,8 @@ set(FIZZ_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${FIZZ_NAME}")
 
 get_filename_component(FIZZ_INSTALL_DIR "${FIZZ_INSTALL_DIR}" ABSOLUTE)
 
-# Download and extract fizz
 thirdparty_download_and_check("${FIZZ_URL}" "${FIZZ_DOWNLOAD_FILE}" "${FIZZ_SHA256}")
 
-# Extract fizz manually since thirdparty_extract_and_rename has issues with .zip files
 if(NOT EXISTS "${FIZZ_SOURCE_DIR}/CMakeLists.txt")
     # Clean up any existing fizz source directory
     if(EXISTS "${FIZZ_SOURCE_DIR}")
@@ -144,36 +142,47 @@ find_package_handle_standard_args(Boost
 )
 ")
 
-# Get optimization flags and configure CMAKE arguments using ThirdpartyUtils standard approach
 thirdparty_get_optimization_flags(_opt_flags COMPONENT fizz)
-# Add only fizz-specific overrides that are not handled by ThirdpartyUtils.cmake
+
+if(APPLE AND EXISTS "${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
+    list(APPEND _opt_flags
+        -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
+    )
+endif()
+
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${FIZZ_INSTALL_DIR}
-    
-    # Boost configuration
+    -DCMAKE_MODULE_PATH=${_fizz_cmake_modules}
+
+    # Boost
     -DBoost_DIR=${THIRDPARTY_INSTALL_DIR}/boost/lib/cmake/Boost-1.88.0
     
-    # Glog configuration - fizz requires glog package
+    # Glog
     -DGlog_DIR=${THIRDPARTY_INSTALL_DIR}/glog/lib/cmake/glog
     
-    # ZLIB configuration (fizz directly uses ZLIB::ZLIB)
+    # OpenSSL
+    -DOPENSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
+    -DOPENSSL_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/openssl/include
+    -DOPENSSL_SSL_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
+    -DOPENSSL_CRYPTO_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
+    
+    # ZLIB
     -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
     -DZLIB_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/zlib/include
     -DZLIB_LIBRARY=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
+
+    # Jemalloc
+    -DJEMALLOC_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/include
+    -DJEMALLOC_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/lib/libjemalloc_pic.a
+    -DCMAKE_SHARED_LINKER_FLAGS=-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib\ -ljemalloc_pic
+    -DCMAKE_EXE_LINKER_FLAGS=-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib\ -ljemalloc_pic
+    -DFOLLY_USE_JEMALLOC:BOOL=ON
     
-    # Point to our FindSodium.cmake
-    -DCMAKE_MODULE_PATH=${_fizz_cmake_modules}
-    
-    # Jemalloc include path
-    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include
-    -DCMAKE_C_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include
-    
-    # Disable building tests and examples
+    # --- Fizz Specifics ---
     -DBUILD_TESTS=OFF
     -DBUILD_EXAMPLES=OFF
 )
 
-# Configure fizz with CMake using standard ThirdpartyUtils approach
 thirdparty_cmake_configure("${FIZZ_SOURCE_DIR}" "${FIZZ_BUILD_DIR}"
     FORCE_CONFIGURE
     VALIDATION_FILES
@@ -183,7 +192,6 @@ thirdparty_cmake_configure("${FIZZ_SOURCE_DIR}" "${FIZZ_BUILD_DIR}"
         ${_opt_flags}
 )
 
-# Build and install fizz
 thirdparty_cmake_install("${FIZZ_BUILD_DIR}" "${FIZZ_INSTALL_DIR}"
     VALIDATION_FILES
         "${FIZZ_INSTALL_DIR}/lib/libfizz.a"

@@ -115,5 +115,5 @@ endif()
 # Export the installation directory for other components to find
 set(LIBSTEMMER_INSTALL_DIR "${LIBSTEMMER_INSTALL_DIR}" PARENT_SCOPE)
 get_filename_component(LIBSTEMMER_INSTALL_DIR "${LIBSTEMMER_INSTALL_DIR}" ABSOLUTE)
-list(APPEND CMAKE_PREFIX_PATH "${LIBSTEMMER_INSTALL_DIR}")
+thirdparty_register_to_cmake_prefix_path("${LIBSTEMMER_INSTALL_DIR}")
 set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)

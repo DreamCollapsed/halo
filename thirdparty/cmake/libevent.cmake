@@ -16,6 +16,10 @@ thirdparty_build_cmake_library("libevent"
         -DEVENT__DISABLE_DEBUG_MODE=ON
         -DEVENT__DISABLE_MM_REPLACEMENT=OFF
         -DEVENT__FORCE_KQUEUE_CHECK=OFF
+        -DOPENSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
+        -DOPENSSL_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/openssl/include
+        -DOPENSSL_SSL_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
+        -DOPENSSL_CRYPTO_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/libevent/lib/cmake/libevent/LibeventConfig.cmake"
         "${THIRDPARTY_INSTALL_DIR}/libevent/lib/libevent.a"

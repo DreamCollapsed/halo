@@ -71,4 +71,7 @@ set_target_properties(BZip2::BZip2 PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${BZIP2_INSTALL_DIR}/include"
 )
 
+# Register to CMAKE_PREFIX_PATH for other components to find
+thirdparty_register_to_cmake_prefix_path("${BZIP2_INSTALL_DIR}")
+
 message(STATUS "bzip2 found and exported globally: ${BZIP2_INSTALL_DIR}")

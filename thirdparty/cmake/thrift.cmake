@@ -138,7 +138,6 @@ thirdparty_cmake_install("${THRIFT_BUILD_DIR}" "${THRIFT_INSTALL_DIR}"
 # Export the installation directory for other components to find
 thirdparty_safe_set_parent_scope(THRIFT_INSTALL_DIR "${THRIFT_INSTALL_DIR}")
 get_filename_component(THRIFT_INSTALL_DIR "${THRIFT_INSTALL_DIR}" ABSOLUTE)
-list(APPEND CMAKE_PREFIX_PATH "${THRIFT_INSTALL_DIR}")
 thirdparty_safe_set_parent_scope(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}")
 
 # Import the thrift targets if they don't exist

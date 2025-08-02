@@ -12,6 +12,24 @@ function(thirdparty_safe_set_parent_scope variable_name value)
     endif()
 endfunction()
 
+# --- CMAKE_PREFIX_PATH Registration Utility ---
+# This function adds a path to CMAKE_PREFIX_PATH for dependency resolution
+# Note: For performance, this does not check for duplicates - rely on build order instead
+function(thirdparty_register_to_cmake_prefix_path install_path)
+    get_filename_component(_abs_path "${install_path}" ABSOLUTE)
+    
+    # Update local CMAKE_PREFIX_PATH for immediate use
+    list(PREPEND CMAKE_PREFIX_PATH "${_abs_path}")
+    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+    
+    # Update global property for cross-component dependency resolution
+    get_property(_global_prefix_path GLOBAL PROPERTY THIRDPARTY_CMAKE_PREFIX_PATH)
+    list(PREPEND _global_prefix_path "${_abs_path}")
+    set_property(GLOBAL PROPERTY THIRDPARTY_CMAKE_PREFIX_PATH "${_global_prefix_path}")
+    
+    message(STATUS "[thirdparty] Registered ${_abs_path} to CMAKE_PREFIX_PATH")
+endfunction()
+
 # --- Centralized Build Job Configuration ---
 # This function provides unified thread/job count configuration for all build systems
 function(thirdparty_get_build_jobs)
@@ -241,17 +259,17 @@ function(thirdparty_cmake_install builddir installdir)
 
     if(NOT _need_install)
         message(STATUS "[thirdparty_cmake_install] All validation files exist, skip install for ${builddir}")
-        set(${CMAKE_CURRENT_FUNCTION_RESULT} 0 PARENT_SCOPE)
-        return()
-    endif()
-
-    if(NOT EXISTS "${builddir}")
-        message(WARNING "[thirdparty_cmake_install] Build directory ${builddir} not found, skip install.")
-        set(${CMAKE_CURRENT_FUNCTION_RESULT} 1 PARENT_SCOPE)
-        return()
-    endif()
-    
-    message(STATUS "[thirdparty_cmake_install] Building and installing from ${builddir} to ${installdir}")
+        
+        # Set successful result for skip case
+        set(_build_result 0)
+    else()
+        # Build and install logic follows
+        if(NOT EXISTS "${builddir}")
+            message(WARNING "[thirdparty_cmake_install] Build directory ${builddir} not found, skip install.")
+            set(_build_result 1)
+        else()
+            # Proceed with build and install
+            message(STATUS "[thirdparty_cmake_install] Building and installing from ${builddir} to ${installdir}")
     
     # Use optimized build command based on generator
     find_program(NINJA_EXECUTABLE ninja)
@@ -291,15 +309,18 @@ function(thirdparty_cmake_install builddir installdir)
         else()
             message(STATUS "[thirdparty_cmake_install] Successfully installed to ${installdir}")
             
-            # Always register to CMAKE_PREFIX_PATH for other components to find
-            get_filename_component(_abs_install_dir "${installdir}" ABSOLUTE)
-            list(PREPEND CMAKE_PREFIX_PATH "${_abs_install_dir}")
-            set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
-            message(STATUS "[thirdparty_cmake_install] Registered ${_abs_install_dir} to CMAKE_PREFIX_PATH")
+            # Registration is handled at the end of this function to avoid duplication
         endif()
-    else()
-        message(WARNING "[thirdparty_cmake_install] Build failed for ${builddir}, skip install.")
-    endif()
+        else()
+            message(WARNING "[thirdparty_cmake_install] Build failed for ${builddir}, skip install.")
+        endif()
+        endif() # Close the builddir exists check
+    endif() # Close the _need_install check
+    
+    # Always register to CMAKE_PREFIX_PATH for consistency
+    # - If we needed to install: register the newly installed component
+    # - If we skipped install: register the existing component (ensures consistency)
+    thirdparty_register_to_cmake_prefix_path("${installdir}")
     
     set(${CMAKE_CURRENT_FUNCTION_RESULT} ${_build_result} PARENT_SCOPE)
 endfunction()
@@ -376,15 +397,14 @@ function(thirdparty_get_optimization_flags output_var)
         -DCMAKE_POLICY_DEFAULT_CMP0079=NEW
     )
     
-    # Handle FindBoost module removal in newer CMake versions (CMP0167)
-    # This prevents warnings when folly or other libraries try to use FindBoost
-    if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
-        list(APPEND _opt_flags -DCMAKE_POLICY_DEFAULT_CMP0167=NEW)
-    endif()
-    
     # Automatically add dependency CMAKE_ARGS if component is specified
     if(ARG_COMPONENT)
-        if(CMAKE_PREFIX_PATH)
+        # Prefer global property for cross-component dependency resolution
+        get_property(_global_prefix_path GLOBAL PROPERTY THIRDPARTY_CMAKE_PREFIX_PATH)
+        if(_global_prefix_path)
+            list(APPEND _opt_flags "-DCMAKE_PREFIX_PATH=${_global_prefix_path}")
+        elseif(CMAKE_PREFIX_PATH)
+            # Fallback to local CMAKE_PREFIX_PATH if global property is not available
             list(APPEND _opt_flags "-DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}")
         endif()
     endif()
@@ -580,8 +600,7 @@ function(thirdparty_build_cmake_library library_name)
     # Export the installation directory for other components to find
     set(${_upper_name}_INSTALL_DIR "${_install_dir}" PARENT_SCOPE)
     get_filename_component(${_upper_name}_INSTALL_DIR "${_install_dir}" ABSOLUTE)
-    list(PREPEND CMAKE_PREFIX_PATH "${_install_dir}")
-    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+    # Note: CMAKE_PREFIX_PATH registration is handled by thirdparty_cmake_install()
     
     message(STATUS "Finished building ${library_name}. Installed at: ${_install_dir}")
 endfunction()
@@ -645,8 +664,8 @@ function(thirdparty_build_autotools_library library_name)
         # Still need to export variables
         set(${_upper_name}_INSTALL_DIR "${_install_dir}" PARENT_SCOPE)
         get_filename_component(${_upper_name}_INSTALL_DIR "${_install_dir}" ABSOLUTE)
-        list(PREPEND CMAKE_PREFIX_PATH "${_install_dir}")
-        set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+        # Always register to CMAKE_PREFIX_PATH for consistency
+        thirdparty_register_to_cmake_prefix_path("${_install_dir}")
         return()
     endif()
 
@@ -739,8 +758,8 @@ function(thirdparty_build_autotools_library library_name)
     # Export the installation directory for other components to find
     set(${_upper_name}_INSTALL_DIR "${_install_dir}" PARENT_SCOPE)
     get_filename_component(${_upper_name}_INSTALL_DIR "${_install_dir}" ABSOLUTE)
-    list(PREPEND CMAKE_PREFIX_PATH "${_install_dir}")
-    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
+    # Always register to CMAKE_PREFIX_PATH for consistency
+    thirdparty_register_to_cmake_prefix_path("${_install_dir}")
     
     message(STATUS "Finished building ${library_name}. Installed at: ${_install_dir}")
 endfunction()

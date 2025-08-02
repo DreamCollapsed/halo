@@ -31,7 +31,6 @@ get_filename_component(XZ_INSTALL_DIR "${XZ_INSTALL_DIR}" ABSOLUTE)
 # Try to find the CMake config first
 if(EXISTS "${XZ_INSTALL_DIR}/lib/cmake/liblzma/liblzma-config.cmake")
     # Set the directory for find_package
-    list(APPEND CMAKE_PREFIX_PATH "${XZ_INSTALL_DIR}")
     set(liblzma_DIR "${XZ_INSTALL_DIR}/lib/cmake/liblzma" CACHE PATH "Path to installed liblzma cmake config" FORCE)
     
     # Import liblzma package

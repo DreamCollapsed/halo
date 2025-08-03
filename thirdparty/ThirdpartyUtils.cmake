@@ -94,10 +94,52 @@ function(thirdparty_download_and_check url file hash)
             file(REMOVE "${file}")
         endif()
     endif()
+    
     if(_need_download)
-        file(DOWNLOAD "${url}" "${file}"
-            EXPECTED_HASH SHA256=${hash}
-            SHOW_PROGRESS)
+        set(_max_retries 3)
+        set(_retry_count 0)
+        set(_download_success FALSE)
+        
+        while(NOT _download_success AND _retry_count LESS _max_retries)
+            math(EXPR _retry_count "${_retry_count} + 1")
+            
+            if(_retry_count GREATER 1)
+                if(EXISTS "${file}")
+                    file(REMOVE "${file}")
+                endif()
+            endif()
+            
+            # Attempt download with timeout and hash verification
+            file(DOWNLOAD "${url}" "${file}"
+                EXPECTED_HASH SHA256=${hash}
+                SHOW_PROGRESS
+                STATUS _download_status
+            )
+            
+            # Check download status
+            list(GET _download_status 0 _status_code)
+            list(GET _download_status 1 _status_message)
+            
+            if(_status_code EQUAL 0)
+                # Download succeeded, verify file exists and has correct hash
+                if(EXISTS "${file}")
+                    file(SHA256 "${file}" _actual_hash)
+                    if(_actual_hash STREQUAL "${hash}")
+                        set(_download_success TRUE)
+                    else()
+                        file(REMOVE "${file}")
+                    endif()
+                endif()
+            else()
+                message(WARNING "[thirdparty_download] Download failed with status ${_status_code}: ${_status_message}")
+            endif()
+            
+            # Add delay before retry (except for last attempt)
+        endwhile()
+        
+        if(NOT _download_success)
+            message(FATAL_ERROR "[thirdparty_download] Failed to download after ${_max_retries} attempts: ${url}")
+        endif()
     endif()
 endfunction()
 

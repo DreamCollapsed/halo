@@ -44,7 +44,7 @@ list(APPEND _opt_flags
     -DGLOG_FOUND=TRUE
     -DFOLLY_HAVE_LIBGLOG:BOOL=ON
 
-    # Boost (MODULE mode) - support both Folly's FindBoost and system FindBoost
+    # Boost
     -DBOOST_ROOT=${THIRDPARTY_INSTALL_DIR}/boost
     -DBOOST_INCLUDEDIR=${THIRDPARTY_INSTALL_DIR}/boost/include
     -DBOOST_LIBRARYDIR=${THIRDPARTY_INSTALL_DIR}/boost/lib
@@ -138,6 +138,10 @@ thirdparty_safe_set_parent_scope(FOLLY_INSTALL_DIR "${FOLLY_INSTALL_DIR}")
 set(Folly_DIR "${FOLLY_INSTALL_DIR}/lib/cmake/folly" CACHE PATH "Path to installed Folly cmake config" FORCE)
 
 if(EXISTS "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake")
+    file(READ "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake" folly_config_content)
+    string(REPLACE "find_dependency(Boost 1.51.0 MODULE" "find_dependency(Boost ${BOOST_VERSION} MODULE" folly_config_content "${folly_config_content}")
+    file(WRITE "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake" "${folly_config_content}")
+
     find_package(Folly REQUIRED CONFIG QUIET)
     message(STATUS "Folly found and imported: ${FOLLY_INSTALL_DIR}")
 else()

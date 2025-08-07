@@ -331,3 +331,16 @@ add_module_test(thirdparty_thrift
         integration
     TIMEOUT 30
 )
+
+# wangle integration test
+add_module_test(thirdparty_wangle
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_wangle_integration.cpp"
+    LABELS
+        wangle
+        networking
+        pipeline
+        service
+        thirdparty
+        integration
+    TIMEOUT 30
+)

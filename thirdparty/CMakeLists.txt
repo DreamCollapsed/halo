@@ -119,6 +119,7 @@ target_link_libraries(halo_thirdparty
     thriftz::thriftz
     xxhash::xxhash
     fizz::fizz
+    wangle::wangle
 )
 
 add_library(halo_thirdparty_test INTERFACE)

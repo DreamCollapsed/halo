@@ -27,9 +27,9 @@ set(FBTHRIFT_VERSION "2025.07.21.00")
 set(FBTHRIFT_URL "https://github.com/facebook/fbthrift/archive/refs/tags/v${FBTHRIFT_VERSION}.zip")
 set(FBTHRIFT_SHA256 "35664f7feb9597eb9b369dc5337f3513a791404f2e72f2ee7236b968f2e87c7f")
 
-set(FIZZ_VERSION "2025.07.21.00")
-set(FIZZ_URL "https://github.com/facebookincubator/fizz/releases/download/v${FIZZ_VERSION}/fizz-v${FIZZ_VERSION}.zip")
-set(FIZZ_SHA256 "25ea5cc2fe9cd1b78fb5c80bf4a4c5bbbfc8628c1efba7592fc4c141472fa114")
+set(FIZZ_VERSION "2025.08.04.00")
+set(FIZZ_URL "https://github.com/facebookincubator/fizz/releases/download/v${FIZZ_VERSION}/fizz-v${FIZZ_VERSION}.tar.gz")
+set(FIZZ_SHA256 "6ca1ea0c61de358c6e5f0b933cf69d63e602f568e855046439135172ba10f0da")
 
 set(FLEX_VERSION "2.6.4")
 set(FLEX_URL "https://github.com/westes/flex/releases/download/v${FLEX_VERSION}/flex-${FLEX_VERSION}.tar.gz")

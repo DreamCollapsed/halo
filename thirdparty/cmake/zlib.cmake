@@ -38,12 +38,7 @@ set(ZLIB_ROOT "${ZLIB_INSTALL_DIR}" CACHE PATH "ZLIB root directory" FORCE)
 set(ZLIB_FOUND TRUE CACHE BOOL "ZLIB found status" FORCE)
 set(ZLIB_VERSION_STRING "1.3.1" CACHE STRING "ZLIB version" FORCE)
 
-# Disable all CMake search mechanisms for zlib
-set(CMAKE_DISABLE_FIND_PACKAGE_ZLIB TRUE CACHE BOOL "Disable FindZLIB.cmake" FORCE)
-
-# Create our target with absolute control
 if(EXISTS "${ZLIB_LIBRARY}" AND EXISTS "${ZLIB_INCLUDE_DIR}/zlib.h")
-    # Remove any existing zlib targets
     if(TARGET zlib::zlib)
         unset(zlib::zlib)
     endif()
@@ -51,7 +46,6 @@ if(EXISTS "${ZLIB_LIBRARY}" AND EXISTS "${ZLIB_INCLUDE_DIR}/zlib.h")
         unset(ZLIB::ZLIB)
     endif()
     
-    # Create fresh imported target with complete isolation
     add_library(zlib_thirdparty_static STATIC IMPORTED GLOBAL)
     set_target_properties(zlib_thirdparty_static PROPERTIES
         IMPORTED_LOCATION "${ZLIB_LIBRARY}"
@@ -61,7 +55,6 @@ if(EXISTS "${ZLIB_LIBRARY}" AND EXISTS "${ZLIB_INCLUDE_DIR}/zlib.h")
         IMPORTED_NO_SONAME TRUE
     )
     
-    # Create aliases for compatibility
     add_library(zlib::zlib ALIAS zlib_thirdparty_static)
     add_library(ZLIB::ZLIB ALIAS zlib_thirdparty_static)
     

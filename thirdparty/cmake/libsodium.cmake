@@ -44,12 +44,6 @@ if(EXISTS "${LIBSODIUM_INSTALL_DIR}/lib/libsodium.a")
         message(STATUS "Created libsodium::libsodium target")
     endif()
     
-    # Create a simpler alias for easier usage
-    if(NOT TARGET sodium)
-        add_library(sodium ALIAS libsodium::libsodium)
-        message(STATUS "Created sodium alias for libsodium::libsodium")
-    endif()
-    
     message(STATUS "libsodium found and exported globally: ${LIBSODIUM_INSTALL_DIR}")
 else()
     message(WARNING "libsodium installation not found at ${LIBSODIUM_INSTALL_DIR}")

@@ -3,7 +3,6 @@
 
 thirdparty_check_dependencies("gflags;glog;double-conversion;libevent;openssl;zstd;lz4;snappy;boost;fmt;jemalloc;zlib;xz;bzip2;libsodium")
 
-# Set up directories
 set(FOLLY_NAME "folly")
 set(FOLLY_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/folly-${FOLLY_VERSION}.tar.gz")
 set(FOLLY_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${FOLLY_NAME}")
@@ -12,28 +11,17 @@ set(FOLLY_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${FOLLY_NAME}")
 
 get_filename_component(FOLLY_INSTALL_DIR "${FOLLY_INSTALL_DIR}" ABSOLUTE)
 
-# Download and extract folly
 thirdparty_download_and_check("${FOLLY_URL}" "${FOLLY_DOWNLOAD_FILE}" "${FOLLY_SHA256}")
 thirdparty_extract_and_rename("${FOLLY_DOWNLOAD_FILE}" "${FOLLY_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/folly-*" )
 
-# Update Boost version in folly-deps.cmake
 file(READ "${FOLLY_SOURCE_DIR}/CMake/folly-deps.cmake" FOLLY_DEPS_CONTENT)
 string(REPLACE "find_package(Boost 1.88.0 MODULE" "find_package(Boost ${BOOST_VERSION} MODULE" FOLLY_DEPS_CONTENT "${FOLLY_DEPS_CONTENT}")
 file(WRITE "${FOLLY_SOURCE_DIR}/CMake/folly-deps.cmake" "${FOLLY_DEPS_CONTENT}")
 
-
 thirdparty_get_optimization_flags(_opt_flags COMPONENT folly)
-
-if(APPLE AND EXISTS "${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
-    list(APPEND _opt_flags
-        -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
-    )
-endif()
-
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${FOLLY_INSTALL_DIR}
-    
-    # Disable CMP0167 to keep FindBoost.cmake available without warnings
+
     -DCMAKE_POLICY_DEFAULT_CMP0167=OLD
 
     # GLOG
@@ -112,6 +100,13 @@ list(APPEND _opt_flags
 
     # GFLAGS
     -DFOLLY_HAVE_LIBGFLAGS:BOOL=ON
+
+    # SNAPPY
+    -DSNAPPY_LIBRARY=${THIRDPARTY_INSTALL_DIR}/snappy/lib/libsnappy.a
+    -DSNAPPY_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/snappy/include
+
+    # JEMALLOC
+    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
 
     # --- Folly Specifics ---
     -DFOLLY_HAVE_UNALIGNED_ACCESS:BOOL=ON

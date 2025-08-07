@@ -54,13 +54,6 @@ if(NOT EXISTS "${WANGLE_SOURCE_DIR}/${WANGLE_NAME}/CMakeLists.txt")
 endif()
 
 thirdparty_get_optimization_flags(_opt_flags COMPONENT wangle)
-
-if(APPLE AND EXISTS "${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
-    list(APPEND _opt_flags
-        -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
-    ) 
-endif()
-
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${WANGLE_INSTALL_DIR}
 
@@ -68,44 +61,15 @@ list(APPEND _opt_flags
 
     -DCMAKE_MODULE_PATH=${WANGLE_SOURCE_DIR}/build/fbcode_builder/CMake
 
-    # FOLLY
-    -Dfolly_DIR=${THIRDPARTY_INSTALL_DIR}/folly/lib/cmake/folly
-
-    # FIZZ
-    -Dfizz_DIR=${THIRDPARTY_INSTALL_DIR}/fizz/lib/cmake/fizz
-
-    # FMT 
-    -Dfmt_DIR=${THIRDPARTY_INSTALL_DIR}/fmt/lib/cmake/fmt
-
     # OPENSSL
     -DOPENSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
     -DOPENSSL_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/openssl/include
     -DOPENSSL_SSL_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
     -DOPENSSL_CRYPTO_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
 
-    # GLOG
-    -DGlog_DIR=${THIRDPARTY_INSTALL_DIR}/glog/lib/cmake/glog
-    -DGLOG_LIBRARYDIR=${THIRDPARTY_INSTALL_DIR}/glog/lib
-    -DGLOG_INCLUDEDIR=${THIRDPARTY_INSTALL_DIR}/glog/include
-    -DGLOG_LIBRARY=${THIRDPARTY_INSTALL_DIR}/glog/lib/libglog.a
-    -DGLOG_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/glog/include
-
-    # GFLAGS
-    -Dgflags_DIR=${THIRDPARTY_INSTALL_DIR}/gflags/lib/cmake/gflags
-
-    # DOUBLE_CONVERSION
-    -DDOUBLE_CONVERSION_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/double-conversion/include
-    -DDOUBLE_CONVERSION_LIBRARY=${THIRDPARTY_INSTALL_DIR}/double-conversion/lib/libdouble-conversion.a
-    -DDOUBLE_CONVERSION_LIBRARY_DIR=${THIRDPARTY_INSTALL_DIR}/double-conversion/lib
-
     # LIBEVENT
     -DLIBEVENT_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/libevent/include
     -DLIBEVENT_LIB:FILEPATH=${THIRDPARTY_INSTALL_DIR}/libevent/lib/libevent.a
-
-    # ZLIB
-    -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
-    -DZLIB_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/zlib/include
-    -DZLIB_LIBRARY=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
 
     # BOOST
     -DBOOST_ROOT=${THIRDPARTY_INSTALL_DIR}/boost
@@ -115,14 +79,6 @@ list(APPEND _opt_flags
     -DBoost_USE_MULTITHREADED=ON
     -DBoost_USE_STATIC_RUNTIME=ON
     -DBoost_NO_SYSTEM_PATHS=ON
-
-    # Sodium
-    -Dsodium_USE_STATIC_LIBS=ON
-    -Dsodium_DIR=${THIRDPARTY_INSTALL_DIR}/libsodium
-    -Dsodium_PKG_STATIC_FOUND=TRUE
-    -Dsodium_PKG_STATIC_LIBRARIES=libsodium.a
-    -Dsodium_PKG_STATIC_LIBRARY_DIRS=${THIRDPARTY_INSTALL_DIR}/libsodium/lib
-    -Dsodium_PKG_STATIC_INCLUDE_DIRS=${THIRDPARTY_INSTALL_DIR}/libsodium/include
 
     # JEMALLOC
     -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h

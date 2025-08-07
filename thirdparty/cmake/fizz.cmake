@@ -63,21 +63,6 @@ list(APPEND _opt_flags
     -DBoost_USE_STATIC_RUNTIME=ON
     -DBoost_NO_SYSTEM_PATHS=ON
 
-    # Folly
-    -Dfolly_DIR=${THIRDPARTY_INSTALL_DIR}/folly/lib/cmake/folly
-
-    # FMT
-    -Dfmt_DIR=${THIRDPARTY_INSTALL_DIR}/fmt/lib/cmake/fmt
-
-    # GLOG
-    -DGlog_DIR=${THIRDPARTY_INSTALL_DIR}/glog/lib/cmake/glog
-    -DGLOG_LIBRARYDIR=${THIRDPARTY_INSTALL_DIR}/glog/lib
-    -DGLOG_LIBRARY=${THIRDPARTY_INSTALL_DIR}/glog/lib/libglog.a
-    -DGLOG_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/glog/include
-
-    # GFLAGS
-    -Dgflags_DIR=${THIRDPARTY_INSTALL_DIR}/gflags/lib/cmake/gflags
-    
     # Sodium
     -Dsodium_USE_STATIC_LIBS=ON
     -Dsodium_DIR=${THIRDPARTY_INSTALL_DIR}/libsodium
@@ -86,22 +71,11 @@ list(APPEND _opt_flags
     -Dsodium_PKG_STATIC_LIBRARY_DIRS=${THIRDPARTY_INSTALL_DIR}/libsodium/lib
     -Dsodium_PKG_STATIC_INCLUDE_DIRS=${THIRDPARTY_INSTALL_DIR}/libsodium/include
 
-    # ZLIB
-    -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
-    -DZLIB_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/zlib/include
-    -DZLIB_LIBRARY=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
-
     # OpenSSL
     -DOPENSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
     -DOPENSSL_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/openssl/include
     -DOPENSSL_SSL_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
     -DOPENSSL_CRYPTO_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
-
-    # ZSTD
-    -DZSTD_ROOT=${THIRDPARTY_INSTALL_DIR}/zstd
-    -DZSTD_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/zstd/include
-    -DZSTD_LIBRARY=${THIRDPARTY_INSTALL_DIR}/zstd/lib/libzstd.a
-    -DZSTD_LIBRARY_RELEASE=${THIRDPARTY_INSTALL_DIR}/zstd/lib/libzstd.a
 
     # JEMALLOC
     -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h

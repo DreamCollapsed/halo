@@ -247,12 +247,27 @@ function(thirdparty_cmake_configure srcdir builddir)
     foreach(_arg ${_cmake_args})
         set(_cmake_cmd_str "${_cmake_cmd_str} ${_arg}")
     endforeach()
+    
+    # Add CMAKE_PREFIX_PATH if it was set
+    if(THIRDPARTY_CMAKE_PREFIX_PATH_STRING)
+        set(_cmake_cmd_str "${_cmake_cmd_str} -DCMAKE_PREFIX_PATH=${THIRDPARTY_CMAKE_PREFIX_PATH_STRING}")
+    endif()
+    
     message(STATUS "[thirdparty_cmake_configure] CMake command: ${_cmake_cmd_str}")
     
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} -S "${_actual_src_dir}" -B "${builddir}" ${_cmake_args}
-        RESULT_VARIABLE result
-    )
+    # Execute with special handling for CMAKE_PREFIX_PATH
+    if(THIRDPARTY_CMAKE_PREFIX_PATH_STRING)
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -S "${_actual_src_dir}" -B "${builddir}" 
+                    ${_cmake_args} "-DCMAKE_PREFIX_PATH=${THIRDPARTY_CMAKE_PREFIX_PATH_STRING}"
+            RESULT_VARIABLE result
+        )
+    else()
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -S "${_actual_src_dir}" -B "${builddir}" ${_cmake_args}
+            RESULT_VARIABLE result
+        )
+    endif()
 
     if(NOT result EQUAL 0)
         message(FATAL_ERROR "[thirdparty_cmake_configure] CMake configure failed for ${_actual_src_dir} with exit code ${result}")
@@ -437,13 +452,28 @@ function(thirdparty_get_optimization_flags output_var)
     
     # Automatically add dependency CMAKE_ARGS if component is specified
     if(ARG_COMPONENT)
-        # Prefer global property for cross-component dependency resolution
-        get_property(_global_prefix_path GLOBAL PROPERTY THIRDPARTY_CMAKE_PREFIX_PATH)
-        if(_global_prefix_path)
-            list(APPEND _opt_flags "-DCMAKE_PREFIX_PATH=${_global_prefix_path}")
-        elseif(CMAKE_PREFIX_PATH)
-            # Fallback to local CMAKE_PREFIX_PATH if global property is not available
-            list(APPEND _opt_flags "-DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}")
+        # Use the global property to get accumulated CMAKE_PREFIX_PATH
+        # This is more efficient than directory scanning
+        get_property(_cmake_prefix_path GLOBAL PROPERTY THIRDPARTY_CMAKE_PREFIX_PATH)
+        
+        if(_cmake_prefix_path)
+            # Sort for consistent ordering
+            list(SORT _cmake_prefix_path)
+            list(LENGTH _cmake_prefix_path _path_count)
+            
+            # Debug: Show what we're working with
+            message(STATUS "[thirdparty] Raw CMAKE_PREFIX_PATH: ${_cmake_prefix_path}")
+            
+            # Store the CMAKE_PREFIX_PATH as a string variable to avoid list expansion issues
+            # This will be handled specially in thirdparty_cmake_configure
+            set(_cmake_prefix_path_string "${_cmake_prefix_path}")
+            set(_opt_flags ${_opt_flags} PARENT_SCOPE)
+            set(THIRDPARTY_CMAKE_PREFIX_PATH_STRING "${_cmake_prefix_path_string}" PARENT_SCOPE)
+            
+            message(STATUS "[thirdparty] Using CMAKE_PREFIX_PATH with ${_path_count} paths for ${ARG_COMPONENT}")
+        else()
+            message(STATUS "[thirdparty] No registered dependencies found for CMAKE_PREFIX_PATH")
+            set(THIRDPARTY_CMAKE_PREFIX_PATH_STRING "" PARENT_SCOPE)
         endif()
     endif()
     

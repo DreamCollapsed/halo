@@ -252,18 +252,12 @@ function(thirdparty_cmake_configure srcdir builddir)
     execute_process(
         COMMAND ${CMAKE_COMMAND} -S "${_actual_src_dir}" -B "${builddir}" ${_cmake_args}
         RESULT_VARIABLE result
-        OUTPUT_VARIABLE output
-        ERROR_VARIABLE error
     )
 
     if(NOT result EQUAL 0)
-        message(WARNING "[thirdparty_cmake_configure] CMake configure failed for ${_actual_src_dir}")
-        if(output)
-            message(STATUS "CMake stdout: ${output}")
-        endif()
-        if(error)
-            message(STATUS "CMake stderr: ${error}")
-        endif()
+        message(FATAL_ERROR "[thirdparty_cmake_configure] CMake configure failed for ${_actual_src_dir} with exit code ${result}")
+    else()
+        message(STATUS "[thirdparty_cmake_configure] Successfully configured ${_actual_src_dir}")
     endif()
 
     set(CMAKE_CURRENT_FUNCTION_RESULT "${result}" PARENT_SCOPE)
@@ -386,6 +380,8 @@ function(thirdparty_get_optimization_flags output_var)
         -DBUILD_TESTING=OFF
         -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
         -DCMAKE_WARN_DEPRECATED=OFF
+        -DBUILD_TESTS=OFF
+        -DBUILD_EXAMPLES=OFF
 
         -Wno-dev
         --no-warn-unused-cli

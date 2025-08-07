@@ -305,3 +305,11 @@ thirdparty_register_component(fizz
     SHA256 "${FIZZ_SHA256}"
     DEPENDS_ON folly openssl libsodium jemalloc zlib
 )
+
+# Register wangle component  
+thirdparty_register_component(wangle
+    VERSION "${WANGLE_VERSION}"
+    URL "${WANGLE_URL}"
+    SHA256 "${WANGLE_SHA256}"
+    DEPENDS_ON folly fizz openssl gflags glog double-conversion libevent boost fmt jemalloc zlib xz bzip2 libsodium zstd lz4 snappy
+)

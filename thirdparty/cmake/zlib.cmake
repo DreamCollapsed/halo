@@ -1,8 +1,6 @@
 # zlib third-party integration
 # Reference: https://github.com/madler/zlib
 
-# Use the standardized build function for zlib
-# Note: Zlib uses CMake build system
 thirdparty_build_cmake_library("zlib"
     CMAKE_ARGS
         -DZLIB_BUILD_EXAMPLES=OFF
@@ -15,12 +13,9 @@ thirdparty_build_cmake_library("zlib"
         "${THIRDPARTY_INSTALL_DIR}/zlib/include/zlib.h"
 )
 
-# Additional zlib-specific setup
 set(ZLIB_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/zlib")
 get_filename_component(ZLIB_INSTALL_DIR "${ZLIB_INSTALL_DIR}" ABSOLUTE)
 
-# Aggressive zlib control - prevent ANY system library usage
-# Clear all existing CMake zlib-related variables
 unset(ZLIB_LIBRARY CACHE)
 unset(ZLIB_LIBRARIES CACHE)
 unset(ZLIB_INCLUDE_DIR CACHE)
@@ -29,7 +24,6 @@ unset(ZLIB_ROOT CACHE)
 unset(ZLIB_FOUND CACHE)
 unset(ZLIB_DIR CACHE)
 
-# Force exclusive use of our compiled library
 set(ZLIB_LIBRARY "${ZLIB_INSTALL_DIR}/lib/libz.a" CACHE FILEPATH "ZLIB library path" FORCE)
 set(ZLIB_LIBRARIES "${ZLIB_INSTALL_DIR}/lib/libz.a" CACHE STRING "ZLIB libraries" FORCE)
 set(ZLIB_INCLUDE_DIR "${ZLIB_INSTALL_DIR}/include" CACHE PATH "ZLIB include directory" FORCE)
@@ -62,5 +56,5 @@ if(EXISTS "${ZLIB_LIBRARY}" AND EXISTS "${ZLIB_INCLUDE_DIR}/zlib.h")
     message(STATUS "zlib library: ${ZLIB_LIBRARY}")
     message(STATUS "zlib version: 1.3.1 (forced)")
 else()
-    message(WARNING "zlib installation not found at ${ZLIB_INSTALL_DIR}")
+    message(FATAL_ERROR "zlib installation not found at ${ZLIB_INSTALL_DIR}")
 endif()

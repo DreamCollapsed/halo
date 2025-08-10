@@ -13,16 +13,23 @@ function(thirdparty_register_component component_name)
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
     # Store component information
-    set(${component_name}_VERSION "${ARG_VERSION}" CACHE INTERNAL "Version of ${component_name}")
-    set(${component_name}_URL "${ARG_URL}" CACHE INTERNAL "Download URL of ${component_name}")
-    set(${component_name}_SHA256 "${ARG_SHA256}" CACHE INTERNAL "SHA256 hash of ${component_name}")
-    set(${component_name}_DEPENDENCIES "${ARG_DEPENDS_ON}" CACHE INTERNAL "Dependencies of ${component_name}")
+    # Use FORCE to allow metadata updates on re-registration
+    set(${component_name}_VERSION "${ARG_VERSION}" CACHE INTERNAL "Version of ${component_name}" FORCE)
+    set(${component_name}_URL "${ARG_URL}" CACHE INTERNAL "Download URL of ${component_name}" FORCE)
+    set(${component_name}_SHA256 "${ARG_SHA256}" CACHE INTERNAL "SHA256 hash of ${component_name}" FORCE)
+    set(${component_name}_DEPENDENCIES "${ARG_DEPENDS_ON}" CACHE INTERNAL "Dependencies of ${component_name}" FORCE)
     
     # Add to global registry
-    list(APPEND THIRDPARTY_REGISTRY "${component_name}")
-    set(THIRDPARTY_REGISTRY "${THIRDPARTY_REGISTRY}" CACHE INTERNAL "Registry of all third-party components")
+    list(FIND THIRDPARTY_REGISTRY "${component_name}" _existing_index)
+    if(_existing_index EQUAL -1)
+        list(APPEND THIRDPARTY_REGISTRY "${component_name}")
+        set(THIRDPARTY_REGISTRY "${THIRDPARTY_REGISTRY}" CACHE INTERNAL "Registry of all third-party components")
+        set(_reg_action "registered")
+    else()
+        set(_reg_action "updated")
+    endif()
     
-    message(STATUS "Registered component: ${component_name} (depends on: ${ARG_DEPENDS_ON})")
+    message(STATUS "Component ${component_name} ${_reg_action} (depends on: ${ARG_DEPENDS_ON})")
 endfunction()
 
 # Function to compute topological sort of components based on dependencies
@@ -65,20 +72,6 @@ function(thirdparty_compute_build_order output_var)
     
     # Return the computed build order
     set(${output_var} "${_build_order}" PARENT_SCOPE)
-endfunction()
-
-# Function to check if all dependencies of a component are satisfied
-function(thirdparty_check_dependencies component_name)
-    get_property(_deps CACHE "${component_name}_DEPENDENCIES" PROPERTY VALUE)
-    if(_deps)
-        foreach(_dep IN LISTS _deps)
-            set(_dep_install_dir "${THIRDPARTY_INSTALL_DIR}/${_dep}")
-            if(NOT EXISTS "${_dep_install_dir}")
-                message(FATAL_ERROR "Dependency ${_dep} required by ${component_name} is not installed at ${_dep_install_dir}")
-            endif()
-            message(STATUS "Dependency check passed: ${component_name} -> ${_dep} (${_dep_install_dir})")
-        endforeach()
-    endif()
 endfunction()
 
 # Function to get dependency paths for a component (useful for CMAKE_PREFIX_PATH)
@@ -137,9 +130,9 @@ thirdparty_register_component(flex
 )
 
 thirdparty_register_component(gtest
-    VERSION "${GOOGLETEST_VERSION}"
-    URL "${GOOGLETEST_URL}"
-    SHA256 "${GOOGLETEST_SHA256}"
+    VERSION "${GTEST_VERSION}"
+    URL "${GTEST_URL}"
+    SHA256 "${GTEST_SHA256}"
 )
 
 thirdparty_register_component(gflags
@@ -158,12 +151,6 @@ thirdparty_register_component(fast-float
     VERSION "${FAST_FLOAT_VERSION}"
     URL "${FAST_FLOAT_URL}"
     SHA256 "${FAST_FLOAT_SHA256}"
-)
-
-thirdparty_register_component(bison
-    VERSION "${BISON_VERSION}"
-    URL "${BISON_URL}"
-    SHA256 "${BISON_SHA256}"
 )
 
 thirdparty_register_component(fmt

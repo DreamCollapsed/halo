@@ -1,15 +1,7 @@
 # Folly third-party integration
 # Reference: https://github.com/facebook/folly/blob/main/README.md
 
-thirdparty_check_dependencies("gflags;glog;double-conversion;libevent;openssl;zstd;lz4;snappy;boost;fmt;jemalloc;zlib;xz;bzip2;libsodium")
-
-set(FOLLY_NAME "folly")
-set(FOLLY_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/folly-${FOLLY_VERSION}.tar.gz")
-set(FOLLY_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${FOLLY_NAME}")
-set(FOLLY_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/${FOLLY_NAME}")
-set(FOLLY_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${FOLLY_NAME}")
-
-get_filename_component(FOLLY_INSTALL_DIR "${FOLLY_INSTALL_DIR}" ABSOLUTE)
+thirdparty_setup_directories("folly")
 
 thirdparty_download_and_check("${FOLLY_URL}" "${FOLLY_DOWNLOAD_FILE}" "${FOLLY_SHA256}")
 thirdparty_extract_and_rename("${FOLLY_DOWNLOAD_FILE}" "${FOLLY_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/folly-*" )
@@ -129,16 +121,17 @@ thirdparty_cmake_install("${FOLLY_BUILD_DIR}" "${FOLLY_INSTALL_DIR}"
         "${FOLLY_INSTALL_DIR}/include/folly/folly-config.h"
 )
 
-thirdparty_safe_set_parent_scope(FOLLY_INSTALL_DIR "${FOLLY_INSTALL_DIR}")
-set(Folly_DIR "${FOLLY_INSTALL_DIR}/lib/cmake/folly" CACHE PATH "Path to installed Folly cmake config" FORCE)
-
 if(EXISTS "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake")
     file(READ "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake" folly_config_content)
     string(REPLACE "find_dependency(Boost 1.51.0 MODULE" "find_dependency(Boost ${BOOST_VERSION} MODULE" folly_config_content "${folly_config_content}")
     file(WRITE "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake" "${folly_config_content}")
 
-    find_package(Folly REQUIRED CONFIG QUIET)
-    message(STATUS "Folly found and imported: ${FOLLY_INSTALL_DIR}")
+    find_package(Folly CONFIG REQUIRED)
+    
+    # Some dependents (fizz/wangle) ask for "folly" in lowercase via find_dependency
+    # Populate lowercase cache too to avoid re-search and negative cache writes
+    find_package(folly CONFIG REQUIRED)
+    message(STATUS "Folly imported into superproject: ${FOLLY_INSTALL_DIR}")
 else()
-    message(WARNING "Folly cmake config not found at ${FOLLY_INSTALL_DIR}")
+    message(FATAL_ERROR "Folly cmake config not found at ${FOLLY_INSTALL_DIR}")
 endif()

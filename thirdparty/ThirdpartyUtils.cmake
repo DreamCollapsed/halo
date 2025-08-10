@@ -1,37 +1,66 @@
-# --- Safe Parent Scope Setting Utility ---
-# This function safely sets variables in parent scope, avoiding warnings when no parent exists
-function(thirdparty_safe_set_parent_scope variable_name value)
-    # Check if we have a parent scope by testing if we can access CMAKE_CURRENT_SOURCE_DIR
-    # from both current and what would be parent context
-    get_directory_property(_has_parent PARENT_DIRECTORY)
-    if(_has_parent)
-        set(${variable_name} "${value}" PARENT_SCOPE)
-    else()
-        # No parent scope, set as cache variable instead
-        set(${variable_name} "${value}" CACHE INTERNAL "Thirdparty variable: ${variable_name}" FORCE)
-    endif()
-endfunction()
 
 # --- CMAKE_PREFIX_PATH Registration Utility ---
-# This function adds a path to CMAKE_PREFIX_PATH for dependency resolution
-# Note: For performance, this does not check for duplicates - rely on build order instead
+# This function adds a path to CMAKE_PREFIX_PATH for dependency resolution.
+# It now deduplicates and writes to the cache to make find_package() work
+# immediately in the caller directory without needing explicit *_DIR.
 function(thirdparty_register_to_cmake_prefix_path install_path)
     get_filename_component(_abs_path "${install_path}" ABSOLUTE)
-    
-    # Update local CMAKE_PREFIX_PATH for immediate use
-    list(PREPEND CMAKE_PREFIX_PATH "${_abs_path}")
-    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}" PARENT_SCOPE)
-    
-    # Update global property for cross-component dependency resolution
-    get_property(_global_prefix_path GLOBAL PROPERTY THIRDPARTY_CMAKE_PREFIX_PATH)
-    list(PREPEND _global_prefix_path "${_abs_path}")
-    set_property(GLOBAL PROPERTY THIRDPARTY_CMAKE_PREFIX_PATH "${_global_prefix_path}")
-    
-    message(STATUS "[thirdparty] Registered ${_abs_path} to CMAKE_PREFIX_PATH")
+
+    # Build a merged, de-duplicated list from:
+    # 1) the new path
+    # 2) cached CMAKE_PREFIX_PATH (if any)
+    set(_merged_prefix_path)
+    list(APPEND _merged_prefix_path "${_abs_path}")
+
+    # Include cached value if present
+    get_property(_cache_prefix CACHE CMAKE_PREFIX_PATH PROPERTY VALUE)
+    if(_cache_prefix)
+        list(APPEND _merged_prefix_path ${_cache_prefix})
+    endif()
+
+    # Remove empty entries and duplicates while preserving order
+    list(REMOVE_ITEM _merged_prefix_path "")
+    list(REMOVE_DUPLICATES _merged_prefix_path)
+
+    # Cache-only update; do not touch directory or parent scopes
+    set(CMAKE_PREFIX_PATH "${_merged_prefix_path}" CACHE STRING "Search prefixes for find_package()" FORCE)
+
+    # Also prepend pkg-config search paths so FindPkgConfig prefers third-party installs
+    set(_pc_candidates)
+    list(APPEND _pc_candidates "${_abs_path}/lib/pkgconfig")
+    list(APPEND _pc_candidates "${_abs_path}/share/pkgconfig")
+    set(_new_pc_paths)
+    foreach(_pc ${_pc_candidates})
+        if(EXISTS "${_pc}")
+            list(APPEND _new_pc_paths "${_pc}")
+        endif()
+    endforeach()
+    if(_new_pc_paths)
+        # Compose new PKG_CONFIG_PATH with third-party paths first
+        if(DEFINED ENV{PKG_CONFIG_PATH} AND NOT "$ENV{PKG_CONFIG_PATH}" STREQUAL "")
+            string(JOIN ":" _pc_joined ${_new_pc_paths} "$ENV{PKG_CONFIG_PATH}")
+        else()
+            string(JOIN ":" _pc_joined ${_new_pc_paths})
+        endif()
+        # De-dup crudely by splitting and rejoining while skipping repeats
+        string(REPLACE ":" ";" _pc_list "${_pc_joined}")
+        set(_pc_dedup)
+        foreach(_p IN LISTS _pc_list)
+            if(NOT _p STREQUAL "")
+                list(FIND _pc_dedup "${_p}" _idx)
+                if(_idx EQUAL -1)
+                    list(APPEND _pc_dedup "${_p}")
+                endif()
+            endif()
+        endforeach()
+        string(JOIN ":" _pc_final ${_pc_dedup})
+        set(ENV{PKG_CONFIG_PATH} "${_pc_final}")
+    endif()
+
+    list(LENGTH _merged_prefix_path _pp_len)
+    message(STATUS "[thirdparty] Registered ${_abs_path} to CMAKE_PREFIX_PATH (cache size=${_pp_len})")
 endfunction()
 
-# --- Centralized Build Job Configuration ---
-# This function provides unified thread/job count configuration for all build systems
 function(thirdparty_get_build_jobs)
     # Parse optional parameters for different build systems
     set(options "")
@@ -42,25 +71,21 @@ function(thirdparty_get_build_jobs)
     include(ProcessorCount)
     ProcessorCount(_cpu_count)
     
-    # Set default values if CPU count detection fails
     if(NOT _cpu_count OR _cpu_count EQUAL 0)
         set(_cpu_count 4)
         message(STATUS "[thirdparty] CPU count detection failed, using fallback: ${_cpu_count}")
     endif()
     
-    # Configure different job types based on system capabilities and build type
     set(_compile_jobs ${_cpu_count})
     set(_link_jobs 2)
     set(_make_jobs ${_cpu_count})
     
-    # Adjust for high-end systems (more conservative linking to avoid memory pressure)
     if(_cpu_count GREATER 8)
         set(_link_jobs 4)
     elseif(_cpu_count GREATER 16)
         set(_link_jobs 6)
     endif()
     
-    # Special handling for debug builds (use fewer jobs to reduce memory usage)
     if(ARG_BUILD_TYPE AND ARG_BUILD_TYPE STREQUAL "Debug")
         math(EXPR _compile_jobs "${_cpu_count} / 2")
         math(EXPR _link_jobs "2")
@@ -70,7 +95,6 @@ function(thirdparty_get_build_jobs)
         message(STATUS "[thirdparty] Debug build detected, using conservative job counts")
     endif()
     
-    # Output the results to the specified variables
     if(ARG_OUTPUT_COMPILE_JOBS)
         set(${ARG_OUTPUT_COMPILE_JOBS} ${_compile_jobs} PARENT_SCOPE)
     endif()
@@ -133,8 +157,6 @@ function(thirdparty_download_and_check url file hash)
             else()
                 message(WARNING "[thirdparty_download] Download failed with status ${_status_code}: ${_status_message}")
             endif()
-            
-            # Add delay before retry (except for last attempt)
         endwhile()
         
         if(NOT _download_success)
@@ -147,49 +169,51 @@ function(thirdparty_extract_and_rename tarfile srcdir pattern)
     if(NOT EXISTS "${srcdir}/CMakeLists.txt")
         file(GLOB _old_dirs "${pattern}")
         foreach(_d ${_old_dirs})
-            file(REMOVE_RECURSE "${_d}")
-        endforeach()
-        file(MAKE_DIRECTORY "${srcdir}")
-        get_filename_component(_workdir "${srcdir}" DIRECTORY)
-        
-        # Get complete filename
-        get_filename_component(_filename "${tarfile}" NAME)
-        # Use string operations to handle extensions
-        string(REGEX MATCH "\\.[^.]*\\.[^.]*$" _double_ext "${_filename}")
-        if(_double_ext)
-            # Handle double extensions (like .tar.gz, .tar.bz2)
-            string(TOLOWER "${_double_ext}" _ext)
-        else()
-            # Handle single extensions
-            get_filename_component(_ext "${tarfile}" EXT)
-            string(TOLOWER "${_ext}" _ext)
-        endif()
-        
-        # Use cmake -E tar to automatically handle all supported compression formats
-        if(_ext MATCHES "\\.(tar\\.gz|tgz|tar\\.bz2|tbz2|tar\\.xz|txz|tar)$" OR _ext STREQUAL ".zip")
-            execute_process(
-                COMMAND ${CMAKE_COMMAND} -E tar xf "${tarfile}"
-                WORKING_DIRECTORY "${_workdir}"
-                RESULT_VARIABLE _extract_failed
-            )
-            if(_extract_failed)
-                message(FATAL_ERROR "Failed to extract ${tarfile}")
+            if(EXISTS "${_d}")
+                file(REMOVE_RECURSE "${_d}")
             endif()
-        elseif(_ext MATCHES "\\.(gz|bz2|xz)$")
-            # Only decompress single compressed file, not a tar package
-            message(FATAL_ERROR "Unsupported archive format (not a tarball): ${tarfile}")
-        else()
-            message(FATAL_ERROR "Unsupported archive format: ${tarfile}")
+        endforeach()
+
+        get_filename_component(_workdir "${srcdir}" DIRECTORY)
+        file(MAKE_DIRECTORY "${_workdir}")
+        string(RANDOM LENGTH 8 ALPHABET 0123456789abcdef _rand)
+        set(_tmp_extract_dir "${_workdir}/.extract_${_rand}")
+        file(MAKE_DIRECTORY "${_tmp_extract_dir}")
+
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E tar xf "${tarfile}"
+            WORKING_DIRECTORY "${_tmp_extract_dir}"
+            RESULT_VARIABLE _extract_failed
+        )
+        if(_extract_failed)
+            file(REMOVE_RECURSE "${_tmp_extract_dir}")
+            message(FATAL_ERROR "Failed to extract ${tarfile}")
         endif()
 
-        file(GLOB _unpacked_dir "${pattern}")
-        list(GET _unpacked_dir 0 _unpacked_path)
-        if(_unpacked_path AND NOT _unpacked_path STREQUAL "${srcdir}")
-            # Remove target directory if it exists to avoid "Directory not empty" error
-            if(EXISTS "${srcdir}")
-                file(REMOVE_RECURSE "${srcdir}")
+        file(GLOB _top_entries "${_tmp_extract_dir}/*")
+        set(_dirs)
+        set(_files)
+        foreach(_e ${_top_entries})
+            if(IS_DIRECTORY "${_e}")
+                list(APPEND _dirs "${_e}")
+            else()
+                list(APPEND _files "${_e}")
             endif()
-            file(RENAME "${_unpacked_path}" "${srcdir}")
+        endforeach()
+
+        if(EXISTS "${srcdir}")
+            file(REMOVE_RECURSE "${srcdir}")
+        endif()
+
+        list(LENGTH _dirs _dir_count)
+        list(LENGTH _files _file_count)
+
+        if(_dir_count EQUAL 1 AND _file_count EQUAL 0)
+            list(GET _dirs 0 _only_dir)
+            file(RENAME "${_only_dir}" "${srcdir}")
+            file(REMOVE_RECURSE "${_tmp_extract_dir}")
+        else()
+            file(RENAME "${_tmp_extract_dir}" "${srcdir}")
         endif()
     endif()
 endfunction()
@@ -310,7 +334,6 @@ function(thirdparty_cmake_install builddir installdir)
 
     if(NOT _need_install)
         message(STATUS "[thirdparty_cmake_install] All validation files exist, skip install for ${builddir}")
-        
         # Set successful result for skip case
         set(_build_result 0)
     else()
@@ -321,58 +344,57 @@ function(thirdparty_cmake_install builddir installdir)
         else()
             # Proceed with build and install
             message(STATUS "[thirdparty_cmake_install] Building and installing from ${builddir} to ${installdir}")
-    
-    # Use optimized build command based on generator
-    find_program(NINJA_EXECUTABLE ninja)
-    if(NINJA_EXECUTABLE AND EXISTS "${builddir}/build.ninja")
-        # Use Ninja directly for better performance
-        message(STATUS "[thirdparty_cmake_install] Using Ninja for optimized build")
-        execute_process(
-            COMMAND ${NINJA_EXECUTABLE} -C "${builddir}"
-            RESULT_VARIABLE _build_result
-        )
-    else()
-        # Fallback to standard CMake build with centralized job configuration
-        thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _parallel_jobs)
-        
-        message(STATUS "[thirdparty_cmake_install] Build command: ${CMAKE_COMMAND} --build \"${builddir}\" --parallel ${_parallel_jobs}")
-        
-        execute_process(
-            COMMAND ${CMAKE_COMMAND} --build "${builddir}" --parallel ${_parallel_jobs}
-            RESULT_VARIABLE _build_result
-        )
-    endif()
-    
-    if(_build_result EQUAL 0)
-        # Create install directory if it doesn't exist
-        file(MAKE_DIRECTORY "${installdir}")
-        
-        message(STATUS "[thirdparty_cmake_install] Install command: ${CMAKE_COMMAND} --install \"${builddir}\" --prefix \"${installdir}\"")
-        
-        # Install to the specified directory
-        execute_process(
-            COMMAND ${CMAKE_COMMAND} --install "${builddir}" --prefix "${installdir}"
-            RESULT_VARIABLE _install_result
-        )
-        if(NOT _install_result EQUAL 0)
-            message(WARNING "[thirdparty_cmake_install] Install failed for ${builddir} to ${installdir}")
-            set(_build_result ${_install_result})
-        else()
-            message(STATUS "[thirdparty_cmake_install] Successfully installed to ${installdir}")
-            
-            # Registration is handled at the end of this function to avoid duplication
-        endif()
-        else()
-            message(WARNING "[thirdparty_cmake_install] Build failed for ${builddir}, skip install.")
-        endif()
+
+            # Use optimized build command based on generator
+            find_program(NINJA_EXECUTABLE ninja)
+            if(NINJA_EXECUTABLE AND EXISTS "${builddir}/build.ninja")
+                # Use Ninja directly for better performance
+                message(STATUS "[thirdparty_cmake_install] Using Ninja for optimized build")
+                execute_process(
+                    COMMAND ${NINJA_EXECUTABLE} -C "${builddir}"
+                    RESULT_VARIABLE _build_result
+                )
+            else()
+                # Fallback to standard CMake build with centralized job configuration
+                thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _parallel_jobs)
+
+                message(STATUS "[thirdparty_cmake_install] Build command: ${CMAKE_COMMAND} --build \"${builddir}\" --parallel ${_parallel_jobs}")
+
+                execute_process(
+                    COMMAND ${CMAKE_COMMAND} --build "${builddir}" --parallel ${_parallel_jobs}
+                    RESULT_VARIABLE _build_result
+                )
+            endif()
+
+            if(_build_result EQUAL 0)
+                # Create install directory if it doesn't exist
+                file(MAKE_DIRECTORY "${installdir}")
+
+                message(STATUS "[thirdparty_cmake_install] Install command: ${CMAKE_COMMAND} --install \"${builddir}\" --prefix \"${installdir}\"")
+
+                # Install to the specified directory
+                execute_process(
+                    COMMAND ${CMAKE_COMMAND} --install "${builddir}" --prefix "${installdir}"
+                    RESULT_VARIABLE _install_result
+                )
+                if(NOT _install_result EQUAL 0)
+                    message(WARNING "[thirdparty_cmake_install] Install failed for ${builddir} to ${installdir}")
+                    set(_build_result ${_install_result})
+                else()
+                    message(STATUS "[thirdparty_cmake_install] Successfully installed to ${installdir}")
+                    # Registration is handled at the end of this function to avoid duplication
+                endif()
+            else()
+                message(WARNING "[thirdparty_cmake_install] Build failed for ${builddir}, skip install.")
+            endif()
         endif() # Close the builddir exists check
     endif() # Close the _need_install check
-    
+
     # Always register to CMAKE_PREFIX_PATH for consistency
     # - If we needed to install: register the newly installed component
     # - If we skipped install: register the existing component (ensures consistency)
     thirdparty_register_to_cmake_prefix_path("${installdir}")
-    
+
     set(${CMAKE_CURRENT_FUNCTION_RESULT} ${_build_result} PARENT_SCOPE)
 endfunction()
 
@@ -452,27 +474,16 @@ function(thirdparty_get_optimization_flags output_var)
     
     # Automatically add dependency CMAKE_ARGS if component is specified
     if(ARG_COMPONENT)
-        # Use the global property to get accumulated CMAKE_PREFIX_PATH
-        # This is more efficient than directory scanning
-        get_property(_cmake_prefix_path GLOBAL PROPERTY THIRDPARTY_CMAKE_PREFIX_PATH)
-        
+        # Use the cached CMAKE_PREFIX_PATH for child cmake invocations
+        get_property(_cmake_prefix_path CACHE CMAKE_PREFIX_PATH PROPERTY VALUE)
         if(_cmake_prefix_path)
-            # Sort for consistent ordering
-            list(SORT _cmake_prefix_path)
             list(LENGTH _cmake_prefix_path _path_count)
-            
-            # Debug: Show what we're working with
-            message(STATUS "[thirdparty] Raw CMAKE_PREFIX_PATH: ${_cmake_prefix_path}")
-            
-            # Store the CMAKE_PREFIX_PATH as a string variable to avoid list expansion issues
-            # This will be handled specially in thirdparty_cmake_configure
+            message(STATUS "[thirdparty] Cache CMAKE_PREFIX_PATH has ${_path_count} paths for ${ARG_COMPONENT}")
             set(_cmake_prefix_path_string "${_cmake_prefix_path}")
             set(_opt_flags ${_opt_flags} PARENT_SCOPE)
             set(THIRDPARTY_CMAKE_PREFIX_PATH_STRING "${_cmake_prefix_path_string}" PARENT_SCOPE)
-            
-            message(STATUS "[thirdparty] Using CMAKE_PREFIX_PATH with ${_path_count} paths for ${ARG_COMPONENT}")
         else()
-            message(STATUS "[thirdparty] No registered dependencies found for CMAKE_PREFIX_PATH")
+            message(STATUS "[thirdparty] Cache CMAKE_PREFIX_PATH empty for ${ARG_COMPONENT}")
             set(THIRDPARTY_CMAKE_PREFIX_PATH_STRING "" PARENT_SCOPE)
         endif()
     endif()
@@ -579,14 +590,26 @@ function(thirdparty_get_ccache_executable output_var)
     set(${output_var} ${_ccache_exec} PARENT_SCOPE)
 endfunction()
 
-# Standardized function for setting up common third-party library directories
 function(thirdparty_setup_directories library_name)
     string(TOUPPER "${library_name}" _lib_upper)
     string(REPLACE "-" "_" _lib_upper "${_lib_upper}")
     
     # Set standard directory variables
     set(${_lib_upper}_NAME "${library_name}" PARENT_SCOPE)
-    set(${_lib_upper}_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/${library_name}-${${_lib_upper}_VERSION}.tar.gz" PARENT_SCOPE)
+    # Infer archive extension from URL when possible; fallback to .tar.gz
+    set(_version "${${_lib_upper}_VERSION}")
+    set(_url     "${${_lib_upper}_URL}")
+    set(_extension ".tar.gz")
+    if(_url)
+        get_filename_component(_url_filename "${_url}" NAME)
+        string(REGEX MATCH "(\\.tar\\.gz|\\.tgz|\\.tar\\.bz2|\\.tbz2|\\.tar\\.xz|\\.txz|\\.zip)$" _ext_match "${_url_filename}")
+        if(_ext_match)
+            set(_extension "${_ext_match}")
+        elseif(_url MATCHES "\\.zip")
+            set(_extension ".zip")
+        endif()
+    endif()
+    set(${_lib_upper}_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/${library_name}-${_version}${_extension}" PARENT_SCOPE)
     set(${_lib_upper}_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${library_name}" PARENT_SCOPE)
     set(${_lib_upper}_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/${library_name}" PARENT_SCOPE)
     set(${_lib_upper}_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${library_name}" PARENT_SCOPE)
@@ -596,7 +619,6 @@ function(thirdparty_setup_directories library_name)
     set(${_lib_upper}_INSTALL_DIR "${_abs_install_dir}" PARENT_SCOPE)
 endfunction()
 
-# Standardized function for simple CMake-based third-party libraries
 function(thirdparty_build_cmake_library library_name)
     # Parse arguments
     set(options)
@@ -638,17 +660,11 @@ function(thirdparty_build_cmake_library library_name)
         set(ARG_EXTRACT_PATTERN "${THIRDPARTY_SRC_DIR}/${library_name}-*")
     endif()
 
-    # Check dependencies first
-    thirdparty_check_dependencies("${library_name}")
-
-    # Download and extract
     thirdparty_download_and_check("${_url}" "${_download_file}" "${_sha256}")
     thirdparty_extract_and_rename("${_download_file}" "${_source_dir}" "${ARG_EXTRACT_PATTERN}")
 
-    # Get common optimization flags
     thirdparty_get_optimization_flags(_common_cmake_args COMPONENT "${library_name}")
 
-    # Configure
     thirdparty_cmake_configure("${_source_dir}" "${_build_dir}"
         SOURCE_SUBDIR "${ARG_SOURCE_SUBDIR}"
         VALIDATION_FILES
@@ -660,16 +676,13 @@ function(thirdparty_build_cmake_library library_name)
             ${ARG_CMAKE_ARGS}
     )
 
-    # Build and install
     thirdparty_cmake_install("${_build_dir}" "${_install_dir}"
         VALIDATION_FILES ${ARG_VALIDATION_FILES}
     )
 
-    # Export the installation directory for other components to find
     set(${_upper_name}_INSTALL_DIR "${_install_dir}" PARENT_SCOPE)
     get_filename_component(${_upper_name}_INSTALL_DIR "${_install_dir}" ABSOLUTE)
-    # Note: CMAKE_PREFIX_PATH registration is handled by thirdparty_cmake_install()
-    
+
     message(STATUS "Finished building ${library_name}. Installed at: ${_install_dir}")
 endfunction()
 
@@ -737,10 +750,6 @@ function(thirdparty_build_autotools_library library_name)
         return()
     endif()
 
-    # Check dependencies first
-    thirdparty_check_dependencies("${library_name}")
-
-    # Download and extract
     thirdparty_download_and_check("${_url}" "${_download_file}" "${_sha256}")
     thirdparty_extract_and_rename("${_download_file}" "${_source_dir}" "${THIRDPARTY_SRC_DIR}/${library_name}-*")
 

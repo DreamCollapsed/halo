@@ -1,21 +1,11 @@
 # Apache Thrift integration for the Halo project
 # This file handles downloading, building, and installing Apache Thrift
 
-# Check dependencies first (all variables defined in ComponentsInfo.cmake)
-thirdparty_check_dependencies("thrift")
+thirdparty_setup_directories("thrift")
 
-# Set up directories following boost.cmake naming convention
-set(THRIFT_NAME "thrift")
-set(THRIFT_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/${THRIFT_NAME}-${THRIFT_VERSION}.tar.gz")
-set(THRIFT_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${THRIFT_NAME}")
-set(THRIFT_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/${THRIFT_NAME}")
-set(THRIFT_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${THRIFT_NAME}")
-
-# Download and extract
 thirdparty_download_and_check("${THRIFT_URL}" "${THRIFT_DOWNLOAD_FILE}" "${THRIFT_SHA256}")
 thirdparty_extract_and_rename("${THRIFT_DOWNLOAD_FILE}" "${THRIFT_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/${THRIFT_NAME}-*")
 
-# Apply OpenSSL compatibility fixes to TSSLSocket.cpp
 set(THRIFT_TSSL_FILE "${THRIFT_SOURCE_DIR}/lib/cpp/src/thrift/transport/TSSLSocket.cpp")
 if(EXISTS "${THRIFT_TSSL_FILE}")
     message(STATUS "Applying OpenSSL compatibility fixes to TSSLSocket.cpp")
@@ -87,10 +77,7 @@ if(EXISTS "${THRIFT_TSSL_FILE}")
     message(STATUS "OpenSSL compatibility fixes applied successfully")
 endif()
 
-# Get common optimization flags
 thirdparty_get_optimization_flags(THRIFT_CMAKE_ARGS COMPONENT "${THRIFT_NAME}")
-
-# Configure
 thirdparty_cmake_configure("${THRIFT_SOURCE_DIR}" "${THRIFT_BUILD_DIR}"
     VALIDATION_FILES
         "${THRIFT_BUILD_DIR}/Makefile"
@@ -124,7 +111,6 @@ thirdparty_cmake_configure("${THRIFT_SOURCE_DIR}" "${THRIFT_BUILD_DIR}"
         -DFLEX_EXECUTABLE=${THIRDPARTY_INSTALL_DIR}/flex/bin/flex
 )
 
-# Build and install
 thirdparty_cmake_install("${THRIFT_BUILD_DIR}" "${THRIFT_INSTALL_DIR}"
     VALIDATION_FILES 
         "${THRIFT_INSTALL_DIR}/lib/libthrift.a"
@@ -134,17 +120,11 @@ thirdparty_cmake_install("${THRIFT_BUILD_DIR}" "${THRIFT_INSTALL_DIR}"
         "${THRIFT_INSTALL_DIR}/bin/thrift"
 )
 
-# Export the installation directory for other components to find
-thirdparty_safe_set_parent_scope(THRIFT_INSTALL_DIR "${THRIFT_INSTALL_DIR}")
 get_filename_component(THRIFT_INSTALL_DIR "${THRIFT_INSTALL_DIR}" ABSOLUTE)
-thirdparty_safe_set_parent_scope(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH}")
 
-# Import the thrift targets if they don't exist
 if(NOT TARGET thrift::thrift)
-    # Try to find thrift package first
-    find_package(thrift QUIET PATHS "${THRIFT_INSTALL_DIR}" NO_DEFAULT_PATH)
+    find_package(thrift CONFIG REQUIRED)
     
-    # If not found, create the target manually
     if(NOT TARGET thrift::thrift)
         add_library(thrift::thrift STATIC IMPORTED GLOBAL)
         set_target_properties(thrift::thrift PROPERTIES
@@ -153,7 +133,6 @@ if(NOT TARGET thrift::thrift)
             INTERFACE_LINK_LIBRARIES "Boost::boost;OpenSSL::SSL;OpenSSL::Crypto;ZLIB::ZLIB"
         )
         
-        # Create the thriftz target as well
         if(EXISTS "${THRIFT_INSTALL_DIR}/lib/libthriftz.a")
             add_library(thrift::thriftz STATIC IMPORTED GLOBAL)
             set_target_properties(thrift::thriftz PROPERTIES

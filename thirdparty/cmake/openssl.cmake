@@ -3,21 +3,7 @@
 # OpenSSL 1.1.1 uses its own Configure script. We manually generate modern
 # CMake config files after building it.
 
-thirdparty_check_dependencies("openssl")
-
-# Set up directories using common function
 thirdparty_setup_directories("openssl")
-
-# Override specific directory variables
-set(OPENSSL_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/openssl-${OPENSSL_VERSION}.tar.gz")
-set(OPENSSL_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/openssl")
-set(OPENSSL_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/openssl") # Note: OpenSSL builds in-source
-set(OPENSSL_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/openssl")
-get_filename_component(OPENSSL_INSTALL_DIR "${OPENSSL_INSTALL_DIR}" ABSOLUTE)
-
-# Download and extract OpenSSL
-thirdparty_download_and_check("${OPENSSL_URL}" "${OPENSSL_DOWNLOAD_FILE}" "${OPENSSL_SHA256}")
-thirdparty_extract_and_rename("${OPENSSL_DOWNLOAD_FILE}" "${OPENSSL_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/openssl-*")
 
 # Function to manually generate modern CMake config files for OpenSSL
 function(openssl_create_cmake_config)
@@ -113,7 +99,6 @@ if(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
     list(APPEND _openssl_config_options -O3)
 endif()
 
-# Build and install OpenSSL using the generic autotools function
 thirdparty_build_autotools_library(openssl
     BUILD_IN_SOURCE TRUE
     CONFIGURE_SCRIPT_NAME "Configure"
@@ -130,15 +115,10 @@ thirdparty_build_autotools_library(openssl
         "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL/OpenSSLConfig.cmake"
 )
 
-# Export OpenSSL following project standards
 if(EXISTS "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL/OpenSSLConfig.cmake")
-    set(OpenSSL_DIR "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL" CACHE PATH "OpenSSL cmake config directory" FORCE)
-    thirdparty_safe_set_parent_scope(OPENSSL_FOUND TRUE)
-    
-    # Import OpenSSL package immediately with explicit path
     set(OPENSSL_CMAKE_DIR "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL")
     set(OpenSSL_DIR "${OPENSSL_CMAKE_DIR}" CACHE PATH "Path to OpenSSL config" FORCE)
-    find_package(OpenSSL REQUIRED CONFIG QUIET PATHS "${OPENSSL_CMAKE_DIR}" NO_DEFAULT_PATH)
+    find_package(OpenSSL CONFIG REQUIRED PATHS "${OPENSSL_CMAKE_DIR}" NO_DEFAULT_PATH)
     
     message(STATUS "OpenSSL found and exported globally: ${OPENSSL_INSTALL_DIR}")
 else()

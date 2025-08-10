@@ -1,12 +1,6 @@
 # GoogleTest/GoogleMock third-party integration
 # Reference: https://google.github.io/googletest/quickstart-cmake.html
 
-# Map GOOGLETEST_* variables to GTEST_* for standardized function
-set(GTEST_VERSION "${GOOGLETEST_VERSION}")
-set(GTEST_URL "${GOOGLETEST_URL}")
-set(GTEST_SHA256 "${GOOGLETEST_SHA256}")
-
-# Use the standardized build function for GoogleTest
 thirdparty_build_cmake_library("gtest"
     EXTRACT_PATTERN "${THIRDPARTY_SRC_DIR}/googletest-*"
     CMAKE_ARGS
@@ -23,17 +17,13 @@ thirdparty_build_cmake_library("gtest"
         "${THIRDPARTY_INSTALL_DIR}/gtest/include/gmock/gmock.h"
 )
 
-# Additional gtest-specific setup
 set(GTEST_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/gtest")
 get_filename_component(GTEST_INSTALL_DIR "${GTEST_INSTALL_DIR}" ABSOLUTE)
 
 if(EXISTS "${GTEST_INSTALL_DIR}/lib/cmake/GTest/GTestConfig.cmake")
-    set(GTest_DIR "${GTEST_INSTALL_DIR}/lib/cmake/GTest" CACHE PATH "Path to installed GTest cmake config" FORCE)
-    
-    # Import GTest package immediately
-    find_package(GTest REQUIRED CONFIG QUIET)
+    find_package(GTest CONFIG REQUIRED)
     
     message(STATUS "GTest/GMock found and exported globally: ${GTEST_INSTALL_DIR}")
 else()
-    message(WARNING "GTest installation not found at ${GTEST_INSTALL_DIR}")
+    message(FATAL_ERROR "GTest installation not found at ${GTEST_INSTALL_DIR}")
 endif()

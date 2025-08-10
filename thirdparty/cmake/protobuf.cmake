@@ -1,15 +1,6 @@
 # Protobuf integration for the Halo project
 # This file handles downloading, building, and installing Google Protocol Buffers
 
-include(${CMAKE_CURRENT_LIST_DIR}/../ThirdpartyUtils.cmake)
-
-# Ensure abseil is available since protobuf will embed it
-if(NOT TARGET absl::strings)
-    # Load abseil if not already loaded
-    include(${CMAKE_CURRENT_LIST_DIR}/abseil.cmake)
-endif()
-
-# Use the standardized build function for protobuf
 thirdparty_build_cmake_library("protobuf"
     EXTRACT_PATTERN "${THIRDPARTY_SRC_DIR}/protobuf-*"
     CMAKE_ARGS
@@ -32,12 +23,10 @@ thirdparty_build_cmake_library("protobuf"
         "${THIRDPARTY_INSTALL_DIR}/protobuf/bin/protoc"
 )
 
-# Export protobuf for use by other components
 set(PROTOBUF_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/protobuf")
 get_filename_component(PROTOBUF_INSTALL_DIR "${PROTOBUF_INSTALL_DIR}" ABSOLUTE)
 
 if(EXISTS "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
-    # Find utf8_range library if it exists
     set(UTF8_RANGE_LIB "")
     if(EXISTS "${PROTOBUF_INSTALL_DIR}/lib/libutf8_range.a")
         set(UTF8_RANGE_LIB "${PROTOBUF_INSTALL_DIR}/lib/libutf8_range.a")
@@ -46,7 +35,6 @@ if(EXISTS "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
         list(APPEND UTF8_RANGE_LIB "${PROTOBUF_INSTALL_DIR}/lib/libutf8_validity.a")
     endif()
     
-    # List of required Abseil libraries for protobuf
     set(PROTOBUF_REQUIRED_ABSEIL_LIBS
         absl::strings
         absl::str_format
@@ -83,7 +71,6 @@ if(EXISTS "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
         absl::string_view
     )
     
-    # Create the protobuf::libprotobuf target with embedded Abseil dependencies
     if(NOT TARGET protobuf::libprotobuf)
         add_library(protobuf::libprotobuf STATIC IMPORTED GLOBAL)
         set_target_properties(protobuf::libprotobuf PROPERTIES
@@ -94,7 +81,6 @@ if(EXISTS "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
         )
     endif()
     
-    # Create the protobuf::libprotobuf-lite target with embedded Abseil dependencies
     if(NOT TARGET protobuf::libprotobuf-lite)
         add_library(protobuf::libprotobuf-lite STATIC IMPORTED GLOBAL)
         set_target_properties(protobuf::libprotobuf-lite PROPERTIES
@@ -105,7 +91,6 @@ if(EXISTS "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
         )
     endif()
     
-    # Create the protobuf::protoc target for the compiler
     if(NOT TARGET protobuf::protoc)
         add_executable(protobuf::protoc IMPORTED GLOBAL)
         set_target_properties(protobuf::protoc PROPERTIES
@@ -113,7 +98,6 @@ if(EXISTS "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
         )
     endif()
     
-    # Create convenience aliases
     if(NOT TARGET protobuf)
         add_library(protobuf ALIAS protobuf::libprotobuf)
     endif()
@@ -122,13 +106,7 @@ if(EXISTS "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
         add_executable(protoc ALIAS protobuf::protoc)
     endif()
     
-    # Set variables for find_package compatibility
-    thirdparty_safe_set_parent_scope(Protobuf_FOUND TRUE)
-    thirdparty_safe_set_parent_scope(Protobuf_INCLUDE_DIRS "${PROTOBUF_INSTALL_DIR}/include")
-    thirdparty_safe_set_parent_scope(Protobuf_LIBRARIES "${PROTOBUF_INSTALL_DIR}/lib/libprotobuf.a")
-    thirdparty_safe_set_parent_scope(Protobuf_PROTOC_EXECUTABLE "${PROTOBUF_INSTALL_DIR}/bin/protoc")
-    
     message(STATUS "protobuf found and exported globally: ${PROTOBUF_INSTALL_DIR}")
 else()
-    message(WARNING "protobuf library not found at expected location: ${PROTOBUF_INSTALL_DIR}")
+    message(FATAL_ERROR "protobuf library not found at expected location: ${PROTOBUF_INSTALL_DIR}")
 endif()

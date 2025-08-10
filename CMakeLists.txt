@@ -124,7 +124,6 @@ add_link_options(
     $<$<PLATFORM_ID:Linux>:-Wl,--allow-multiple-definition>  # Allow multiple definitions on Linux
 )
 
-# Build order: thirdparty -> src -> test
 add_subdirectory(thirdparty)
 add_subdirectory(src)
 add_subdirectory(test)

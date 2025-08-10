@@ -1,8 +1,6 @@
 # zstd third-party integration
 # Reference: https://github.com/facebook/zstd
 
-# Use the standardized build function for zstd
-# Note: zstd has CMake files in build/cmake subdirectory
 thirdparty_build_cmake_library("zstd"
     SOURCE_SUBDIR "build/cmake"
     CMAKE_ARGS
@@ -19,17 +17,13 @@ thirdparty_build_cmake_library("zstd"
         "${THIRDPARTY_INSTALL_DIR}/zstd/include/zstd.h"
 )
 
-# Additional zstd-specific setup
 set(ZSTD_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/zstd")
 get_filename_component(ZSTD_INSTALL_DIR "${ZSTD_INSTALL_DIR}" ABSOLUTE)
 
 if(EXISTS "${ZSTD_INSTALL_DIR}/lib/cmake/zstd/zstdConfig.cmake")
-    set(zstd_DIR "${ZSTD_INSTALL_DIR}/lib/cmake/zstd" CACHE PATH "Path to installed zstd cmake config" FORCE)
-    
-    # Import zstd package immediately
-    find_package(zstd REQUIRED CONFIG QUIET)
+    find_package(zstd CONFIG REQUIRED)
     
     message(STATUS "zstd found and exported globally: ${ZSTD_INSTALL_DIR}")
 else()
-    message(WARNING "zstd installation not found at ${ZSTD_INSTALL_DIR}")
+    message(FATAL_ERROR "zstd installation not found at ${ZSTD_INSTALL_DIR}")
 endif()

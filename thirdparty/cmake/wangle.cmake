@@ -1,57 +1,7 @@
 # Wangle third-party integration
 # Reference: https://github.com/facebook/wangle
 
-thirdparty_check_dependencies("folly;fizz;openssl;gflags;glog;double-conversion;libevent;boost;fmt;jemalloc;zlib;xz;bzip2;libsodium;zstd;lz4;snappy")
-
-# Set up directories
-set(WANGLE_NAME "wangle")
-set(WANGLE_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/wangle-v${WANGLE_VERSION}.zip")
-set(WANGLE_SOURCE_DIR "${THIRDPARTY_SRC_DIR}/${WANGLE_NAME}")
-set(WANGLE_BUILD_DIR "${THIRDPARTY_BUILD_DIR}/${WANGLE_NAME}")
-set(WANGLE_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/${WANGLE_NAME}")
-
-get_filename_component(WANGLE_INSTALL_DIR "${WANGLE_INSTALL_DIR}" ABSOLUTE)
-
-thirdparty_download_and_check("${WANGLE_URL}" "${WANGLE_DOWNLOAD_FILE}" "${WANGLE_SHA256}")
-
-if(NOT EXISTS "${WANGLE_SOURCE_DIR}/${WANGLE_NAME}/CMakeLists.txt")
-    if(EXISTS "${WANGLE_SOURCE_DIR}")
-        file(REMOVE_RECURSE "${WANGLE_SOURCE_DIR}")
-    endif()
-    
-    set(_temp_extract_dir "${THIRDPARTY_SRC_DIR}/wangle_temp_extract")
-    if(EXISTS "${_temp_extract_dir}")
-        file(REMOVE_RECURSE "${_temp_extract_dir}")
-    endif()
-    file(MAKE_DIRECTORY "${_temp_extract_dir}")
-    
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} -E tar xf "${WANGLE_DOWNLOAD_FILE}"
-        WORKING_DIRECTORY "${_temp_extract_dir}"
-        RESULT_VARIABLE _extract_failed
-    )
-    if(_extract_failed)
-        message(FATAL_ERROR "Failed to extract ${WANGLE_DOWNLOAD_FILE}")
-    endif()
-    
-    set(_wangle_source_subdir "${_temp_extract_dir}")
-    if(NOT EXISTS "${_wangle_source_subdir}/${WANGLE_NAME}/CMakeLists.txt")
-        file(GLOB _extracted_contents "${_temp_extract_dir}/*")
-        message(FATAL_ERROR "Wangle source directory not found. Expected: ${_wangle_source_subdir}/CMakeLists.txt. Found: ${_extracted_contents}")
-    endif()
-    file(RENAME "${_wangle_source_subdir}" "${WANGLE_SOURCE_DIR}")
-    file(REMOVE_RECURSE "${_temp_extract_dir}")
-
-    if(NOT EXISTS "${WANGLE_SOURCE_DIR}/${WANGLE_NAME}/CMakeLists.txt")
-        message(FATAL_ERROR "CMakeLists.txt not found in extracted wangle directory: ${WANGLE_SOURCE_DIR}")
-    endif()
-
-    file(READ "${WANGLE_SOURCE_DIR}/${WANGLE_NAME}/CMakeLists.txt" _wangle_cmake_content)
-    string(REPLACE "include(FBBuildOptions)" "# include(FBBuildOptions) # Disabled for open-source build" _wangle_cmake_content "${_wangle_cmake_content}")
-    string(REPLACE "fb_activate_static_library_option()" "# fb_activate_static_library_option() # Disabled for open-source build" _wangle_cmake_content "${_wangle_cmake_content}")
-    file(WRITE "${WANGLE_SOURCE_DIR}/${WANGLE_NAME}/CMakeLists.txt" "${_wangle_cmake_content}")
-    
-endif()
+thirdparty_setup_directories("wangle")
 
 thirdparty_get_optimization_flags(_opt_flags COMPONENT wangle)
 list(APPEND _opt_flags
@@ -84,32 +34,18 @@ list(APPEND _opt_flags
     -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
 )
 
-thirdparty_cmake_configure("${WANGLE_SOURCE_DIR}/${WANGLE_NAME}" "${WANGLE_BUILD_DIR}"
-    FORCE_CONFIGURE
-    VALIDATION_FILES
-        "${WANGLE_BUILD_DIR}/CMakeCache.txt"
-        "${WANGLE_BUILD_DIR}/build.ninja"
-    CMAKE_ARGS
-        ${_opt_flags}
-)
-
-thirdparty_cmake_install("${WANGLE_BUILD_DIR}" "${WANGLE_INSTALL_DIR}"
+thirdparty_build_cmake_library("wangle"
+    SOURCE_SUBDIR "${WANGLE_NAME}"
+    CMAKE_ARGS ${_opt_flags}
     VALIDATION_FILES
         "${WANGLE_INSTALL_DIR}/lib/libwangle.a"
         "${WANGLE_INSTALL_DIR}/include/wangle/channel/Pipeline.h"
 )
 
-# Export Wangle configuration for parent scope
-thirdparty_safe_set_parent_scope(WANGLE_INSTALL_DIR "${WANGLE_INSTALL_DIR}")
-set(wangle_DIR "${WANGLE_INSTALL_DIR}/lib/cmake/wangle" CACHE PATH "Path to installed Wangle cmake config" FORCE)
 
-# Import Wangle package immediately
 if(EXISTS "${WANGLE_INSTALL_DIR}/lib/cmake/wangle/wangle-config.cmake")
-    set(Folly_DIR "${THIRDPARTY_INSTALL_DIR}/folly/lib/cmake/folly" CACHE PATH "Path to folly cmake config" FORCE)
-    set(fizz_DIR "${THIRDPARTY_INSTALL_DIR}/fizz/lib/cmake/fizz" CACHE PATH "Path to fizz cmake config" FORCE)
-    set(fmt_DIR "${THIRDPARTY_INSTALL_DIR}/fmt/lib/cmake/fmt" CACHE PATH "Path to fmt cmake config" FORCE)
-    find_package(wangle REQUIRED CONFIG QUIET)
-    message(STATUS "Wangle found and imported: ${WANGLE_INSTALL_DIR}")
+    find_package(wangle CONFIG REQUIRED)
+    message(STATUS "Wangle imported into superproject: ${WANGLE_INSTALL_DIR}")
 else()
-    message(WARNING "Wangle cmake config not found at ${WANGLE_INSTALL_DIR}")
+    message(FATAL_ERROR "Wangle cmake config not found at ${WANGLE_INSTALL_DIR}")
 endif()

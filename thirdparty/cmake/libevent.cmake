@@ -1,7 +1,6 @@
 # libevent third-party integration
 # Reference: https://github.com/libevent/libevent
 
-# Use the standardized build function for libevent
 thirdparty_build_cmake_library("libevent"
     DEPENDENCIES "openssl"
     EXTRACT_PATTERN "${THIRDPARTY_SRC_DIR}/libevent-*"
@@ -32,17 +31,13 @@ thirdparty_build_cmake_library("libevent"
         "${THIRDPARTY_INSTALL_DIR}/libevent/include/event2/http.h"
 )
 
-# Additional libevent-specific setup
 set(LIBEVENT_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/libevent")
 get_filename_component(LIBEVENT_INSTALL_DIR "${LIBEVENT_INSTALL_DIR}" ABSOLUTE)
 
 if(EXISTS "${LIBEVENT_INSTALL_DIR}/lib/cmake/libevent/LibeventConfig.cmake")
-    set(Libevent_DIR "${LIBEVENT_INSTALL_DIR}/lib/cmake/libevent" CACHE PATH "Path to installed libevent cmake config" FORCE)
-    
-    # Import libevent package immediately with all components
-    find_package(Libevent REQUIRED CONFIG COMPONENTS core extra openssl pthreads QUIET)
+    find_package(Libevent CONFIG REQUIRED COMPONENTS core extra openssl pthreads QUIET)
     
     message(STATUS "libevent found and exported globally: ${LIBEVENT_INSTALL_DIR}")
 else()
-    message(WARNING "libevent installation not found at ${LIBEVENT_INSTALL_DIR}")
+    message(FATAL_ERROR "libevent installation not found at ${LIBEVENT_INSTALL_DIR}")
 endif()

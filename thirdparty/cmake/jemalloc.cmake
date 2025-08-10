@@ -16,17 +16,11 @@
 # - Specifically need the non-PIC version for performance reasons
 # - Linking only to executables (not shared libraries)
 
-# Check dependencies using the new dependency management system
-thirdparty_check_dependencies("jemalloc")
-
-# Set up directories using common function
 thirdparty_setup_directories("jemalloc")
 
-# Override for jemalloc's .tar.bz2 extension
 set(JEMALLOC_DOWNLOAD_FILE "${THIRDPARTY_DOWNLOAD_DIR}/jemalloc-${JEMALLOC_VERSION}.tar.bz2")
 get_filename_component(JEMALLOC_INSTALL_DIR "${JEMALLOC_INSTALL_DIR}" ABSOLUTE)
 
-# Build and install jemalloc using the generic autotools function
 thirdparty_build_autotools_library(jemalloc
     CONFIGURE_ARGS
         --disable-shared
@@ -40,7 +34,6 @@ thirdparty_build_autotools_library(jemalloc
         "${JEMALLOC_INSTALL_DIR}/include/jemalloc/jemalloc.h"
 )
 
-# Validate installation
 if(NOT EXISTS "${JEMALLOC_INSTALL_DIR}/lib/libjemalloc.a")
     message(FATAL_ERROR "jemalloc installation validation failed: static library not found")
 endif()
@@ -53,7 +46,6 @@ if(NOT EXISTS "${JEMALLOC_INSTALL_DIR}/include/jemalloc/jemalloc.h")
     message(FATAL_ERROR "jemalloc installation validation failed: header not found")
 endif()
 
-# Create imported target for jemalloc (standard version)
 add_library(jemalloc::jemalloc STATIC IMPORTED GLOBAL)
 set_target_properties(jemalloc::jemalloc PROPERTIES
     IMPORTED_LOCATION "${JEMALLOC_INSTALL_DIR}/lib/libjemalloc.a"
@@ -119,7 +111,6 @@ if(APPLE)
     )
 endif()
 
-# Export jemalloc to global scope
 set(jemalloc_DIR "${JEMALLOC_INSTALL_DIR}" CACHE PATH "Path to installed jemalloc" FORCE)
 
 message(STATUS "jemalloc integration completed successfully")

@@ -1,9 +1,6 @@
 # bzip2
 thirdparty_setup_directories(bzip2)
 
-# Check dependencies first
-thirdparty_check_dependencies("bzip2")
-
 thirdparty_download_and_check("${BZIP2_URL}" "${BZIP2_DOWNLOAD_FILE}" "${BZIP2_SHA256}")
 thirdparty_extract_and_rename("${BZIP2_DOWNLOAD_FILE}" "${BZIP2_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/bzip2-*")
 
@@ -25,24 +22,14 @@ if(${_all_files_exist})
 endif()
 
 if(_need_build)
-    message(STATUS "Building bzip2...")
+    thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _make_jobs)
+    set(PARALLEL_JOBS ${_make_jobs})
     
-    # Get number of parallel jobs
-    include(ProcessorCount)
-    ProcessorCount(N)
-    if(NOT N EQUAL 0)
-        set(PARALLEL_JOBS ${N})
-    else()
-        set(PARALLEL_JOBS 4)  # Fallback to 4 jobs
-    endif()
-    
-    # Patch Makefile for parallel build
     execute_process(
         COMMAND sed -i.bak "s/^all: libbz2.a test$/all: libbz2.a/" Makefile
         WORKING_DIRECTORY ${BZIP2_SOURCE_DIR}
     )
 
-    # Build static library
     execute_process(
         COMMAND make -j${PARALLEL_JOBS} libbz2.a
         WORKING_DIRECTORY ${BZIP2_SOURCE_DIR}
@@ -52,7 +39,6 @@ if(_need_build)
         message(FATAL_ERROR "Failed to build bzip2")
     endif()
 
-    # Install
     execute_process(
         COMMAND make install PREFIX=${BZIP2_INSTALL_DIR}
         WORKING_DIRECTORY ${BZIP2_SOURCE_DIR}
@@ -71,7 +57,6 @@ set_target_properties(BZip2::BZip2 PROPERTIES
     INTERFACE_INCLUDE_DIRECTORIES "${BZIP2_INSTALL_DIR}/include"
 )
 
-# Register to CMAKE_PREFIX_PATH for other components to find
 thirdparty_register_to_cmake_prefix_path("${BZIP2_INSTALL_DIR}")
 
 message(STATUS "bzip2 found and exported globally: ${BZIP2_INSTALL_DIR}")

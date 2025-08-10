@@ -55,9 +55,9 @@ set(GLOG_VERSION "0.6.0")
 set(GLOG_URL "https://github.com/google/glog/archive/v${GLOG_VERSION}.tar.gz")
 set(GLOG_SHA256 "8a83bf982f37bb70825df71a9709fa90ea9f4447fb3c099e1d720a439d88bad6")
 
-set(GOOGLETEST_VERSION "1.17.0")
-set(GOOGLETEST_URL "https://github.com/google/googletest/archive/refs/tags/v${GOOGLETEST_VERSION}.tar.gz")
-set(GOOGLETEST_SHA256 "65fab701d9829d38cb77c14acdc431d2108bfdbf8979e40eb8ae567edf10b27c")
+set(GTEST_VERSION "1.17.0")
+set(GTEST_URL "https://github.com/google/googletest/archive/refs/tags/v${GTEST_VERSION}.tar.gz")
+set(GTEST_SHA256 "65fab701d9829d38cb77c14acdc431d2108bfdbf8979e40eb8ae567edf10b27c")
 
 set(ICU4C_VERSION "77-1")
 string(REPLACE "-" "_" ICU4C_VERSION_UNDERSCORE ${ICU4C_VERSION})
@@ -85,7 +85,8 @@ set(LZ4_URL "https://github.com/lz4/lz4/archive/refs/tags/v${LZ4_VERSION}.tar.gz
 set(LZ4_SHA256 "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b")
 
 set(OPENSSL_VERSION "1.1.1w")
-set(OPENSSL_URL "https://www.openssl.org/source/openssl-${OPENSSL_VERSION}.tar.gz")
+string(REPLACE "." "_" OPENSSL_VERSION_UNDERSCORE ${OPENSSL_VERSION})
+set(OPENSSL_URL "https://github.com/openssl/openssl/releases/download/OpenSSL_${OPENSSL_VERSION_UNDERSCORE}/openssl-${OPENSSL_VERSION}.tar.gz")
 set(OPENSSL_SHA256 "cf3098950cb4d853ad95c0841f1f9c6d3dc102dccfcacd521d93925208b76ac8")
 
 set(PROTOBUF_VERSION "31.1")

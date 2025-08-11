@@ -16,45 +16,19 @@ thirdparty_build_cmake_library("zlib"
 set(ZLIB_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/zlib")
 get_filename_component(ZLIB_INSTALL_DIR "${ZLIB_INSTALL_DIR}" ABSOLUTE)
 
-unset(ZLIB_LIBRARY CACHE)
-unset(ZLIB_LIBRARIES CACHE)
-unset(ZLIB_INCLUDE_DIR CACHE)
-unset(ZLIB_INCLUDE_DIRS CACHE)
-unset(ZLIB_ROOT CACHE)
-unset(ZLIB_FOUND CACHE)
-unset(ZLIB_DIR CACHE)
-
-set(ZLIB_LIBRARY "${ZLIB_INSTALL_DIR}/lib/libz.a" CACHE FILEPATH "ZLIB library path" FORCE)
-set(ZLIB_LIBRARIES "${ZLIB_INSTALL_DIR}/lib/libz.a" CACHE STRING "ZLIB libraries" FORCE)
-set(ZLIB_INCLUDE_DIR "${ZLIB_INSTALL_DIR}/include" CACHE PATH "ZLIB include directory" FORCE)
-set(ZLIB_INCLUDE_DIRS "${ZLIB_INSTALL_DIR}/include" CACHE STRING "ZLIB include directories" FORCE)
-set(ZLIB_ROOT "${ZLIB_INSTALL_DIR}" CACHE PATH "ZLIB root directory" FORCE)
-set(ZLIB_FOUND TRUE CACHE BOOL "ZLIB found status" FORCE)
-set(ZLIB_VERSION_STRING "1.3.1" CACHE STRING "ZLIB version" FORCE)
-
-if(EXISTS "${ZLIB_LIBRARY}" AND EXISTS "${ZLIB_INCLUDE_DIR}/zlib.h")
-    if(TARGET zlib::zlib)
-        unset(zlib::zlib)
+if(EXISTS "${ZLIB_INSTALL_DIR}/lib/libz.a" AND EXISTS "${ZLIB_INSTALL_DIR}/include/zlib.h")
+    if(NOT TARGET zlib::zlib)
+        add_library(zlib::zlib STATIC IMPORTED GLOBAL)
+        set_target_properties(zlib::zlib PROPERTIES
+            IMPORTED_LOCATION "${ZLIB_INSTALL_DIR}/lib/libz.a"
+            INTERFACE_INCLUDE_DIRECTORIES "${ZLIB_INSTALL_DIR}/include"
+            INTERFACE_COMPILE_DEFINITIONS "ZLIB_STATIC"
+        )
     endif()
-    if(TARGET ZLIB::ZLIB)
-        unset(ZLIB::ZLIB)
+    if(NOT TARGET ZLIB::ZLIB)
+        add_library(ZLIB::ZLIB ALIAS zlib::zlib)
     endif()
-    
-    add_library(zlib_thirdparty_static STATIC IMPORTED GLOBAL)
-    set_target_properties(zlib_thirdparty_static PROPERTIES
-        IMPORTED_LOCATION "${ZLIB_LIBRARY}"
-        INTERFACE_INCLUDE_DIRECTORIES "${ZLIB_INCLUDE_DIR}"
-        INTERFACE_COMPILE_DEFINITIONS "ZLIB_STATIC"
-        IMPORTED_LINK_INTERFACE_LIBRARIES ""
-        IMPORTED_NO_SONAME TRUE
-    )
-    
-    add_library(zlib::zlib ALIAS zlib_thirdparty_static)
-    add_library(ZLIB::ZLIB ALIAS zlib_thirdparty_static)
-    
     message(STATUS "zlib found and exported globally: ${ZLIB_INSTALL_DIR}")
-    message(STATUS "zlib library: ${ZLIB_LIBRARY}")
-    message(STATUS "zlib version: 1.3.1 (forced)")
 else()
     message(FATAL_ERROR "zlib installation not found at ${ZLIB_INSTALL_DIR}")
 endif()

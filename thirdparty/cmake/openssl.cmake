@@ -115,12 +115,5 @@ thirdparty_build_autotools_library(openssl
         "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL/OpenSSLConfig.cmake"
 )
 
-if(EXISTS "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL/OpenSSLConfig.cmake")
-    set(OPENSSL_CMAKE_DIR "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL")
-    set(OpenSSL_DIR "${OPENSSL_CMAKE_DIR}" CACHE PATH "Path to OpenSSL config" FORCE)
-    find_package(OpenSSL CONFIG REQUIRED PATHS "${OPENSSL_CMAKE_DIR}" NO_DEFAULT_PATH)
-    
-    message(STATUS "OpenSSL found and exported globally: ${OPENSSL_INSTALL_DIR}")
-else()
-    message(FATAL_ERROR "OpenSSL configuration failed - missing config files")
-endif()
+find_package(OpenSSL CONFIG REQUIRED HINTS "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL" NO_DEFAULT_PATH)
+message(STATUS "OpenSSL found and exported globally: ${OPENSSL_INSTALL_DIR}")

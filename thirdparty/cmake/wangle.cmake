@@ -42,10 +42,5 @@ thirdparty_build_cmake_library("wangle"
         "${WANGLE_INSTALL_DIR}/include/wangle/channel/Pipeline.h"
 )
 
-
-if(EXISTS "${WANGLE_INSTALL_DIR}/lib/cmake/wangle/wangle-config.cmake")
-    find_package(wangle CONFIG REQUIRED)
-    message(STATUS "Wangle imported into superproject: ${WANGLE_INSTALL_DIR}")
-else()
-    message(FATAL_ERROR "Wangle cmake config not found at ${WANGLE_INSTALL_DIR}")
-endif()
+find_package(wangle CONFIG REQUIRED)
+message(STATUS "Wangle imported into superproject: ${WANGLE_INSTALL_DIR}")

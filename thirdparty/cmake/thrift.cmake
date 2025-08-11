@@ -120,32 +120,5 @@ thirdparty_cmake_install("${THRIFT_BUILD_DIR}" "${THRIFT_INSTALL_DIR}"
         "${THRIFT_INSTALL_DIR}/bin/thrift"
 )
 
-get_filename_component(THRIFT_INSTALL_DIR "${THRIFT_INSTALL_DIR}" ABSOLUTE)
-
-if(NOT TARGET thrift::thrift)
-    find_package(thrift CONFIG REQUIRED)
-    
-    if(NOT TARGET thrift::thrift)
-        add_library(thrift::thrift STATIC IMPORTED GLOBAL)
-        set_target_properties(thrift::thrift PROPERTIES
-            IMPORTED_LOCATION "${THRIFT_INSTALL_DIR}/lib/libthrift.a"
-            INTERFACE_INCLUDE_DIRECTORIES "${THRIFT_INSTALL_DIR}/include"
-            INTERFACE_LINK_LIBRARIES "Boost::boost;OpenSSL::SSL;OpenSSL::Crypto;ZLIB::ZLIB"
-        )
-        
-        if(EXISTS "${THRIFT_INSTALL_DIR}/lib/libthriftz.a")
-            add_library(thrift::thriftz STATIC IMPORTED GLOBAL)
-            set_target_properties(thrift::thriftz PROPERTIES
-                IMPORTED_LOCATION "${THRIFT_INSTALL_DIR}/lib/libthriftz.a"
-                INTERFACE_INCLUDE_DIRECTORIES "${THRIFT_INSTALL_DIR}/include"
-                INTERFACE_LINK_LIBRARIES "thrift::thrift;ZLIB::ZLIB"
-            )
-        endif()
-        
-        message(STATUS "Created thrift::thrift target manually")
-    else()
-        message(STATUS "Found thrift package with thrift::thrift target")
-    endif()
-endif()
-
+find_package(thrift CONFIG REQUIRED)
 message(STATUS "Finished building ${THRIFT_NAME}. Installed at: ${THRIFT_INSTALL_DIR}")

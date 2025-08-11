@@ -13,11 +13,7 @@ thirdparty_build_cmake_library("gflags"
         "${THIRDPARTY_INSTALL_DIR}/gflags/include/gflags/gflags_declare.h"
 )
 
-set(GFLAGS_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/gflags")
-get_filename_component(GFLAGS_INSTALL_DIR "${GFLAGS_INSTALL_DIR}" ABSOLUTE)
-
-if(EXISTS "${GFLAGS_INSTALL_DIR}/lib/cmake/gflags/gflags-config.cmake")
-    
+if(EXISTS "${THIRDPARTY_INSTALL_DIR}/gflags/lib/cmake/gflags/gflags-config.cmake")
     set(GFLAGS_USE_TARGET_NAMESPACE TRUE CACHE BOOL "Use gflags target namespace")
     set(GFLAGS_SHARED FALSE CACHE BOOL "Use static gflags library")
     set(GFLAGS_NOTHREADS FALSE CACHE BOOL "Use threaded gflags library")

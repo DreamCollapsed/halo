@@ -5,12 +5,36 @@
 # immediately in the caller directory without needing explicit *_DIR.
 function(thirdparty_register_to_cmake_prefix_path install_path)
     get_filename_component(_abs_path "${install_path}" ABSOLUTE)
-
-    # Build a merged, de-duplicated list from:
-    # 1) the new path
-    # 2) cached CMAKE_PREFIX_PATH (if any)
-    set(_merged_prefix_path)
-    list(APPEND _merged_prefix_path "${_abs_path}")
+    message(STATUS "[thirdparty] Searching for CMake config directories in: ${_abs_path}")
+    # Search for CMake config directories under lib/cmake/* and lib/*
+    file(GLOB _cmake_lib_dirs "${_abs_path}/lib/cmake/*" "${_abs_path}/lib/*")
+    set(_config_dir "")
+    foreach(_dir IN LISTS _cmake_lib_dirs)
+        file(GLOB _cfg "${_dir}/*[Cc]onfig.cmake")
+        if(_cfg)
+            set(_config_dir "${_dir}")
+            message(STATUS "[thirdparty] Found CMake config directory: ${_config_dir}")
+            break()
+        endif()
+    endforeach()
+    # Search for CMake config directories under share/cmake/* and share/*
+    if(NOT _config_dir)
+        file(GLOB _cmake_share_dirs "${_abs_path}/share/cmake/*" "${_abs_path}/share/*")
+        foreach(_dir IN LISTS _cmake_share_dirs)
+            file(GLOB _cfg "${_dir}/*[Cc]onfig.cmake")
+            if(_cfg)
+                set(_config_dir "${_dir}")
+                break()
+            endif()
+        endforeach()
+    endif()
+    if(NOT _config_dir)
+        message(WARNING "[thirdparty] No CMake config directory found under ${_abs_path}, will register install prefix only")
+    endif()
+    set(_merged_prefix_path "${_abs_path}")
+    if(_config_dir)
+        list(INSERT _merged_prefix_path 0 "${_config_dir}")
+    endif()
 
     # Include cached value if present
     get_property(_cache_prefix CACHE CMAKE_PREFIX_PATH PROPERTY VALUE)

@@ -199,6 +199,16 @@ add_module_test(thirdparty_xxhash
     TIMEOUT 30
 )
 
+# faiss integration test
+add_module_test(thirdparty_faiss
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_faiss_integration.cpp"
+    LABELS
+        faiss
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
 # fizz integration test
 add_module_test(thirdparty_fizz
     "${CMAKE_CURRENT_SOURCE_DIR}/test_fizz_integration.cpp"

@@ -2,6 +2,10 @@ set(ABSEIL_VERSION "20250512.1")
 set(ABSEIL_URL "https://github.com/abseil/abseil-cpp/archive/refs/tags/${ABSEIL_VERSION}.tar.gz")
 set(ABSEIL_SHA256 "9b7a064305e9fd94d124ffa6cc358592eb42b5da588fb4e07d09254aa40086db")
 
+set(ARROW_VERSION "21.0.0")
+set(ARROW_URL "https://github.com/apache/arrow/releases/download/apache-arrow-${ARROW_VERSION}/apache-arrow-${ARROW_VERSION}.tar.gz")
+set(ARROW_SHA256 "5d3f8db7e72fb9f65f4785b7a1634522e8d8e9657a445af53d4a34a3849857b5")
+
 set(BISON_VERSION "3.8.2")
 set(BISON_URL "http://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.gz")
 set(BISON_SHA256 "06c9e13bdf7eb24d4ceb6b59205a4f67c2c7e7213119644430fe82fbd14a0abb")
@@ -18,6 +22,10 @@ set(BZIP2_SHA256 "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a22
 set(DOUBLE_CONVERSION_VERSION "3.3.1")
 set(DOUBLE_CONVERSION_URL "https://github.com/google/double-conversion/archive/refs/tags/v${DOUBLE_CONVERSION_VERSION}.tar.gz")
 set(DOUBLE_CONVERSION_SHA256 "fe54901055c71302dcdc5c3ccbe265a6c191978f3761ce1414d0895d6b0ea90e")
+
+set(FAISS_VERSION "1.11.0")
+set(FAISS_URL "https://github.com/facebookresearch/faiss/archive/refs/tags/v${FAISS_VERSION}.zip")
+set(FAISS_SHA256 "caa0e4bbf1e3c11395bdedead2f9e1be72dd02bec5023386969f90fa51d05c19")
 
 set(FAST_FLOAT_VERSION "8.0.2")
 set(FAST_FLOAT_URL "https://github.com/fastfloat/fast_float/archive/refs/tags/v${FAST_FLOAT_VERSION}.tar.gz")
@@ -80,9 +88,17 @@ set(LIBSTEMMER_VERSION "3.0.1")
 set(LIBSTEMMER_URL "https://snowballstem.org/dist/libstemmer_c-${LIBSTEMMER_VERSION}.tar.gz")
 set(LIBSTEMMER_SHA256 "419db89961cf2e30e6417265a4f3c903632d47d6917e7f8c6ae0e4d998743aad")
 
+set(LIBUNWIND_VERSION "20.1.8")
+set(LIBUNWIND_URL "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LIBUNWIND_VERSION}/libunwind-${LIBUNWIND_VERSION}.src.tar.xz")
+set(LIBUNWIND_SHA256 "0bced9d701e300f8fe6599523367e214c1f928ac559afceece58f47018e9c4a7")
+
 set(LZ4_VERSION "1.10.0")
 set(LZ4_URL "https://github.com/lz4/lz4/archive/refs/tags/v${LZ4_VERSION}.tar.gz")
 set(LZ4_SHA256 "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b")
+
+set(MVFST_VERSION "2025.08.11.00")
+set(MVFST_URL "https://github.com/facebook/mvfst/archive/refs/tags/v${MVFST_VERSION}.zip")
+set(MVFST_SHA256 "6822b6f86a24b6f7c950a6653638f5bdb90834bf2b36d5cfef76f10900ae34c5")
 
 set(OPENSSL_VERSION "1.1.1w")
 string(REPLACE "." "_" OPENSSL_VERSION_UNDERSCORE ${OPENSSL_VERSION})

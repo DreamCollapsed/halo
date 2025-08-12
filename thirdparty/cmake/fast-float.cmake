@@ -11,9 +11,6 @@ thirdparty_build_cmake_library("fast-float"
         "${THIRDPARTY_INSTALL_DIR}/fast-float/include/fast_float/fast_float.h"
 )
 
-set(FAST_FLOAT_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/fast-float")
-get_filename_component(FAST_FLOAT_INSTALL_DIR "${FAST_FLOAT_INSTALL_DIR}" ABSOLUTE)
-
 if(EXISTS "${FAST_FLOAT_INSTALL_DIR}/share/cmake/FastFloat/FastFloatConfig.cmake")
     find_package(FastFloat CONFIG REQUIRED)
     message(STATUS "fast-float found and exported globally: ${FAST_FLOAT_INSTALL_DIR}")

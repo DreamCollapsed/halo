@@ -201,6 +201,11 @@ thirdparty_register_component(boost
     SHA256 "${BOOST_SHA256}"
     DEPENDS_ON xz zlib
 )
+thirdparty_register_component(faiss
+    VERSION "${FAISS_VERSION}"
+    URL     "${FAISS_URL}"
+    SHA256  "${FAISS_SHA256}"
+)
 
 thirdparty_register_component(openssl
     VERSION "${OPENSSL_VERSION}"

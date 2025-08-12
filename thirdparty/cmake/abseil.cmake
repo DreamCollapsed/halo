@@ -12,12 +12,8 @@ thirdparty_build_cmake_library("abseil"
         "${THIRDPARTY_INSTALL_DIR}/abseil/include/absl/strings/string_view.h"
 )
 
-set(ABSEIL_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/abseil")
-get_filename_component(ABSEIL_INSTALL_DIR "${ABSEIL_INSTALL_DIR}" ABSOLUTE)
-
 if(EXISTS "${ABSEIL_INSTALL_DIR}/lib/cmake/absl/abslConfig.cmake")
     find_package(absl CONFIG REQUIRED)
-    
     message(STATUS "Abseil found and exported globally: ${ABSEIL_INSTALL_DIR}")
 else()
     message(FATAL_ERROR "Abseil installation not found at ${ABSEIL_INSTALL_DIR}")

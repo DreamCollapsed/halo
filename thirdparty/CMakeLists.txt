@@ -120,6 +120,7 @@ target_link_libraries(halo_thirdparty
     xxhash::xxhash
     fizz::fizz
     wangle::wangle
+    faiss
 )
 
 add_library(halo_thirdparty_test INTERFACE)

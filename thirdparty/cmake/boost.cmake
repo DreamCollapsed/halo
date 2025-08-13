@@ -119,19 +119,13 @@ endforeach()
 if(NOT _all_files_exist)
     boost_configure_and_build()
 endif()
+thirdparty_register_to_cmake_prefix_path("${BOOST_INSTALL_DIR}")
 
-if(EXISTS "${BOOST_INSTALL_DIR}/lib/cmake/Boost-${BOOST_VERSION}/BoostConfig.cmake")
-    thirdparty_register_to_cmake_prefix_path("${BOOST_INSTALL_DIR}")
-
-    find_package(Boost CONFIG REQUIRED
-        COMPONENTS
-            system filesystem thread chrono date_time regex program_options 
-            iostreams random context coroutine atomic container log timer
-            serialization math json stacktrace_basic url wave
-            fiber exception graph
-    )
-
-    message(STATUS "Boost found and exported globally: ${BOOST_INSTALL_DIR}")
-else()
-    message(FATAL_ERROR "Boost configuration failed - missing config files")
-endif()
+find_package(Boost CONFIG REQUIRED
+    COMPONENTS
+        system filesystem thread chrono date_time regex program_options 
+        iostreams random context coroutine atomic container log timer
+        serialization math json stacktrace_basic url wave
+        fiber exception graph
+)
+message(STATUS "Boost found and exported globally: ${BOOST_INSTALL_DIR}")

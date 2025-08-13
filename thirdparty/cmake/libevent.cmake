@@ -31,13 +31,5 @@ thirdparty_build_cmake_library("libevent"
         "${THIRDPARTY_INSTALL_DIR}/libevent/include/event2/http.h"
 )
 
-set(LIBEVENT_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/libevent")
-get_filename_component(LIBEVENT_INSTALL_DIR "${LIBEVENT_INSTALL_DIR}" ABSOLUTE)
-
-if(EXISTS "${LIBEVENT_INSTALL_DIR}/lib/cmake/libevent/LibeventConfig.cmake")
-    find_package(Libevent CONFIG REQUIRED COMPONENTS core extra openssl pthreads QUIET)
-    
-    message(STATUS "libevent found and exported globally: ${LIBEVENT_INSTALL_DIR}")
-else()
-    message(FATAL_ERROR "libevent installation not found at ${LIBEVENT_INSTALL_DIR}")
-endif()
+find_package(Libevent CONFIG REQUIRED COMPONENTS core extra openssl pthreads)
+message(STATUS "libevent found and exported globally: ${LIBEVENT_INSTALL_DIR}")

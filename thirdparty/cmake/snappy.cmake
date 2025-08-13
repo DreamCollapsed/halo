@@ -17,10 +17,5 @@ thirdparty_build_cmake_library("snappy"
 set(SNAPPY_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/snappy")
 get_filename_component(SNAPPY_INSTALL_DIR "${SNAPPY_INSTALL_DIR}" ABSOLUTE)
 
-if(EXISTS "${SNAPPY_INSTALL_DIR}/lib/cmake/Snappy/SnappyConfig.cmake")
-    find_package(Snappy CONFIG REQUIRED)
+find_package(Snappy CONFIG REQUIRED)
     
-    message(STATUS "snappy found and exported globally: ${SNAPPY_INSTALL_DIR}")
-else()
-    message(FATAL_ERROR "snappy installation not found at ${SNAPPY_INSTALL_DIR}")
-endif()

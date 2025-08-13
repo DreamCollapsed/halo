@@ -354,3 +354,15 @@ add_module_test(thirdparty_wangle
         integration
     TIMEOUT 30
 )
+
+# mvfst integration test
+add_module_test(thirdparty_mvfst
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_mvfst_integration.cpp"
+    LABELS
+        mvfst
+        quic
+        networking
+        thirdparty
+        integration
+    TIMEOUT 30
+)

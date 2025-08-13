@@ -17,9 +17,6 @@ thirdparty_build_autotools_library("libsodium"
         "${THIRDPARTY_INSTALL_DIR}/libsodium/lib/pkgconfig/libsodium.pc"
 )
 
-set(LIBSODIUM_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/libsodium")
-get_filename_component(LIBSODIUM_INSTALL_DIR "${LIBSODIUM_INSTALL_DIR}" ABSOLUTE)
-
 if(EXISTS "${LIBSODIUM_INSTALL_DIR}/lib/libsodium.a")
     if(NOT TARGET libsodium::libsodium)
         add_library(libsodium::libsodium STATIC IMPORTED)
@@ -27,17 +24,14 @@ if(EXISTS "${LIBSODIUM_INSTALL_DIR}/lib/libsodium.a")
             IMPORTED_LOCATION "${LIBSODIUM_INSTALL_DIR}/lib/libsodium.a"
             INTERFACE_INCLUDE_DIRECTORIES "${LIBSODIUM_INSTALL_DIR}/include"
         )
-        
         find_package(Threads)
         if(Threads_FOUND)
             set_target_properties(libsodium::libsodium PROPERTIES
                 INTERFACE_LINK_LIBRARIES "Threads::Threads"
             )
         endif()
-        
         message(STATUS "Created libsodium::libsodium target")
     endif()
-    
     message(STATUS "libsodium found and exported globally: ${LIBSODIUM_INSTALL_DIR}")
 else()
     message(FATAL_ERROR "libsodium installation not found at ${LIBSODIUM_INSTALL_DIR}")

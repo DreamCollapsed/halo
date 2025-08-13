@@ -81,6 +81,4 @@ else()
     message(FATAL_ERROR "libstemmer installation not found at ${LIBSTEMMER_INSTALL_DIR}")
 endif()
 
-set(LIBSTEMMER_INSTALL_DIR "${LIBSTEMMER_INSTALL_DIR}" PARENT_SCOPE)
-get_filename_component(LIBSTEMMER_INSTALL_DIR "${LIBSTEMMER_INSTALL_DIR}" ABSOLUTE)
 thirdparty_register_to_cmake_prefix_path("${LIBSTEMMER_INSTALL_DIR}")

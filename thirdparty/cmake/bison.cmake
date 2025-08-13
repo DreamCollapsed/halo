@@ -10,10 +10,6 @@ thirdparty_build_autotools_library("bison"
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/bison/bin/bison"
 )
-
-set(BISON_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/bison")
-get_filename_component(BISON_INSTALL_DIR "${BISON_INSTALL_DIR}" ABSOLUTE)
-
 set(BISON_EXECUTABLE "${BISON_INSTALL_DIR}/bin/bison" CACHE FILEPATH "Path to bison executable" FORCE)
 
 if(EXISTS "${BISON_EXECUTABLE}")

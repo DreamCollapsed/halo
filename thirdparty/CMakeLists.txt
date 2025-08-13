@@ -120,6 +120,7 @@ target_link_libraries(halo_thirdparty
     xxhash::xxhash
     fizz::fizz
     wangle::wangle
+    mvfst::mvfst_transport
     faiss
 )
 

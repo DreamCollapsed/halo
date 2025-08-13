@@ -446,6 +446,16 @@ function(thirdparty_get_optimization_flags output_var)
 
         -Wno-dev
         --no-warn-unused-cli
+
+        # Boost
+        -DBOOST_ROOT=${THIRDPARTY_INSTALL_DIR}/boost
+        -DBOOST_INCLUDEDIR=${THIRDPARTY_INSTALL_DIR}/boost/include
+        -DBOOST_LIBRARYDIR=${THIRDPARTY_INSTALL_DIR}/boost/lib
+        -DBoost_USE_STATIC_LIBS=ON
+        -DBoost_USE_MULTITHREADED=ON
+        -DBoost_USE_STATIC_RUNTIME=ON
+        -DBoost_NO_SYSTEM_PATHS=ON
+        -DBOOST_LINK_STATIC=ON
     )
     
     # --- Ninja Generator Support for faster builds ---

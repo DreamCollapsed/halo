@@ -13,17 +13,6 @@ list(APPEND _opt_flags
 
     -DCMAKE_MODULE_PATH=${FIZZ_SOURCE_DIR}/build/fbcode_builder/CMake
 
-    # Boost
-    -DBOOST_ROOT=${THIRDPARTY_INSTALL_DIR}/boost
-    -DBOOST_INCLUDEDIR=${THIRDPARTY_INSTALL_DIR}/boost/include
-    -DBOOST_LIBRARYDIR=${THIRDPARTY_INSTALL_DIR}/boost/lib
-    -DFOLLY_BOOST_LINK_STATIC=ON
-    -DBOOST_LINK_STATIC=ON
-    -DBoost_USE_STATIC_LIBS=ON
-    -DBoost_USE_MULTITHREADED=ON
-    -DBoost_USE_STATIC_RUNTIME=ON
-    -DBoost_NO_SYSTEM_PATHS=ON
-
     # Sodium
     -Dsodium_USE_STATIC_LIBS=ON
     -Dsodium_DIR=${THIRDPARTY_INSTALL_DIR}/libsodium
@@ -50,24 +39,20 @@ thirdparty_build_cmake_library("fizz"
         "${FIZZ_INSTALL_DIR}/include/fizz/fizz-config.h"
 )
 
-if(EXISTS "${FIZZ_INSTALL_DIR}/lib/cmake/fizz/fizz-config.cmake")
-    set(CMAKE_MODULE_PATH ${FIZZ_SOURCE_DIR}/build/fbcode_builder/CMake ${CMAKE_MODULE_PATH})
+set(CMAKE_MODULE_PATH ${FIZZ_SOURCE_DIR}/build/fbcode_builder/CMake ${CMAKE_MODULE_PATH})
 
-    # Ensure Sodium variables are available for fizz-config.cmake
-    set(sodium_USE_STATIC_LIBS ON)
-    set(sodium_PKG_STATIC_FOUND TRUE)
-    set(sodium_PKG_STATIC_LIBRARIES libsodium.a)
-    set(sodium_PKG_STATIC_LIBRARY_DIRS ${THIRDPARTY_INSTALL_DIR}/libsodium/lib)
-    set(sodium_PKG_STATIC_INCLUDE_DIRS ${THIRDPARTY_INSTALL_DIR}/libsodium/include)
+# Ensure Sodium variables are available for fizz-config.cmake
+set(sodium_USE_STATIC_LIBS ON)
+set(sodium_PKG_STATIC_FOUND TRUE)
+set(sodium_PKG_STATIC_LIBRARIES libsodium.a)
+set(sodium_PKG_STATIC_LIBRARY_DIRS ${THIRDPARTY_INSTALL_DIR}/libsodium/lib)
+set(sodium_PKG_STATIC_INCLUDE_DIRS ${THIRDPARTY_INSTALL_DIR}/libsodium/include)
 
-    # Ensure ZLIB is properly configured for fizz-config.cmake
-    set(ZLIB_FOUND TRUE)
-    set(ZLIB_INCLUDE_DIRS ${THIRDPARTY_INSTALL_DIR}/zlib/include)
-    set(ZLIB_LIBRARIES ${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a)
-    set(ZLIB_VERSION_STRING "1.3.1")
+# Ensure ZLIB is properly configured for fizz-config.cmake
+set(ZLIB_FOUND TRUE)
+set(ZLIB_INCLUDE_DIRS ${THIRDPARTY_INSTALL_DIR}/zlib/include)
+set(ZLIB_LIBRARIES ${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a)
+set(ZLIB_VERSION_STRING "1.3.1")
 
-    find_package(fizz CONFIG REQUIRED)
-    message(STATUS "Fizz imported into superproject: ${FIZZ_INSTALL_DIR}")
-else()
-    message(FATAL_ERROR "Fizz cmake config not found at ${FIZZ_INSTALL_DIR}")
-endif()
+find_package(fizz CONFIG REQUIRED)
+message(STATUS "Fizz imported into superproject: ${FIZZ_INSTALL_DIR}")

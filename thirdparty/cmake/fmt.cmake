@@ -14,14 +14,5 @@ thirdparty_build_cmake_library("fmt"
         "${THIRDPARTY_INSTALL_DIR}/fmt/include/fmt/core.h"
 )
 
-# Additional fmt-specific setup
-set(FMT_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/fmt")
-get_filename_component(FMT_INSTALL_DIR "${FMT_INSTALL_DIR}" ABSOLUTE)
-
-if(EXISTS "${FMT_INSTALL_DIR}/lib/cmake/fmt/fmt-config.cmake")
-    find_package(fmt CONFIG REQUIRED)
-    
-    message(STATUS "fmt found and exported globally: ${FMT_INSTALL_DIR}")
-else()
-    message(FATAL_ERROR "fmt installation not found at ${FMT_INSTALL_DIR}")
-endif()
+find_package(fmt CONFIG REQUIRED)
+message(STATUS "fmt found and exported globally: ${FMT_INSTALL_DIR}")

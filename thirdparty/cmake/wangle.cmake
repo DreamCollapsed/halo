@@ -21,15 +21,6 @@ list(APPEND _opt_flags
     -DLIBEVENT_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/libevent/include
     -DLIBEVENT_LIB:FILEPATH=${THIRDPARTY_INSTALL_DIR}/libevent/lib/libevent.a
 
-    # BOOST
-    -DBOOST_ROOT=${THIRDPARTY_INSTALL_DIR}/boost
-    -DBOOST_INCLUDEDIR=${THIRDPARTY_INSTALL_DIR}/boost/include
-    -DBOOST_LIBRARYDIR=${THIRDPARTY_INSTALL_DIR}/boost/lib
-    -DBoost_USE_STATIC_LIBS=ON
-    -DBoost_USE_MULTITHREADED=ON
-    -DBoost_USE_STATIC_RUNTIME=ON
-    -DBoost_NO_SYSTEM_PATHS=ON
-
     # JEMALLOC
     -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
 )

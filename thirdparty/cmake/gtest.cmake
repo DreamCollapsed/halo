@@ -17,13 +17,5 @@ thirdparty_build_cmake_library("gtest"
         "${THIRDPARTY_INSTALL_DIR}/gtest/include/gmock/gmock.h"
 )
 
-set(GTEST_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/gtest")
-get_filename_component(GTEST_INSTALL_DIR "${GTEST_INSTALL_DIR}" ABSOLUTE)
-
-if(EXISTS "${GTEST_INSTALL_DIR}/lib/cmake/GTest/GTestConfig.cmake")
-    find_package(GTest CONFIG REQUIRED)
-    
-    message(STATUS "GTest/GMock found and exported globally: ${GTEST_INSTALL_DIR}")
-else()
-    message(FATAL_ERROR "GTest installation not found at ${GTEST_INSTALL_DIR}")
-endif()
+find_package(GTest CONFIG REQUIRED)
+message(STATUS "GTest/GMock found and exported globally: ${GTEST_INSTALL_DIR}")

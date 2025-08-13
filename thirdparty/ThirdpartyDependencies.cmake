@@ -305,3 +305,11 @@ thirdparty_register_component(wangle
     SHA256 "${WANGLE_SHA256}"
     DEPENDS_ON folly fizz openssl gflags glog double-conversion libevent boost fmt jemalloc zlib xz bzip2 libsodium zstd lz4 snappy
 )
+
+# Register mvfst component
+thirdparty_register_component(mvfst
+    VERSION "${MVFST_VERSION}"
+    URL "${MVFST_URL}"
+    SHA256 "${MVFST_SHA256}"
+    DEPENDS_ON folly fizz wangle openssl gflags glog double-conversion libevent boost fmt jemalloc zlib xz bzip2 libsodium zstd lz4 snappy
+)

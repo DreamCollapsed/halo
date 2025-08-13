@@ -27,7 +27,6 @@ thirdparty_build_autotools_library("icu4c"
 )
 
 if(EXISTS "${ICU4C_INSTALL_DIR}/lib/libicuuc.a")
-    
     if(NOT TARGET ICU::uc)
         add_library(ICU::uc STATIC IMPORTED)
         set_target_properties(ICU::uc PROPERTIES
@@ -35,7 +34,6 @@ if(EXISTS "${ICU4C_INSTALL_DIR}/lib/libicuuc.a")
             INTERFACE_INCLUDE_DIRECTORIES "${ICU4C_INSTALL_DIR}/include"
         )
     endif()
-    
     if(NOT TARGET ICU::i18n)
         add_library(ICU::i18n STATIC IMPORTED)
         set_target_properties(ICU::i18n PROPERTIES
@@ -44,7 +42,6 @@ if(EXISTS "${ICU4C_INSTALL_DIR}/lib/libicuuc.a")
             INTERFACE_LINK_LIBRARIES ICU::uc
         )
     endif()
-    
     if(NOT TARGET ICU::data)
         add_library(ICU::data STATIC IMPORTED)
         set_target_properties(ICU::data PROPERTIES
@@ -52,15 +49,13 @@ if(EXISTS "${ICU4C_INSTALL_DIR}/lib/libicuuc.a")
             INTERFACE_INCLUDE_DIRECTORIES "${ICU4C_INSTALL_DIR}/include"
         )
     endif()
-    
     if(NOT TARGET ICU::ICU)
         add_library(ICU::ICU INTERFACE IMPORTED)
         set_target_properties(ICU::ICU PROPERTIES
             INTERFACE_LINK_LIBRARIES "ICU::i18n;ICU::uc;ICU::data"
             INTERFACE_INCLUDE_DIRECTORIES "${ICU4C_INSTALL_DIR}/include"
         )
-    endif()
-    
+    endif() 
     message(STATUS "ICU4C found and exported globally: ${ICU4C_INSTALL_DIR}")
 else()
     message(FATAL_ERROR "ICU4C configuration failed - missing library files")

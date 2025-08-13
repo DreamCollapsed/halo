@@ -22,11 +22,10 @@ thirdparty_build_cmake_library("xz"
         "${THIRDPARTY_INSTALL_DIR}/xz/include/lzma.h"
 )
 
-set(XZ_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/xz")
-get_filename_component(XZ_INSTALL_DIR "${XZ_INSTALL_DIR}" ABSOLUTE)
-
 find_package(liblzma CONFIG REQUIRED)
 
+set(XZ_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/xz")
+get_filename_component(XZ_INSTALL_DIR "${XZ_INSTALL_DIR}" ABSOLUTE)
 if(TARGET liblzma::liblzma)
     message(STATUS "xz found via CMake config and exported globally: ${XZ_INSTALL_DIR}")
 elseif(EXISTS "${XZ_INSTALL_DIR}/lib/cmake/liblzma/liblzma-config.cmake")

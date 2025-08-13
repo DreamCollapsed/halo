@@ -313,3 +313,18 @@ thirdparty_register_component(mvfst
     SHA256 "${MVFST_SHA256}"
     DEPENDS_ON folly fizz wangle openssl gflags glog double-conversion libevent boost fmt jemalloc zlib xz bzip2 libsodium zstd lz4 snappy
 )
+
+# Register Apache Arrow C++ component
+thirdparty_register_component(arrow
+    VERSION "${ARROW_VERSION}"
+    URL "${ARROW_URL}"
+    SHA256 "${ARROW_SHA256}"
+    DEPENDS_ON zlib zstd lz4 snappy bzip2 xz xsimd
+)
+
+# xsimd (header-only)
+thirdparty_register_component(xsimd
+    VERSION "${XSIMD_VERSION}"
+    URL "${XSIMD_URL}"
+    SHA256 "${XSIMD_SHA256}"
+)

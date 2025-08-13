@@ -366,3 +366,25 @@ add_module_test(thirdparty_mvfst
         integration
     TIMEOUT 30
 )
+
+# Arrow integration test
+add_module_test(thirdparty_arrow
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_arrow_integration.cpp"
+    LABELS
+        arrow
+        columnar
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
+# xsimd integration test
+add_module_test(thirdparty_xsimd
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_xsimd_integration.cpp"
+    LABELS
+        xsimd
+        simd
+        thirdparty
+        integration
+    TIMEOUT 30
+)

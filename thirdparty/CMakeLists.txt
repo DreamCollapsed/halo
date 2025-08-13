@@ -121,7 +121,9 @@ target_link_libraries(halo_thirdparty
     fizz::fizz
     wangle::wangle
     mvfst::mvfst_transport
+    Arrow::arrow
     faiss
+    xsimd
 )
 
 add_library(halo_thirdparty_test INTERFACE)

@@ -109,6 +109,11 @@ set(PROTOBUF_VERSION "31.1")
 set(PROTOBUF_URL "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-${PROTOBUF_VERSION}.tar.gz")
 set(PROTOBUF_SHA256 "12bfd76d27b9ac3d65c00966901609e020481b9474ef75c7ff4601ac06fa0b82")
 
+set(RAPIDJSON_VERSION "1.1.0")
+set(RAPIDJSON_URL "https://github.com/Tencent/rapidjson.git")
+set(RAPIDJSON_SHA256 "24b5e7a8b27f42fa16b96fc70aade9106cf7102f")
+set(RAPIDJSON_USE_GIT ON)
+
 set(RE2_VERSION "2025-07-22")
 set(RE2_URL "https://github.com/google/re2/releases/download/${RE2_VERSION}/re2-${RE2_VERSION}.tar.gz")
 set(RE2_SHA256 "f54c29f1c3e13e12693e3d6d1230554df3ab3a1066b2e1f28c5330bfbf6db1e3")

@@ -4,7 +4,10 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 #include <xsimd/xsimd.hpp>
+#include <xtl/xcomplex.hpp>
+#include <xtl/xoptional.hpp>
 
 TEST(XsimdIntegration, BasicAdd) {
   using batch = xsimd::batch<float>;  // default arch-selected batch
@@ -113,5 +116,88 @@ TEST(XsimdIntegration, CompareAndSelect) {
   for (std::size_t i = 0; i < batch::size; ++i) {
     float expected = (a_raw[i] > b_raw[i]) ? a_raw[i] : b_raw[i];
     ASSERT_FLOAT_EQ(out[i], expected);
+  }
+}
+
+// Test XTL integration with XSIMD (using xtl optional with regular float
+// batches)
+TEST(XsimdIntegration, XtlOptionalFloatIntegration) {
+  using batch = xsimd::batch<float>;
+  std::vector<xtl::xoptional<float>> input_data;
+
+  // Fill with some missing values and valid values
+  for (std::size_t i = 0; i < batch::size; ++i) {
+    if (i % 3 == 0) {
+      input_data.push_back(xtl::missing<float>());
+    } else {
+      input_data.push_back(static_cast<float>(i * 2.5f));
+    }
+  }
+
+  // Extract valid values for SIMD computation
+  std::vector<float> valid_values;
+  for (const auto& opt_val : input_data) {
+    if (opt_val.has_value()) {
+      valid_values.push_back(opt_val.value());
+    }
+  }
+
+  if (valid_values.size() >= batch::size) {
+    // Perform SIMD computation on valid values
+    batch vals = xsimd::load_unaligned(valid_values.data());
+    batch squared = vals * vals;
+
+    float results[batch::size];
+    squared.store_unaligned(results);
+
+    // Verify results are positive (squares should be)
+    for (std::size_t i = 0; i < batch::size; ++i) {
+      ASSERT_GE(results[i], 0.0f);
+    }
+  }
+
+  ASSERT_GT(valid_values.size(), 0);  // Should have at least some valid values
+}
+
+TEST(XsimdIntegration, XtlComplexNumberProcessing) {
+  // Test processing complex numbers using xtl complex type
+  using complex_t = xtl::xcomplex<double>;
+  std::vector<complex_t> complex_data;
+
+  // Create some complex numbers
+  for (int i = 0; i < 8; ++i) {
+    complex_data.emplace_back(static_cast<double>(i),
+                              static_cast<double>(i + 1));
+  }
+
+  // Extract real and imaginary parts for separate SIMD processing
+  using batch = xsimd::batch<double>;
+  if (complex_data.size() >= batch::size) {
+    std::vector<double> real_parts, imag_parts;
+    for (const auto& c : complex_data) {
+      real_parts.push_back(c.real());
+      imag_parts.push_back(c.imag());
+    }
+
+    // Process real parts with SIMD
+    batch real_batch = xsimd::load_unaligned(real_parts.data());
+    batch real_squared = real_batch * real_batch;
+
+    // Process imaginary parts with SIMD
+    batch imag_batch = xsimd::load_unaligned(imag_parts.data());
+    batch imag_squared = imag_batch * imag_batch;
+
+    // Compute magnitude squared = real^2 + imag^2
+    batch mag_squared = real_squared + imag_squared;
+
+    double results[batch::size];
+    mag_squared.store_unaligned(results);
+
+    // Verify magnitude computation
+    for (std::size_t i = 0; i < batch::size && i < complex_data.size(); ++i) {
+      double expected = complex_data[i].real() * complex_data[i].real() +
+                        complex_data[i].imag() * complex_data[i].imag();
+      ASSERT_DOUBLE_EQ(results[i], expected);
+    }
   }
 }

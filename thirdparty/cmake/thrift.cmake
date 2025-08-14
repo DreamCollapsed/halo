@@ -98,7 +98,6 @@ thirdparty_cmake_configure("${THRIFT_SOURCE_DIR}" "${THRIFT_BUILD_DIR}"
         -DWITH_LIBEVENT=OFF
         -DWITH_OPENSSL=ON
         -DWITH_ZLIB=ON
-        -DBoost_USE_STATIC_LIBS=ON
         -DBoost_ROOT=${THIRDPARTY_INSTALL_DIR}/boost
         -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
         -DZLIB_LIBRARY=${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a

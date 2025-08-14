@@ -388,3 +388,25 @@ add_module_test(thirdparty_xsimd
         integration
     TIMEOUT 30
 )
+
+# xtl integration test
+add_module_test(thirdparty_xtl
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_xtl_integration.cpp"
+    LABELS
+        xtl
+        utilities
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
+# rapidjson integration test
+add_module_test(thirdparty_rapidjson
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_rapidjson_integration.cpp"
+    LABELS
+        rapidjson
+        json
+        thirdparty
+        integration
+    TIMEOUT 30
+)

@@ -124,6 +124,8 @@ target_link_libraries(halo_thirdparty
     Arrow::arrow
     faiss
     xsimd
+    xtl
+    RapidJSON::rapidjson
 )
 
 add_library(halo_thirdparty_test INTERFACE)

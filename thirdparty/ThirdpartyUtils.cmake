@@ -189,6 +189,213 @@ function(thirdparty_download_and_check url file hash)
     endif()
 endfunction()
 
+# -----------------------------------------------------------------------------
+# Unified source acquisition helper
+# Usage:
+#   thirdparty_acquire_source(<lib_lower_name> <out_source_dir_var>)
+# Expected variables (case-insensitive mapping handled inside):
+#   <UPPER>_URL        : If *_USE_GIT is OFF/undefined -> archive URL; if ON -> git repo URL
+#   <UPPER>_SHA256     : If archive mode -> archive SHA256; if git mode -> commit hash
+#   <UPPER>_VERSION    : Optional version (used in archive naming)
+#   <UPPER>_USE_GIT    : Boolean (ON/TRUE/1) to enable git path
+# Behavior:
+#   * Archive mode: download (with hash check) + extract (renaming to canonical src dir)
+#   * Git mode: clone (with retries) + checkout commit; reuse existing directory if already at commit
+# Result:
+#   Sets given out variable to canonical source directory path.
+# -----------------------------------------------------------------------------
+function(thirdparty_acquire_source lib_name out_src_var)
+    string(TOUPPER "${lib_name}" _upper)
+    string(REPLACE "-" "_" _upper "${_upper}")
+
+    set(_url     "${${_upper}_URL}")
+    set(_sha256  "${${_upper}_SHA256}")
+    set(_version "${${_upper}_VERSION}")
+    set(_use_git FALSE)
+    if(DEFINED ${_upper}_USE_GIT AND ${_upper}_USE_GIT)
+        set(_use_git TRUE)
+    endif()
+
+    set(_src_dir "${THIRDPARTY_SRC_DIR}/${lib_name}")
+
+    if(_use_git)
+        # Additional optional flags: <UPPER>_GIT_SHALLOW (default ON) <UPPER>_GIT_RECURSE_SUBMODULES (default OFF)
+        set(_git_flags)
+        if(DEFINED ${_upper}_GIT_SHALLOW AND NOT ${_upper}_GIT_SHALLOW)
+            list(APPEND _git_flags GIT_SHALLOW OFF)
+        endif()
+        if(DEFINED ${_upper}_GIT_RECURSE_SUBMODULES AND ${_upper}_GIT_RECURSE_SUBMODULES)
+            list(APPEND _git_flags GIT_RECURSE_SUBMODULES ON)
+        endif()
+        message(STATUS "[thirdparty] ${lib_name}: acquiring via git repo=${_url} commit=${_sha256} ${_git_flags}")
+        thirdparty_git_clone_and_checkout("${_url}" "${_src_dir}" "${_sha256}")
+    else()
+        # Derive archive extension
+        get_filename_component(_url_filename "${_url}" NAME)
+        string(REGEX MATCH "(\\.tar\\.gz|\\.tgz|\\.tar\\.bz2|\\.tbz2|\\.tar\\.xz|\\.txz|\\.zip)$" _extension "${_url_filename}")
+        if(NOT _extension)
+            if(_url MATCHES "\\.zip")
+                set(_extension ".zip")
+            else()
+                set(_extension ".tar.gz")
+            endif()
+        endif()
+        if(NOT _version)
+            # Attempt to guess a short version fragment from URL path segment if missing
+            string(REGEX MATCH "([0-9]+\\.[0-9]+(\\.[0-9]+)?)" _guessed_ver "${_url}")
+            if(_guessed_ver)
+                set(_version "${CMAKE_MATCH_1}")
+            else()
+                set(_version "src")
+            endif()
+        endif()
+        set(_download_file "${THIRDPARTY_DOWNLOAD_DIR}/${lib_name}-${_version}${_extension}")
+        set(_extract_pattern "${THIRDPARTY_SRC_DIR}/${lib_name}-*")
+        thirdparty_download_and_check("${_url}" "${_download_file}" "${_sha256}")
+        thirdparty_extract_and_rename("${_download_file}" "${_src_dir}" "${_extract_pattern}")
+    endif()
+
+    set(${out_src_var} "${_src_dir}" PARENT_SCOPE)
+endfunction()
+
+    # --- Git clone utility (supports checkout of specific commit with retries) ---
+    # Usage:
+    #   thirdparty_git_clone_and_checkout(<repo_url> <dest_dir> <commit_hash>)
+    # Behavior:
+    #   * If dest_dir exists and already at the requested commit, it's reused.
+    #   * Otherwise dest_dir is removed and re-cloned.
+    #   * Retries clone+checkout up to 3 times.
+    #   * Fails the configure ONLY if all retries fail.
+    function(thirdparty_git_clone_and_checkout repo_url dest_dir commit_hash)
+        # Optional behavior controlled by cache vars for per-library customization:
+        #   <UPPER>_GIT_SHALLOW (default ON) -> try shallow clone limited to needed commit
+        #   <UPPER>_GIT_RECURSE_SUBMODULES (default OFF) -> initialize submodules
+        if(NOT repo_url OR NOT dest_dir OR NOT commit_hash)
+            message(FATAL_ERROR "[thirdparty_git] Missing arguments: repo_url='${repo_url}' dest_dir='${dest_dir}' commit='${commit_hash}'")
+        endif()
+
+        find_program(GIT_EXECUTABLE git)
+        if(NOT GIT_EXECUTABLE)
+            message(FATAL_ERROR "[thirdparty_git] git executable not found in PATH")
+        endif()
+
+        # Derive upper name from dest_dir basename (best effort) to read feature flags
+        get_filename_component(_basename "${dest_dir}" NAME)
+        string(TOUPPER "${_basename}" _lib_upper1)
+        string(REPLACE "-" "_" _lib_upper "${_lib_upper1}")
+        set(_shallow_default ON)
+        if(DEFINED ${_lib_upper}_GIT_SHALLOW AND NOT ${_lib_upper}_GIT_SHALLOW)
+            set(_shallow_default OFF)
+        endif()
+        set(_recurse_default OFF)
+        if(DEFINED ${_lib_upper}_GIT_RECURSE_SUBMODULES AND ${_lib_upper}_GIT_RECURSE_SUBMODULES)
+            set(_recurse_default ON)
+        endif()
+
+        # Fast path: existing repo at correct commit
+        if(EXISTS "${dest_dir}/.git")
+            execute_process(
+                COMMAND ${GIT_EXECUTABLE} -C "${dest_dir}" rev-parse HEAD
+                OUTPUT_VARIABLE _current_commit
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                RESULT_VARIABLE _rev_parse_result
+            )
+            if(_rev_parse_result EQUAL 0 AND _current_commit STREQUAL "${commit_hash}")
+                message(STATUS "[thirdparty_git] Reusing existing clone ${dest_dir} at commit ${commit_hash}")
+                # Optionally ensure submodules if requested
+                if(_recurse_default)
+                    execute_process(COMMAND ${GIT_EXECUTABLE} -C "${dest_dir}" submodule update --init --recursive)
+                endif()
+                return()
+            endif()
+            message(STATUS "[thirdparty_git] Existing directory ${dest_dir} not at desired commit (have='${_current_commit}', want='${commit_hash}'), removing")
+            file(REMOVE_RECURSE "${dest_dir}")
+        endif()
+
+        set(_max_retries 3)
+        set(_attempt 1)
+        set(_success FALSE)
+        while(_attempt LESS_EQUAL _max_retries AND NOT _success)
+            if(_attempt GREATER 1)
+                message(STATUS "[thirdparty_git] Retry ${_attempt}/${_max_retries} cloning ${repo_url}")
+            else()
+                message(STATUS "[thirdparty_git] Cloning ${repo_url} (commit ${commit_hash}) to ${dest_dir}")
+            endif()
+
+            get_filename_component(_parent "${dest_dir}" DIRECTORY)
+            file(MAKE_DIRECTORY "${_parent}")
+
+            set(_clone_result 1)
+            # Try shallow first if enabled
+            if(_shallow_default)
+                execute_process(
+                    COMMAND ${GIT_EXECUTABLE} clone --no-checkout --filter=blob:none --depth 1 ${repo_url} "${dest_dir}"
+                    RESULT_VARIABLE _clone_result
+                    OUTPUT_QUIET ERROR_QUIET
+                )
+                if(NOT _clone_result EQUAL 0)
+                    message(WARNING "[thirdparty_git] shallow clone failed, will retry full clone (attempt ${_attempt})")
+                    if(EXISTS "${dest_dir}")
+                        file(REMOVE_RECURSE "${dest_dir}")
+                    endif()
+                endif()
+            endif()
+
+            if(NOT _shallow_default OR NOT _clone_result EQUAL 0)
+                execute_process(
+                    COMMAND ${GIT_EXECUTABLE} clone ${repo_url} "${dest_dir}"
+                    RESULT_VARIABLE _clone_result_full
+                    OUTPUT_QUIET ERROR_QUIET
+                )
+                set(_clone_result ${_clone_result_full})
+            endif()
+
+            if(NOT _clone_result EQUAL 0)
+                message(WARNING "[thirdparty_git] git clone failed (attempt ${_attempt}) for ${repo_url}")
+                if(EXISTS "${dest_dir}")
+                    file(REMOVE_RECURSE "${dest_dir}")
+                endif()
+                math(EXPR _attempt "${_attempt} + 1")
+                continue()
+            endif()
+
+            # For shallow clone we may need to fetch the commit if not in initial depth
+            execute_process(
+                COMMAND ${GIT_EXECUTABLE} -C "${dest_dir}" rev-parse --verify ${commit_hash}^{commit}
+                RESULT_VARIABLE _have_commit
+                OUTPUT_QUIET ERROR_QUIET
+            )
+            if(NOT _have_commit EQUAL 0)
+                execute_process(
+                    COMMAND ${GIT_EXECUTABLE} -C "${dest_dir}" fetch --depth 1 origin ${commit_hash}
+                    OUTPUT_QUIET ERROR_QUIET
+                )
+            endif()
+
+            # Checkout specific commit
+            execute_process(
+                COMMAND ${GIT_EXECUTABLE} -C "${dest_dir}" checkout --detach ${commit_hash}
+                RESULT_VARIABLE _checkout_result
+                OUTPUT_QUIET ERROR_QUIET
+            )
+            if(_checkout_result EQUAL 0)
+                if(_recurse_default)
+                    execute_process(COMMAND ${GIT_EXECUTABLE} -C "${dest_dir}" submodule update --init --recursive)
+                endif()
+                message(STATUS "[thirdparty_git] Checked out commit ${commit_hash} in ${dest_dir}")
+                set(_success TRUE)
+            else()
+                message(WARNING "[thirdparty_git] git checkout ${commit_hash} failed (attempt ${_attempt}) in ${dest_dir}")
+                file(REMOVE_RECURSE "${dest_dir}")
+                math(EXPR _attempt "${_attempt} + 1")
+            endif()
+        endwhile()
+
+        if(NOT _success)
+            message(FATAL_ERROR "[thirdparty_git] Failed to obtain ${repo_url} at commit ${commit_hash} after ${_max_retries} attempts")
+        endif()
+    endfunction()
+
 function(thirdparty_extract_and_rename tarfile srcdir pattern)
     if(NOT EXISTS "${srcdir}/CMakeLists.txt")
         file(GLOB _old_dirs "${pattern}")
@@ -686,7 +893,6 @@ function(thirdparty_build_cmake_library library_name)
             set(_extension ".tar.gz") # Default assumption
         endif()
     endif()
-    set(_download_file "${THIRDPARTY_DOWNLOAD_DIR}/${library_name}-${_version}${_extension}")
     # --- End of standardized naming ---
 
     # Set default extract pattern if not provided
@@ -694,8 +900,8 @@ function(thirdparty_build_cmake_library library_name)
         set(ARG_EXTRACT_PATTERN "${THIRDPARTY_SRC_DIR}/${library_name}-*")
     endif()
 
-    thirdparty_download_and_check("${_url}" "${_download_file}" "${_sha256}")
-    thirdparty_extract_and_rename("${_download_file}" "${_source_dir}" "${ARG_EXTRACT_PATTERN}")
+    # Acquire source (git or archive)
+    thirdparty_acquire_source("${library_name}" _source_dir)
 
     thirdparty_get_optimization_flags(_common_cmake_args COMPONENT "${library_name}")
 
@@ -747,17 +953,9 @@ function(thirdparty_build_autotools_library library_name)
     set(_build_dir "${THIRDPARTY_BUILD_DIR}/${library_name}")
     set(_install_dir "${THIRDPARTY_INSTALL_DIR}/${library_name}")
 
-    # --- Standardized download file naming ---
-    get_filename_component(_url_filename "${_url}" NAME)
-    string(REGEX MATCH "(\\.tar\\.gz|\\.tgz|\\.tar\\.bz2|\\.tbz2|\\.tar\\.xz|\\.txz|\\.zip)$" _extension "${_url_filename}")
-    if(NOT _extension)
-        if(_url MATCHES "\\.zip")
-            set(_extension ".zip")
-        else()
-            set(_extension ".tar.gz") # Default assumption
-        endif()
-    endif()
-    set(_download_file "${THIRDPARTY_DOWNLOAD_DIR}/${library_name}-${_version}${_extension}")
+    # (Archive naming removed; unified acquisition handles both archive and git)
+    # Acquire source (git or archive)
+    thirdparty_acquire_source("${library_name}" _source_dir)
 
     # Check if already installed by validating files
     set(_need_build TRUE)
@@ -784,8 +982,7 @@ function(thirdparty_build_autotools_library library_name)
         return()
     endif()
 
-    thirdparty_download_and_check("${_url}" "${_download_file}" "${_sha256}")
-    thirdparty_extract_and_rename("${_download_file}" "${_source_dir}" "${THIRDPARTY_SRC_DIR}/${library_name}-*")
+    # Source ready at _source_dir (git or archive)
 
     # Determine working directory for build
     set(_work_dir "${_build_dir}")

@@ -5,6 +5,7 @@ thirdparty_setup_directories("xsimd")
 
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${XSIMD_INSTALL_DIR}
+    -DENABLE_XTL_COMPLEX=ON
 )
 
 thirdparty_build_cmake_library("xsimd"

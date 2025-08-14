@@ -319,7 +319,14 @@ thirdparty_register_component(arrow
     VERSION "${ARROW_VERSION}"
     URL "${ARROW_URL}"
     SHA256 "${ARROW_SHA256}"
-    DEPENDS_ON zlib zstd lz4 snappy bzip2 xz xsimd
+    DEPENDS_ON zlib zstd lz4 snappy bzip2 xz xsimd rapidjson boost thrift
+)
+
+# xtl (header-only)
+thirdparty_register_component(xtl
+    VERSION "${XTL_VERSION}"
+    URL "${XTL_URL}"
+    SHA256 "${XTL_SHA256}"
 )
 
 # xsimd (header-only)
@@ -327,4 +334,12 @@ thirdparty_register_component(xsimd
     VERSION "${XSIMD_VERSION}"
     URL "${XSIMD_URL}"
     SHA256 "${XSIMD_SHA256}"
+    DEPENDS_ON xtl
+)
+
+# rapidjson (header-only)
+thirdparty_register_component(rapidjson
+    VERSION "${RAPIDJSON_VERSION}"
+    URL "${RAPIDJSON_URL}"
+    SHA256 "${RAPIDJSON_SHA256}"
 )

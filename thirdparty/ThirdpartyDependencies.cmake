@@ -195,6 +195,13 @@ thirdparty_register_component(xxhash
     SHA256 "${XXHASH_SHA256}"
 )
 
+# c-ares (asynchronous DNS resolver, no external deps)
+thirdparty_register_component(cares
+    VERSION "${CARES_VERSION}"
+    URL "${CARES_URL}"
+    SHA256 "${CARES_SHA256}"
+)
+
 thirdparty_register_component(boost
     VERSION "${BOOST_VERSION}"
     URL "${BOOST_URL}"
@@ -319,7 +326,7 @@ thirdparty_register_component(arrow
     VERSION "${ARROW_VERSION}"
     URL "${ARROW_URL}"
     SHA256 "${ARROW_SHA256}"
-    DEPENDS_ON zlib zstd lz4 snappy bzip2 xz xsimd rapidjson boost thrift re2 utf8proc
+    DEPENDS_ON zlib zstd lz4 snappy bzip2 xz xsimd rapidjson boost thrift re2 utf8proc grpc
 )
 
 # xtl (header-only)
@@ -357,4 +364,12 @@ thirdparty_register_component(utf8proc
     VERSION "${UTF8PROC_VERSION}"
     URL "${UTF8PROC_URL}"
     SHA256 "${UTF8PROC_SHA256}"
+)
+
+# gRPC (RPC framework)
+thirdparty_register_component(grpc
+    VERSION "${GRPC_VERSION}"
+    URL "${GRPC_URL}"
+    SHA256 "${GRPC_SHA256}"
+    DEPENDS_ON abseil protobuf re2 zlib openssl cares
 )

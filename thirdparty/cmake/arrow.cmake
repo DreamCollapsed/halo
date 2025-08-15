@@ -8,6 +8,8 @@ list(APPEND _opt_flags
 
     -DARROW_BUILD_SHARED=OFF
     -DARROW_BUILD_STATIC=ON
+    -DCMAKE_CXX_STANDARD=20
+    -DARROW_CXX_FLAGS_RELEASE=-O3
 
     # Use system dependencies we already build
     -DARROW_DEPENDENCY_SOURCE=SYSTEM
@@ -65,14 +67,12 @@ list(APPEND _opt_flags
     -DARROW_COMPUTE=ON
     -DARROW_CSV=ON
     -DARROW_JSON=ON
-    -DARROW_FLIGHT=OFF
-    -DARROW_GANDIVA=ON
     -DARROW_FILESYSTEM=ON
     -DARROW_ORC=OFF
     -DARROW_WITH_RE2=ON
     -DARROW_WITH_UTF8PROC=ON
     -DARROW_USE_GLOG=ON
-    -DARROW_WITH_GRPC=OFF
+    -DARROW_WITH_GRPC=ON
     -DARROW_FUZZING=OFF
     -DARROW_HDFS=ON
     -DARROW_JEMALLOC=OFF
@@ -86,7 +86,13 @@ list(APPEND _opt_flags
     -DPARQUET_REQUIRE_ENCRYPTION=ON
 
     # Gandiva
-    -DARROW_GANDIVA_STATIC_LIBSTDCPP=OFF
+    -DARROW_GANDIVA=ON
+    -DARROW_GANDIVA_STATIC_LIBSTDCPP=ON
+
+    # Flight
+    -DARROW_FLIGHT=ON
+    -DARROW_FLIGHT_SQL=ON
+    -DARROW_FLIGHT_SQL_ODBC=ON
 
     # Arrow Build Options
     -DARROW_TESTING=OFF
@@ -110,3 +116,51 @@ if(TARGET Arrow::arrow_static AND NOT TARGET Arrow::arrow)
     add_library(Arrow::arrow ALIAS Arrow::arrow_static)
 endif()
 message(STATUS "Arrow imported into superproject: ${ARROW_INSTALL_DIR}")
+
+find_package(ArrowAcero CONFIG REQUIRED)
+if(TARGET ArrowAcero::arrow_acero_static AND NOT TARGET ArrowAcero::arrow_acero)
+    add_library(ArrowAcero::arrow_acero ALIAS ArrowAcero::arrow_acero_static)
+endif()
+message(STATUS "ArrowAcero imported into superproject: ${ARROW_INSTALL_DIR}")
+
+find_package(ArrowCompute CONFIG REQUIRED)
+if(TARGET ArrowCompute::arrow_compute_static AND NOT TARGET ArrowCompute::arrow_compute)
+    add_library(ArrowCompute::arrow_compute ALIAS ArrowCompute::arrow_compute_static)
+endif()
+message(STATUS "ArrowCompute imported into superproject: ${ARROW_INSTALL_DIR}")
+
+find_package(ArrowDataset CONFIG REQUIRED)
+if(TARGET ArrowDataset::arrow_dataset_static AND NOT TARGET ArrowDataset::arrow_dataset)
+    add_library(ArrowDataset::arrow_dataset ALIAS ArrowDataset::arrow_dataset_static)
+endif()
+message(STATUS "ArrowDataset imported into superproject: ${ARROW_INSTALL_DIR}")
+
+find_package(ArrowFlight CONFIG REQUIRED)
+if(TARGET ArrowFlight::arrow_flight_static AND NOT TARGET ArrowFlight::arrow_flight)
+    add_library(ArrowFlight::arrow_flight ALIAS ArrowFlight::arrow_flight_static)
+endif()
+message(STATUS "ArrowFlight imported into superproject: ${ARROW_INSTALL_DIR}")
+
+find_package(ArrowFlightSql CONFIG REQUIRED)
+if(TARGET ArrowFlightSql::arrow_flight_sql_static AND NOT TARGET ArrowFlightSql::arrow_flight_sql)
+    add_library(ArrowFlightSql::arrow_flight_sql ALIAS ArrowFlightSql::arrow_flight_sql_static)
+endif()
+message(STATUS "ArrowFlightSql imported into superproject: ${ARROW_INSTALL_DIR}")
+
+find_package(ArrowSubstrait CONFIG REQUIRED)
+if(TARGET ArrowSubstrait::arrow_substrait_static AND NOT TARGET ArrowSubstrait::arrow_substrait)
+    add_library(ArrowSubstrait::arrow_substrait ALIAS ArrowSubstrait::arrow_substrait_static)
+endif()
+message(STATUS "ArrowSubstrait imported into superproject: ${ARROW_INSTALL_DIR}")
+
+find_package(Gandiva CONFIG REQUIRED)
+if(TARGET Gandiva::gandiva_static AND NOT TARGET Gandiva::gandiva)
+    add_library(Gandiva::gandiva ALIAS Gandiva::gandiva_static)
+endif()
+message(STATUS "Gandiva imported into superproject: ${ARROW_INSTALL_DIR}")
+
+find_package(Parquet CONFIG REQUIRED)
+if(TARGET Parquet::parquet_static AND NOT TARGET Parquet::parquet)
+    add_library(Parquet::parquet ALIAS Parquet::parquet_static)
+endif()
+message(STATUS "Parquet imported into superproject: ${ARROW_INSTALL_DIR}")

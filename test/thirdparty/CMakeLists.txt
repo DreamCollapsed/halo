@@ -410,3 +410,26 @@ add_module_test(thirdparty_rapidjson
         integration
     TIMEOUT 30
 )
+
+# re2 integration test
+add_module_test(thirdparty_re2
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_re2_integration.cpp"
+    LABELS
+        re2
+        regex
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
+# utf8proc integration test
+add_module_test(thirdparty_utf8proc
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_utf8proc_integration.cpp"
+    LABELS
+        utf8proc
+        unicode
+        normalization
+        thirdparty
+        integration
+    TIMEOUT 30
+)

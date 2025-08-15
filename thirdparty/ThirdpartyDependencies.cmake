@@ -319,7 +319,7 @@ thirdparty_register_component(arrow
     VERSION "${ARROW_VERSION}"
     URL "${ARROW_URL}"
     SHA256 "${ARROW_SHA256}"
-    DEPENDS_ON zlib zstd lz4 snappy bzip2 xz xsimd rapidjson boost thrift
+    DEPENDS_ON zlib zstd lz4 snappy bzip2 xz xsimd rapidjson boost thrift re2 utf8proc
 )
 
 # xtl (header-only)
@@ -342,4 +342,19 @@ thirdparty_register_component(rapidjson
     VERSION "${RAPIDJSON_VERSION}"
     URL "${RAPIDJSON_URL}"
     SHA256 "${RAPIDJSON_SHA256}"
+)
+
+# re2 (regular expression engine, no external deps required)
+thirdparty_register_component(re2
+    VERSION "${RE2_VERSION}"
+    URL "${RE2_URL}"
+    SHA256 "${RE2_SHA256}"
+    DEPENDS_ON abseil
+)
+
+# utf8proc (Unicode processing library, no external deps)
+thirdparty_register_component(utf8proc
+    VERSION "${UTF8PROC_VERSION}"
+    URL "${UTF8PROC_URL}"
+    SHA256 "${UTF8PROC_SHA256}"
 )

@@ -15,9 +15,9 @@ list(APPEND _opt_flags
     -DARROW_DEPENDENCY_SOURCE=SYSTEM
     -DARROW_DEPENDENCY_USE_SHARED=OFF
 
-    # Import Include files: boost abseil
-    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/boost/include\ -I${THIRDPARTY_INSTALL_DIR}/abseil/include
-    -DCMAKE_C_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/boost/include\ -I${THIRDPARTY_INSTALL_DIR}/abseil/include
+    # Import Include files: boost abseil + jemalloc compatibility
+    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/boost/include\ -I${THIRDPARTY_INSTALL_DIR}/abseil/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
+    -DCMAKE_C_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/boost/include\ -I${THIRDPARTY_INSTALL_DIR}/abseil/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
 
     # Boost
     -DBoost_SOURCE=SYSTEM
@@ -58,6 +58,12 @@ list(APPEND _opt_flags
     # OpenSSL
     -DOpenSSL_SOURCE=SYSTEM
 
+    # Jemalloc
+    -DARROW_JEMALLOC=ON
+    -DARROW_JEMALLOC_USE_SHARED=OFF
+    -Djemalloc_SOURCE=SYSTEM
+    -Djemalloc_ROOT=${THIRDPARTY_INSTALL_DIR}/jemalloc
+
     # Protobuf
     -DARROW_PROTOBUF_USE_SHARED=OFF
 
@@ -75,8 +81,7 @@ list(APPEND _opt_flags
     -DARROW_WITH_GRPC=ON
     -DARROW_FUZZING=OFF
     -DARROW_HDFS=ON
-    -DARROW_JEMALLOC=OFF
-    -DARROW_MIMALLOC=ON
+    -DARROW_MIMALLOC=OFF
     -DARROW_SUBSTRAIT=ON
     -DARROW_TENSORFLOW=ON
 

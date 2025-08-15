@@ -97,6 +97,7 @@ file(WRITE "${JEMALLOC_INSTALL_DIR}/include/jemalloc_prefix_compat.h" "
 #define mallctl je_mallctl
 #define mallctlnametomib je_mallctlnametomib
 #define mallctlbymib je_mallctlbymib
+#define malloc_stats_print je_malloc_stats_print
 #endif
 
 #endif /* JEMALLOC_FOLLY_COMPAT_H */

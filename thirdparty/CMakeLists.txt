@@ -122,6 +122,17 @@ target_link_libraries(halo_thirdparty
     wangle::wangle
     mvfst::mvfst_transport
     Arrow::arrow
+    ArrowAcero::arrow_acero
+    ArrowCompute::arrow_compute
+    ArrowDataset::arrow_dataset
+    ArrowFlight::arrow_flight
+    ArrowFlightSql::arrow_flight_sql
+    ArrowSubstrait::arrow_substrait
+    Gandiva::gandiva
+    Parquet::parquet
+    gRPC::grpc
+    gRPC::grpc++
+    c-ares::cares
     faiss
     xsimd
     xtl

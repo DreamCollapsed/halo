@@ -378,6 +378,17 @@ add_module_test(thirdparty_arrow
     TIMEOUT 30
 )
 
+# Arrow extended components test (json, compute, dataset, acero, flight ...)
+add_module_test(thirdparty_arrow_extended
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_arrow_extended.cpp"
+    LABELS
+        arrow
+        extended
+        thirdparty
+        integration
+    TIMEOUT 60
+)
+
 # xsimd integration test
 add_module_test(thirdparty_xsimd
     "${CMAKE_CURRENT_SOURCE_DIR}/test_xsimd_integration.cpp"
@@ -429,6 +440,27 @@ add_module_test(thirdparty_utf8proc
         utf8proc
         unicode
         normalization
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
+# gRPC integration test
+add_module_test(thirdparty_grpc
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_grpc_integration.cpp"
+    LABELS
+        grpc
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
+# c-ares integration test
+add_module_test(thirdparty_cares
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_cares_integration.cpp"
+    LABELS
+        cares
+        dns
         thirdparty
         integration
     TIMEOUT 30

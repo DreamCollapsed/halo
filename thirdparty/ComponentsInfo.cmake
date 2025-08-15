@@ -19,6 +19,10 @@ set(BZIP2_VERSION "1.0.8")
 set(BZIP2_URL "https://sourceware.org/pub/bzip2/bzip2-${BZIP2_VERSION}.tar.gz")
 set(BZIP2_SHA256 "ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269")
 
+set(CARES_VERSION "1.34.5")
+set(CARES_URL "https://github.com/c-ares/c-ares/releases/download/v${CARES_VERSION}/c-ares-${CARES_VERSION}.tar.gz")
+set(CARES_SHA256 "7d935790e9af081c25c495fd13c2cfcda4792983418e96358ef6e7320ee06346")
+
 set(DOUBLE_CONVERSION_VERSION "3.3.1")
 set(DOUBLE_CONVERSION_URL "https://github.com/google/double-conversion/archive/refs/tags/v${DOUBLE_CONVERSION_VERSION}.tar.gz")
 set(DOUBLE_CONVERSION_SHA256 "fe54901055c71302dcdc5c3ccbe265a6c191978f3761ce1414d0895d6b0ea90e")
@@ -62,6 +66,10 @@ set(GFLAGS_SHA256 "34af2f15cf7367513b352bdcd2493ab14ce43692d2dcd9dfc499492966c64
 set(GLOG_VERSION "0.6.0")
 set(GLOG_URL "https://github.com/google/glog/archive/v${GLOG_VERSION}.tar.gz")
 set(GLOG_SHA256 "8a83bf982f37bb70825df71a9709fa90ea9f4447fb3c099e1d720a439d88bad6")
+
+set(GRPC_VERSION "1.74.1")
+set(GRPC_URL "https://github.com/grpc/grpc/archive/refs/tags/v${GRPC_VERSION}.tar.gz")
+set(GRPC_SHA256 "7bf97c11cf3808d650a3a025bbf9c5f922c844a590826285067765dfd055d228")
 
 set(GTEST_VERSION "1.17.0")
 set(GTEST_URL "https://github.com/google/googletest/archive/refs/tags/v${GTEST_VERSION}.tar.gz")

@@ -64,7 +64,7 @@ TEST_F(ICUIntegrationTest, VersionInfo) {
 // Test Unicode string operations
 TEST_F(ICUIntegrationTest, UnicodeStringOperations) {
   UnicodeString str1("Hello, ");
-  UnicodeString str2("世界");  // "World" in Chinese
+  UnicodeString str2("世界");
   UnicodeString combined = str1 + str2;
 
   EXPECT_GT(combined.length(), 0);
@@ -305,9 +305,10 @@ TEST_F(ICUIntegrationTest, Transliteration) {
     // Should convert accented characters to ASCII equivalents
     EXPECT_TRUE(output.indexOf("naive") >= 0 || output.indexOf("nai") >= 0);
   } else {
-    // Transliteration might not be available in minimal builds
-    GTEST_SKIP() << "Latin-ASCII transliteration not available: "
-                 << u_errorName(status);
+    // Transliteration must be available in ICU build
+    ASSERT_EQ(status, U_ZERO_ERROR)
+        << "Latin-ASCII transliteration must be available: "
+        << u_errorName(status);
   }
 }
 
@@ -349,15 +350,29 @@ TEST_F(ICUIntegrationTest, ScriptDetection) {
   UChar32 arabic_char = 0x0627;    // Arabic letter alef
   UChar32 cyrillic_char = 0x0410;  // Cyrillic capital letter A
 
-  // Skip script detection if data component not available
+  // Test basic script properties using alternative method
+  // Some ICU builds may not have full script detection, so we test character
+  // properties instead
+  EXPECT_TRUE(u_isalpha(latin_char));
+  EXPECT_TRUE(u_isalpha(chinese_char));
+  EXPECT_TRUE(u_isalpha(arabic_char));
+  EXPECT_TRUE(u_isalpha(cyrillic_char));
+
+  // Test script detection if available, otherwise test character categorization
   int latin_script = uscript_getScript(latin_char, nullptr);
-  if (latin_script < 0) {
-    GTEST_SKIP() << "Script detection not available in this ICU build";
+  if (latin_script >= 0) {
+    // Full script detection is available
+    EXPECT_EQ(latin_script, USCRIPT_LATIN);
+    EXPECT_EQ(uscript_getScript(chinese_char, nullptr), USCRIPT_HAN);
+    EXPECT_EQ(uscript_getScript(arabic_char, nullptr), USCRIPT_ARABIC);
+    EXPECT_EQ(uscript_getScript(cyrillic_char, nullptr), USCRIPT_CYRILLIC);
+  } else {
+    // Script detection not available, test character properties instead
+    EXPECT_TRUE(u_isalpha(latin_char));
+    EXPECT_NE(u_charType(chinese_char), U_CONTROL_CHAR);
+    EXPECT_NE(u_charType(arabic_char), U_CONTROL_CHAR);
+    EXPECT_NE(u_charType(cyrillic_char), U_CONTROL_CHAR);
   }
-  EXPECT_EQ(latin_script, USCRIPT_LATIN);
-  EXPECT_EQ(uscript_getScript(chinese_char, nullptr), USCRIPT_HAN);
-  EXPECT_EQ(uscript_getScript(arabic_char, nullptr), USCRIPT_ARABIC);
-  EXPECT_EQ(uscript_getScript(cyrillic_char, nullptr), USCRIPT_CYRILLIC);
 }
 
 // Integration test combining multiple ICU features

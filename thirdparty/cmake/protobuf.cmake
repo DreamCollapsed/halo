@@ -24,4 +24,17 @@ thirdparty_build_cmake_library("protobuf"
 )
 
 find_package(protobuf CONFIG REQUIRED)
+
+set(PROTOC_EXECUTABLE_PATH "${THIRDPARTY_INSTALL_DIR}/protobuf/bin/protoc" CACHE INTERNAL "Path to project protoc executable")
+if(EXISTS "${PROTOC_EXECUTABLE_PATH}")
+    get_filename_component(PROTOC_BIN_DIR "${PROTOC_EXECUTABLE_PATH}" DIRECTORY)
+    list(APPEND CMAKE_PROGRAM_PATH "${PROTOC_BIN_DIR}")
+    set(CMAKE_PROGRAM_PATH "${CMAKE_PROGRAM_PATH}" PARENT_SCOPE)
+    
+    # Register executable path for main project and tests
+    thirdparty_register_executable_path("protoc" "${PROTOC_EXECUTABLE_PATH}")
+else()
+    message(FATAL_ERROR "protoc installation not found at ${THIRDPARTY_INSTALL_DIR}/protobuf")
+endif()
+
 message(STATUS "Imported protobuf package targets")

@@ -81,14 +81,11 @@ TEST(ArrowExtended, ComputeScalarAndAggregate) {
   std::shared_ptr<arrow::Array> arr;
   ASSERT_TRUE(b.Finish(&arr).ok());
 
-  // Check if sum function is available, skip if not registered
+  // Sum function must be available after initialization
   auto* registry = arrow::compute::GetFunctionRegistry();
   auto sum_func = registry->GetFunction("sum");
-  if (!sum_func.ok()) {
-    GTEST_SKIP() << "Sum kernel not registered: "
-                 << sum_func.status().ToString();
-    return;
-  }
+  ASSERT_TRUE(sum_func.ok())
+      << "Sum kernel must be registered: " << sum_func.status().ToString();
 
   auto sum_res = arrow::compute::Sum(arr);
   ASSERT_TRUE(sum_res.ok())
@@ -127,11 +124,8 @@ TEST(ArrowExtended, DatasetInMemoryScan) {
       << "Dataset scan builder unavailable: "
       << scanner_builder_res.status().ToString();
   auto scanner_res = (*scanner_builder_res)->Finish();
-  if (!scanner_res.ok()) {
-    GTEST_SKIP() << "Dataset scanner finish failed: "
-                 << scanner_res.status().ToString();
-    return;
-  }
+  ASSERT_TRUE(scanner_res.ok()) << "Dataset scanner finish must succeed: "
+                                << scanner_res.status().ToString();
   auto table_res = (*scanner_res)->ToTable();
   ASSERT_TRUE(table_res.ok())
       << "Dataset ToTable failed: " << table_res.status().ToString();

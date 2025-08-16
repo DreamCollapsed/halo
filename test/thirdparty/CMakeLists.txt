@@ -457,3 +457,15 @@ add_module_test(thirdparty_cares
         integration
     TIMEOUT 30
 )
+
+# GEOS integration test
+add_module_test(thirdparty_geos
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_geos_integration.cpp"
+    LABELS
+        geos
+        geometry
+        spatial
+        thirdparty
+        integration
+    TIMEOUT 30
+)

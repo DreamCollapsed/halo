@@ -135,6 +135,13 @@ thirdparty_register_component(gtest
     SHA256 "${GTEST_SHA256}"
 )
 
+# GEOS (no external dependencies for core build)
+thirdparty_register_component(geos
+    VERSION "${GEOS_VERSION}"
+    URL "${GEOS_URL}"
+    SHA256 "${GEOS_SHA256}"
+)
+
 thirdparty_register_component(gflags
     VERSION "${GFLAGS_VERSION}"
     URL "${GFLAGS_URL}"

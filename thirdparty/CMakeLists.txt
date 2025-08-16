@@ -142,6 +142,8 @@ target_link_libraries(halo_thirdparty
     RapidJSON::rapidjson
     re2::re2
     utf8proc::halo_utf8proc
+    GEOS::geos
+    GEOS::geos_c
 )
 
 add_library(halo_thirdparty_test INTERFACE)

@@ -16,22 +16,14 @@ thirdparty_build_autotools_library("flex"
 set(FLEX_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/flex")
 get_filename_component(FLEX_INSTALL_DIR "${FLEX_INSTALL_DIR}" ABSOLUTE)
 
-set(FLEX_EXECUTABLE "${FLEX_INSTALL_DIR}/bin/flex" CACHE FILEPATH "Path to flex executable" FORCE)
-
-if(EXISTS "${FLEX_EXECUTABLE}")
-    if(NOT TARGET flex::flex)
-        add_executable(flex::flex IMPORTED GLOBAL)
-        set_target_properties(flex::flex PROPERTIES
-            IMPORTED_LOCATION "${FLEX_EXECUTABLE}"
-        )
-    endif()
-    
-    get_filename_component(FLEX_BIN_DIR "${FLEX_EXECUTABLE}" DIRECTORY)
+set(FLEX_EXECUTABLE_PATH "${FLEX_INSTALL_DIR}/bin/flex" CACHE INTERNAL "Path to project flex executable")
+if(EXISTS "${FLEX_EXECUTABLE_PATH}")
+    get_filename_component(FLEX_BIN_DIR "${FLEX_EXECUTABLE_PATH}" DIRECTORY)
     list(APPEND CMAKE_PROGRAM_PATH "${FLEX_BIN_DIR}")
     set(CMAKE_PROGRAM_PATH "${CMAKE_PROGRAM_PATH}" PARENT_SCOPE)
-    set(FLEX_EXECUTABLE_PATH "${FLEX_EXECUTABLE}" CACHE INTERNAL "Path to project flex executable")
     
-    message(STATUS "flex found and exported globally: ${FLEX_INSTALL_DIR}")
+    # Register executable path for main project and tests
+    thirdparty_register_executable_path("flex" "${FLEX_EXECUTABLE_PATH}")
 else()
     message(FATAL_ERROR "flex installation not found at ${FLEX_INSTALL_DIR}")
 endif()

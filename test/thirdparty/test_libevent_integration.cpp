@@ -5,7 +5,7 @@
 #include <event2/listener.h>
 #include <event2/thread.h>
 #include <event2/util.h>
-// 添加 OpenSSL 相关头文件
+// Add OpenSSL related headers
 #include <event2/bufferevent_ssl.h>
 #include <gtest/gtest.h>
 #include <netinet/in.h>

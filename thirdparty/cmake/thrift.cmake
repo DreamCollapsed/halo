@@ -120,4 +120,17 @@ thirdparty_cmake_install("${THRIFT_BUILD_DIR}" "${THRIFT_INSTALL_DIR}"
 )
 
 find_package(thrift CONFIG REQUIRED)
+
+set(THRIFT_EXECUTABLE_PATH "${THRIFT_INSTALL_DIR}/bin/thrift" CACHE INTERNAL "Path to project thrift executable")
+if(EXISTS "${THRIFT_EXECUTABLE_PATH}")
+    get_filename_component(THRIFT_BIN_DIR "${THRIFT_EXECUTABLE_PATH}" DIRECTORY)
+    list(APPEND CMAKE_PROGRAM_PATH "${THRIFT_BIN_DIR}")
+    set(CMAKE_PROGRAM_PATH "${CMAKE_PROGRAM_PATH}" PARENT_SCOPE)
+    
+    # Register executable path for main project and tests
+    thirdparty_register_executable_path("thrift" "${THRIFT_EXECUTABLE_PATH}")
+else()
+    message(FATAL_ERROR "thrift installation not found at ${THRIFT_INSTALL_DIR}")
+endif()
+
 message(STATUS "Finished building ${THRIFT_NAME}. Installed at: ${THRIFT_INSTALL_DIR}")

@@ -39,4 +39,17 @@ thirdparty_build_cmake_library("grpc"
 )
 
 find_package(gRPC CONFIG REQUIRED)
+
+set(GRPC_CPP_PLUGIN_EXECUTABLE_PATH "${THIRDPARTY_INSTALL_DIR}/grpc/bin/grpc_cpp_plugin" CACHE INTERNAL "Path to project grpc_cpp_plugin executable")
+if(EXISTS "${GRPC_CPP_PLUGIN_EXECUTABLE_PATH}")
+    get_filename_component(GRPC_BIN_DIR "${GRPC_CPP_PLUGIN_EXECUTABLE_PATH}" DIRECTORY)
+    list(APPEND CMAKE_PROGRAM_PATH "${GRPC_BIN_DIR}")
+    set(CMAKE_PROGRAM_PATH "${CMAKE_PROGRAM_PATH}" PARENT_SCOPE)
+    
+    # Register executable path for main project and tests
+    thirdparty_register_executable_path("grpc_cpp_plugin" "${GRPC_CPP_PLUGIN_EXECUTABLE_PATH}")
+else()
+    message(FATAL_ERROR "gRPC tools installation not found at ${THIRDPARTY_INSTALL_DIR}/grpc")
+endif()
+
 message(STATUS "gRPC found and exported globally (config=${gRPC_FOUND})")

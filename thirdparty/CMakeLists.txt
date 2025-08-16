@@ -6,6 +6,9 @@ set(THIRDPARTY_SRC_DIR ${THIRDPARTY_BASE_DIR}/src)
 set(THIRDPARTY_BUILD_DIR ${THIRDPARTY_BASE_DIR}/builds)
 set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_BASE_DIR}/installed)
 
+# Global variable to collect all third-party executable paths
+set(THIRDPARTY_EXECUTABLE_PATHS "" CACHE INTERNAL "Collected third-party executable paths")
+
 include(ComponentsInfo.cmake)
 include(ThirdpartyUtils.cmake)
 include(ThirdpartyDependencies.cmake)
@@ -149,6 +152,12 @@ target_link_libraries(halo_thirdparty_test
     GTest::gtest_main
     GTest::gmock
     GTest::gmock_main
+)
+
+thirdparty_get_executable_definitions(_executable_definitions)
+target_compile_definitions(halo_thirdparty 
+    INTERFACE 
+    ${_executable_definitions}
 )
 
 set_target_properties(halo_thirdparty PROPERTIES EXPORT_NAME thirdparty)

@@ -31,10 +31,6 @@ add_module_test(thirdparty_bison
         integration
     TIMEOUT 30
 )
-if(DEFINED BISON_EXECUTABLE_PATH)
-    target_compile_definitions(test_thirdparty_bison PRIVATE 
-        BISON_EXECUTABLE_PATH="${BISON_EXECUTABLE_PATH}")
-endif()
 
 # Flex integration test
 add_module_test(thirdparty_flex
@@ -47,10 +43,6 @@ add_module_test(thirdparty_flex
         integration
     TIMEOUT 30
 )
-if(DEFINED FLEX_EXECUTABLE_PATH)
-    target_compile_definitions(test_thirdparty_flex PRIVATE 
-        FLEX_EXECUTABLE_PATH="${FLEX_EXECUTABLE_PATH}")
-endif()
 
 # GTest/GMock integration test
 add_module_test(thirdparty_gtest

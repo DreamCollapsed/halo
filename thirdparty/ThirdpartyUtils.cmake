@@ -1072,6 +1072,34 @@ function(thirdparty_build_autotools_library library_name)
     message(STATUS "Finished building ${library_name}. Installed at: ${_install_dir}")
 endfunction()
 
+# Function to register a third-party executable path
+function(thirdparty_register_executable_path name path)
+    if(NOT EXISTS "${path}")
+        message(FATAL_ERROR "[thirdparty] Executable not found: ${path}")
+        return()
+    endif()
+    
+    # Add to global collection
+    set(_current_paths ${THIRDPARTY_EXECUTABLE_PATHS})
+    list(APPEND _current_paths "${name}=${path}")
+    set(THIRDPARTY_EXECUTABLE_PATHS "${_current_paths}" CACHE INTERNAL "Collected third-party executable paths")
+    
+    message(STATUS "[thirdparty] Registered executable: ${name} -> ${path}")
+endfunction()
+
+# Function to generate compile definitions from collected executable paths
+function(thirdparty_get_executable_definitions output_var)
+    set(_definitions)
+    foreach(_entry IN LISTS THIRDPARTY_EXECUTABLE_PATHS)
+        string(REPLACE "=" ";" _parts "${_entry}")
+        list(GET _parts 0 _name)
+        list(GET _parts 1 _path)
+        string(TOUPPER "${_name}" _upper_name)
+        list(APPEND _definitions "${_upper_name}_EXECUTABLE_PATH=\"${_path}\"")
+    endforeach()
+    set(${output_var} "${_definitions}" PARENT_SCOPE)
+endfunction()
+
 # --- Ninja Build System Optimization for Third-party Libraries ---
 # This function provides additional optimizations when Ninja is used as the generator
 function(thirdparty_configure_ninja_optimization cmake_args_var)

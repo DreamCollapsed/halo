@@ -9,6 +9,9 @@
 #include <google/protobuf/util/message_differencer.h>
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <string>
 
@@ -16,11 +19,21 @@ class ProtobufIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Setup code if needed
+    test_dir = std::filesystem::temp_directory_path() / "protobuf_test";
+    std::filesystem::create_directories(test_dir);
+
+#ifdef PROTOC_EXECUTABLE_PATH
+    protoc_path = PROTOC_EXECUTABLE_PATH;
+#endif
   }
 
   void TearDown() override {
     // Cleanup code if needed
+    std::filesystem::remove_all(test_dir);
   }
+
+  std::filesystem::path test_dir;
+  std::string protoc_path;
 };
 
 // Test basic protobuf library initialization
@@ -239,4 +252,125 @@ TEST_F(ProtobufIntegrationTest, ReflectionCapabilities) {
   EXPECT_TRUE(reflection->HasField(file_desc, name_field));
   reflection->ClearField(&file_desc, name_field);
   EXPECT_FALSE(reflection->HasField(file_desc, name_field));
+}
+
+// Test protoc executable availability and version
+TEST_F(ProtobufIntegrationTest, ProtocVersionTest) {
+  ASSERT_FALSE(protoc_path.empty())
+      << "protoc executable path must be configured";
+
+  ASSERT_TRUE(std::filesystem::exists(protoc_path))
+      << "protoc executable must exist at: " << protoc_path;
+
+  // Test that protoc executable is available
+  std::string version_command = protoc_path + " --version > /dev/null 2>&1";
+  int result = std::system(version_command.c_str());
+  EXPECT_EQ(result, 0) << "protoc executable should be available";
+
+  // Test that we can get version information
+  std::string popen_command = protoc_path + " --version 2>/dev/null";
+  FILE* pipe = popen(popen_command.c_str(), "r");
+  ASSERT_NE(pipe, nullptr);
+
+  char buffer[256];
+  std::string version_output;
+  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+    version_output += buffer;
+  }
+  pclose(pipe);
+
+  // Check that version contains protobuf information
+  EXPECT_TRUE(version_output.find("libprotoc") != std::string::npos)
+      << "Version output: " << version_output;
+}
+
+// Test protoc help output
+TEST_F(ProtobufIntegrationTest, ProtocHelpTest) {
+  ASSERT_FALSE(protoc_path.empty())
+      << "protoc executable path must be configured";
+
+  ASSERT_TRUE(std::filesystem::exists(protoc_path))
+      << "protoc executable must exist at: " << protoc_path;
+
+  // Test that protoc shows help when called with --help
+  std::string help_command = protoc_path + " --help > /dev/null 2>&1";
+  int result = std::system(help_command.c_str());
+  EXPECT_EQ(result, 0) << "protoc --help should work";
+
+  // Capture help output
+  std::string popen_help_command = protoc_path + " --help 2>/dev/null";
+  FILE* pipe = popen(popen_help_command.c_str(), "r");
+  ASSERT_NE(pipe, nullptr);
+
+  char buffer[1024];
+  std::string help_output;
+  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+    help_output += buffer;
+  }
+  pclose(pipe);
+
+  // Check that help output contains expected content
+  EXPECT_TRUE(help_output.find("Usage:") != std::string::npos ||
+              help_output.find("usage:") != std::string::npos)
+      << "Help should contain usage information";
+
+  EXPECT_TRUE(help_output.find("cpp_out") != std::string::npos)
+      << "Help should mention C++ output option";
+}
+
+// Test basic proto file compilation
+TEST_F(ProtobufIntegrationTest, BasicProtoCompilationTest) {
+  ASSERT_FALSE(protoc_path.empty())
+      << "protoc executable path must be configured";
+
+  ASSERT_TRUE(std::filesystem::exists(protoc_path))
+      << "protoc executable must exist at: " << protoc_path;
+
+  // Create a simple .proto file
+  std::filesystem::path proto_file = test_dir / "test.proto";
+  std::ofstream file(proto_file);
+  file << R"(
+syntax = "proto3";
+
+package test;
+
+message TestMessage {
+  string name = 1;
+  int32 id = 2;
+  repeated string tags = 3;
+}
+
+service TestService {
+  rpc GetTest(TestMessage) returns (TestMessage);
+}
+)";
+  file.close();
+
+  ASSERT_TRUE(std::filesystem::exists(proto_file))
+      << "Test proto file should exist";
+
+  // Test that protoc can compile the proto without errors
+  std::string command = protoc_path + " --cpp_out=" + test_dir.string() +
+                        " --proto_path=" + test_dir.string() + " " +
+                        proto_file.filename().string() + " 2>&1";
+
+  FILE* pipe = popen(command.c_str(), "r");
+  ASSERT_NE(pipe, nullptr);
+
+  char buffer[256];
+  std::string output;
+  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
+    output += buffer;
+  }
+  int result = pclose(pipe);
+
+  // Check that protoc completed successfully
+  EXPECT_EQ(result, 0) << "protoc should compile proto successfully. Output: "
+                       << output;
+
+  // Check that output files were generated
+  EXPECT_TRUE(std::filesystem::exists(test_dir / "test.pb.h"))
+      << "protoc should generate header file";
+  EXPECT_TRUE(std::filesystem::exists(test_dir / "test.pb.cc"))
+      << "protoc should generate source file";
 }

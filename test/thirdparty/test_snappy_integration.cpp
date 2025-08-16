@@ -1,9 +1,8 @@
 #include <gtest/gtest.h>
 #include <snappy.h>
 
-#include <algorithm>
 #include <cstring>
-#include <random>
+#include <numeric>
 #include <string>
 #include <vector>
 

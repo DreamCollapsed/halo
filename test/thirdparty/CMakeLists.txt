@@ -469,3 +469,15 @@ add_module_test(thirdparty_geos
         integration
     TIMEOUT 30
 )
+
+# simdjson integration test
+add_module_test(thirdparty_simdjson
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_simdjson_integration.cpp"
+    LABELS
+        simdjson
+        json
+        parser
+        thirdparty
+        integration
+    TIMEOUT 30
+)

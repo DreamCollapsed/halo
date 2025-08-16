@@ -1,7 +1,6 @@
 #include <geos_c.h>
 #include <gtest/gtest.h>
 
-#include <memory>
 #include <string>
 
 // Simple RAII wrapper for GEOS context

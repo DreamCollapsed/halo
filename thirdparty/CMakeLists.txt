@@ -144,6 +144,7 @@ target_link_libraries(halo_thirdparty
     utf8proc::halo_utf8proc
     GEOS::geos
     GEOS::geos_c
+    simdjson::simdjson
 )
 
 add_library(halo_thirdparty_test INTERFACE)

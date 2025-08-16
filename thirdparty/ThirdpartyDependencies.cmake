@@ -380,3 +380,10 @@ thirdparty_register_component(grpc
     SHA256 "${GRPC_SHA256}"
     DEPENDS_ON abseil protobuf re2 zlib openssl cares
 )
+
+# simdjson (high-performance JSON parser) - header + static lib, no deps
+thirdparty_register_component(simdjson
+    VERSION "${SIMDJSON_VERSION}"
+    URL "${SIMDJSON_URL}"
+    SHA256 "${SIMDJSON_SHA256}"
+)

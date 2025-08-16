@@ -8,9 +8,7 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
-#include <memory>
 #include <string>
-#include <vector>
 
 TEST(RapidJSONIntegration, ParseAndStringify) {
   const char* json = R"({"a":1,"b":[true,false,null],"s":"hi"})";

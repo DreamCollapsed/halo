@@ -1,10 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <array>
-#include <complex>
-#include <numeric>
-#include <string>
 #include <vector>
 #include <xtl/xcomplex.hpp>
 #include <xtl/xdynamic_bitset.hpp>

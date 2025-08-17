@@ -645,6 +645,8 @@ function(thirdparty_get_optimization_flags output_var)
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DBUILD_SHARED_LIBS:BOOL=OFF
+        -DCMAKE_CXX_STANDARD=20
+        -DCMAKE_CXX_STANDARD_REQUIRED=ON
         -DBUILD_TESTING=OFF
         -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
         -DCMAKE_WARN_DEPRECATED=OFF
@@ -864,7 +866,7 @@ function(thirdparty_build_cmake_library library_name)
     # Parse arguments
     set(options)
     set(oneValueArgs EXTRACT_PATTERN SOURCE_SUBDIR)
-    set(multiValueArgs VALIDATION_FILES CMAKE_ARGS)
+    set(multiValueArgs VALIDATION_FILES CMAKE_ARGS FILE_REPLACEMENTS)
     cmake_parse_arguments(PARSE_ARGV 1 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
 
     # Uppercase the library name to get variable prefixes (e.g., gflags -> GFLAGS)
@@ -902,6 +904,52 @@ function(thirdparty_build_cmake_library library_name)
 
     # Acquire source (git or archive)
     thirdparty_acquire_source("${library_name}" _source_dir)
+
+    if(ARG_FILE_REPLACEMENTS)
+        list(LENGTH ARG_FILE_REPLACEMENTS _replacement_count)
+        math(EXPR _group_count "${_replacement_count} / 3")
+        
+        if(NOT _replacement_count EQUAL 0)
+            math(EXPR _remainder "${_replacement_count} % 3")
+            if(NOT _remainder EQUAL 0)
+                message(FATAL_ERROR "[thirdparty] FILE_REPLACEMENTS must contain groups of 3 elements: file_path, old_string, new_string")
+            endif()
+            
+            set(_index 0)
+            while(_index LESS _replacement_count)
+                list(GET ARG_FILE_REPLACEMENTS ${_index} _relative_file_path)
+                math(EXPR _old_index "${_index} + 1")
+                math(EXPR _new_index "${_index} + 2")
+                list(GET ARG_FILE_REPLACEMENTS ${_old_index} _old_string)
+                list(GET ARG_FILE_REPLACEMENTS ${_new_index} _new_string)
+                
+                set(_target_file "${_source_dir}/${_relative_file_path}")
+                
+                if(NOT EXISTS "${_target_file}")
+                    message(FATAL_ERROR "[thirdparty] File not found for replacement: ${_target_file}")
+                endif()
+                
+                message(STATUS "[thirdparty] Applying content replacement in: ${_relative_file_path}")
+                
+                # Read file content
+                file(READ "${_target_file}" _file_content)
+                
+                # Perform replacement
+                string(REPLACE "${_old_string}" "${_new_string}" _modified_content "${_file_content}")
+                
+                # Check if replacement actually happened
+                if(_modified_content STREQUAL _file_content)
+                    message(WARNING "[thirdparty] No replacement made in ${_relative_file_path} - old string not found")
+                else()
+                    # Write modified content back
+                    file(WRITE "${_target_file}" "${_modified_content}")
+                    message(STATUS "[thirdparty] Successfully replaced content in: ${_relative_file_path}")
+                endif()
+                
+                math(EXPR _index "${_index} + 3")
+            endwhile()
+        endif()
+    endif()
 
     thirdparty_get_optimization_flags(_common_cmake_args COMPONENT "${library_name}")
 

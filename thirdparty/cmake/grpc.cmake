@@ -5,7 +5,6 @@
 thirdparty_build_cmake_library("grpc"
     EXTRACT_PATTERN "${THIRDPARTY_SRC_DIR}/grpc-*"
     CMAKE_ARGS
-        -DCMAKE_CXX_STANDARD=20
         -DgRPC_BUILD_TESTS=OFF
         -DgRPC_BUILD_BENCHMARKS=OFF
         -DgRPC_BUILD_CODEGEN=ON

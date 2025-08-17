@@ -7,8 +7,6 @@ thirdparty_get_optimization_flags(_opt_flags COMPONENT fizz)
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${FIZZ_INSTALL_DIR}
 
-    -DCMAKE_CXX_STANDARD=20
-    -DCMAKE_CXX_STANDARD_REQUIRED=ON
     -DCMAKE_POLICY_DEFAULT_CMP0167=OLD
 
     -DCMAKE_MODULE_PATH=${FIZZ_SOURCE_DIR}/build/fbcode_builder/CMake

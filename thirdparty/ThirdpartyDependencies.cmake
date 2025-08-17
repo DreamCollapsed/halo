@@ -387,3 +387,11 @@ thirdparty_register_component(simdjson
     URL "${SIMDJSON_URL}"
     SHA256 "${SIMDJSON_SHA256}"
 )
+
+# fbthrift (modern Facebook Thrift implementation) depends on folly (and transitively others handled there)
+thirdparty_register_component(fbthrift
+    VERSION "${FBTHRIFT_VERSION}"
+    URL "${FBTHRIFT_URL}"
+    SHA256 "${FBTHRIFT_SHA256}"
+    DEPENDS_ON jemalloc boost folly openssl fmt gflags glog gtest fizz wangle zstd
+)

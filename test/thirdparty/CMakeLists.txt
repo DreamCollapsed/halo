@@ -321,19 +321,6 @@ add_module_test(thirdparty_protobuf
     TIMEOUT 30
 )
 
-# thrift integration test
-add_module_test(thirdparty_thrift
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_thrift_integration.cpp"
-    LABELS
-        thrift
-        serialization
-        rpc
-        data-formats
-        thirdparty
-        integration
-    TIMEOUT 30
-)
-
 # wangle integration test
 add_module_test(thirdparty_wangle
     "${CMAKE_CURRENT_SOURCE_DIR}/test_wangle_integration.cpp"
@@ -477,6 +464,31 @@ add_module_test(thirdparty_simdjson
         simdjson
         json
         parser
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
+# fbthrift integration test
+add_module_test(thirdparty_fbthrift
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_fbthrift_integration.cpp"
+    LABELS
+        fbthrift
+        thriftcpp2
+        rpc
+        thirdparty
+        integration
+    TIMEOUT 30
+)
+
+# thrift integration test
+add_module_test(thirdparty_thrift
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_thrift_integration.cpp"
+    LABELS
+        thrift
+        serialization
+        rpc
+        data-formats
         thirdparty
         integration
     TIMEOUT 30

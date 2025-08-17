@@ -145,6 +145,7 @@ target_link_libraries(halo_thirdparty
     GEOS::geos
     GEOS::geos_c
     simdjson::simdjson
+    FBThrift::thriftcpp2
 )
 
 add_library(halo_thirdparty_test INTERFACE)

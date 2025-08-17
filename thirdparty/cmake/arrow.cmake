@@ -8,7 +8,6 @@ list(APPEND _opt_flags
 
     -DARROW_BUILD_SHARED=OFF
     -DARROW_BUILD_STATIC=ON
-    -DCMAKE_CXX_STANDARD=20
     -DARROW_CXX_FLAGS_RELEASE=-O3
 
     # Use system dependencies we already build

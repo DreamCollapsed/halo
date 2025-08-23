@@ -35,9 +35,9 @@ set(FAST_FLOAT_VERSION "8.0.2")
 set(FAST_FLOAT_URL "https://github.com/fastfloat/fast_float/archive/refs/tags/v${FAST_FLOAT_VERSION}.tar.gz")
 set(FAST_FLOAT_SHA256 "e14a33089712b681d74d94e2a11362643bd7d769ae8f7e7caefe955f57f7eacd")
 
-set(FBTHRIFT_VERSION "2025.07.21.00")
+set(FBTHRIFT_VERSION "2025.08.18.00")
 set(FBTHRIFT_URL "https://github.com/facebook/fbthrift/archive/refs/tags/v${FBTHRIFT_VERSION}.zip")
-set(FBTHRIFT_SHA256 "35664f7feb9597eb9b369dc5337f3513a791404f2e72f2ee7236b968f2e87c7f")
+set(FBTHRIFT_SHA256 "519594ecc959f139b4ddc5dfdcad88ac5fad5eaa5ea58cbc84a20b98bf77dd99")
 
 set(FIZZ_VERSION "2025.08.04.00")
 set(FIZZ_URL "https://github.com/facebookincubator/fizz/releases/download/v${FIZZ_VERSION}/fizz-v${FIZZ_VERSION}.tar.gz")

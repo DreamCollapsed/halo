@@ -536,7 +536,8 @@ endfunction()
 function(thirdparty_cmake_install builddir installdir)
     # Add optional parameters: check file list (to verify if component is already installed)
     # Parameter format: VALIDATION_FILES file1 [file2 ...] or VALIDATION_PATTERN pattern
-    set(options "")
+    # NO_REGISTER_PREFIX_PATH: skip registering to CMAKE_PREFIX_PATH (useful for compiler-only installs)
+    set(options NO_REGISTER_PREFIX_PATH)
     set(oneValueArgs VALIDATION_PATTERN)
     set(multiValueArgs VALIDATION_FILES)
     cmake_parse_arguments(PARSE_ARGV 2 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
@@ -621,10 +622,14 @@ function(thirdparty_cmake_install builddir installdir)
         endif() # Close the builddir exists check
     endif() # Close the _need_install check
 
-    # Always register to CMAKE_PREFIX_PATH for consistency
+    # Register to CMAKE_PREFIX_PATH unless explicitly disabled
     # - If we needed to install: register the newly installed component
     # - If we skipped install: register the existing component (ensures consistency)
-    thirdparty_register_to_cmake_prefix_path("${installdir}")
+    # - NO_REGISTER_PREFIX_PATH: skip registration (useful for compiler-only installs like thrift)
+    if(NOT ARG_NO_REGISTER_PREFIX_PATH)
+        thirdparty_register_to_cmake_prefix_path("${installdir}")
+        message(STATUS "[thirdparty_cmake_install] Registered ${installdir} to CMAKE_PREFIX_PATH")
+    endif()
 
     set(${CMAKE_CURRENT_FUNCTION_RESULT} ${_build_result} PARENT_SCOPE)
 endfunction()
@@ -703,6 +708,8 @@ function(thirdparty_get_optimization_flags output_var)
     list(APPEND _opt_flags
         # Force minimum policy version to avoid compatibility errors
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+        # CMP0000: Require cmake_minimum_required command - set to OLD to suppress warning
+        -DCMAKE_POLICY_DEFAULT_CMP0000=OLD
         # CMP0042: macOS @rpath in target's install name
         -DCMAKE_POLICY_DEFAULT_CMP0042=NEW
         # CMP0063: Honor visibility properties for all target types

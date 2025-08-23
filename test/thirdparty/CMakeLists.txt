@@ -349,6 +349,7 @@ add_module_test(thirdparty_mvfst
 # Arrow integration test
 add_module_test(thirdparty_arrow
     "${CMAKE_CURRENT_SOURCE_DIR}/test_arrow_integration.cpp"
+    CUSTOM_TARGETS halo_thirdparty_with_thrift
     LABELS
         arrow
         columnar
@@ -360,6 +361,7 @@ add_module_test(thirdparty_arrow
 # Arrow extended components test (json, compute, dataset, acero, flight ...)
 add_module_test(thirdparty_arrow_extended
     "${CMAKE_CURRENT_SOURCE_DIR}/test_arrow_extended.cpp"
+    CUSTOM_TARGETS halo_thirdparty_with_thrift
     LABELS
         arrow
         extended
@@ -472,6 +474,7 @@ add_module_test(thirdparty_simdjson
 # fbthrift integration test
 add_module_test(thirdparty_fbthrift
     "${CMAKE_CURRENT_SOURCE_DIR}/test_fbthrift_integration.cpp"
+    CUSTOM_TARGETS halo_thirdparty_with_fbthrift
     LABELS
         fbthrift
         thriftcpp2
@@ -484,6 +487,7 @@ add_module_test(thirdparty_fbthrift
 # thrift integration test
 add_module_test(thirdparty_thrift
     "${CMAKE_CURRENT_SOURCE_DIR}/test_thrift_integration.cpp"
+    CUSTOM_TARGETS halo_thirdparty_with_thrift
     LABELS
         thrift
         serialization

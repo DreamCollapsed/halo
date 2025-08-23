@@ -328,13 +328,6 @@ thirdparty_register_component(mvfst
     DEPENDS_ON folly fizz wangle openssl gflags glog double-conversion libevent boost fmt jemalloc zlib xz bzip2 libsodium zstd lz4 snappy
 )
 
-# Register Apache Arrow C++ component
-thirdparty_register_component(arrow
-    VERSION "${ARROW_VERSION}"
-    URL "${ARROW_URL}"
-    SHA256 "${ARROW_SHA256}"
-    DEPENDS_ON zlib zstd lz4 snappy bzip2 xz xsimd rapidjson boost thrift re2 utf8proc grpc
-)
 
 # xtl (header-only)
 thirdparty_register_component(xtl
@@ -358,7 +351,7 @@ thirdparty_register_component(rapidjson
     SHA256 "${RAPIDJSON_SHA256}"
 )
 
-# re2 (regular expression engine, no external deps required)
+# Register re2 component
 thirdparty_register_component(re2
     VERSION "${RE2_VERSION}"
     URL "${RE2_URL}"
@@ -366,7 +359,7 @@ thirdparty_register_component(re2
     DEPENDS_ON abseil
 )
 
-# utf8proc (Unicode processing library, no external deps)
+# Register utf8proc component
 thirdparty_register_component(utf8proc
     VERSION "${UTF8PROC_VERSION}"
     URL "${UTF8PROC_URL}"
@@ -386,6 +379,14 @@ thirdparty_register_component(simdjson
     VERSION "${SIMDJSON_VERSION}"
     URL "${SIMDJSON_URL}"
     SHA256 "${SIMDJSON_SHA256}"
+)
+
+# Register Arrow component
+thirdparty_register_component(arrow
+    VERSION "${ARROW_VERSION}"
+    URL "${ARROW_URL}"
+    SHA256 "${ARROW_SHA256}"
+    DEPENDS_ON zlib zstd lz4 snappy bzip2 xz xsimd rapidjson boost thrift re2 utf8proc grpc
 )
 
 # fbthrift (modern Facebook Thrift implementation) depends on folly (and transitively others handled there)

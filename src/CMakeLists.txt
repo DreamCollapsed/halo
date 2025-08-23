@@ -9,7 +9,7 @@ add_executable(halo main.cpp)
 # Link centralized third-party target (replaces individual find_package calls)
 target_link_libraries(halo
     PRIVATE
-    halo::thirdparty
+    halo_thirdparty_core
 )
 
 # Platform-specific libraries

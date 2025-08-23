@@ -18,7 +18,6 @@ thirdparty_build_cmake_library("fbthrift"
         # Jemalloc
         -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
     FILE_REPLACEMENTS
-        # Fix deprecated folly API usage
         thrift/lib/cpp2/async/ClientSinkBridge.cpp
         "folly::cancellation_token_merge("
         "folly::CancellationToken::merge("

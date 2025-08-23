@@ -6,7 +6,6 @@ set(THIRDPARTY_SRC_DIR ${THIRDPARTY_BASE_DIR}/src)
 set(THIRDPARTY_BUILD_DIR ${THIRDPARTY_BASE_DIR}/builds)
 set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_BASE_DIR}/installed)
 
-# Global variable to collect all third-party executable paths
 set(THIRDPARTY_EXECUTABLE_PATHS "" CACHE INTERNAL "Collected third-party executable paths")
 
 include(ComponentsInfo.cmake)
@@ -28,22 +27,8 @@ message(STATUS "Building components in order: ${_build_order}")
 set(_build_start_time "${CMAKE_CURRENT_LIST_FILE}")
 foreach(_component IN LISTS _build_order)
     message(STATUS "Processing component: ${_component}")
-    
-    # Record start time for this component
-    string(TIMESTAMP _component_start_time "%s")
-    
     include(cmake/${_component}.cmake)
-    
-    # Record end time and calculate build time
-    string(TIMESTAMP _component_end_time "%s")
-    math(EXPR _component_duration "${_component_end_time} - ${_component_start_time}")
-    message(STATUS "Component ${_component} processed in ${_component_duration} seconds")
 endforeach()
-
-# Display build summary
-message(STATUS "=== Third-party Build Summary ===")
-thirdparty_get_build_jobs(OUTPUT_COMPILE_JOBS _compile_jobs OUTPUT_LINK_JOBS _link_jobs OUTPUT_MAKE_JOBS _make_jobs)
-message(STATUS "Build job configuration: compile=${_compile_jobs}, link=${_link_jobs}, make=${_make_jobs}")
 
 thirdparty_get_ccache_executable(_ccache_path)
 if(_ccache_path)
@@ -59,9 +44,8 @@ else()
     message(STATUS "Build generator: ${CMAKE_GENERATOR}")
 endif()
 
-add_library(halo_thirdparty INTERFACE)
-add_library(halo::thirdparty ALIAS halo_thirdparty)
-target_link_libraries(halo_thirdparty
+add_library(halo_thirdparty_core INTERFACE)
+target_link_libraries(halo_thirdparty_core
     INTERFACE
     absl::strings
     absl::str_format
@@ -118,12 +102,29 @@ target_link_libraries(halo_thirdparty
     libsodium::libsodium
     libstemmer::libstemmer
     protobuf::libprotobuf
-    thrift::thrift
-    thriftz::thriftz
     xxhash::xxhash
     fizz::fizz
     wangle::wangle
     mvfst::mvfst_transport
+    gRPC::grpc
+    gRPC::grpc++
+    c-ares::cares
+    faiss
+    xsimd
+    xtl
+    RapidJSON
+    re2::re2
+    utf8proc::halo_utf8proc
+    GEOS::geos
+    GEOS::geos_c
+    simdjson::simdjson
+)
+
+add_library(halo_thirdparty_with_thrift INTERFACE)
+target_link_libraries(halo_thirdparty_with_thrift
+    INTERFACE
+    thrift::thrift
+    thriftz::thriftz
     Arrow::arrow
     ArrowAcero::arrow_acero
     ArrowCompute::arrow_compute
@@ -133,23 +134,15 @@ target_link_libraries(halo_thirdparty
     ArrowSubstrait::arrow_substrait
     Gandiva::gandiva
     Parquet::parquet
-    gRPC::grpc
-    gRPC::grpc++
-    c-ares::cares
-    faiss
-    xsimd
-    xtl
-    RapidJSON::rapidjson
-    re2::re2
-    utf8proc::halo_utf8proc
-    GEOS::geos
-    GEOS::geos_c
-    simdjson::simdjson
+)
+
+add_library(halo_thirdparty_with_fbthrift INTERFACE)
+target_link_libraries(halo_thirdparty_with_fbthrift
+    INTERFACE
     FBThrift::thriftcpp2
 )
 
 add_library(halo_thirdparty_test INTERFACE)
-add_library(halo::thirdparty_test ALIAS halo_thirdparty_test)
 target_link_libraries(halo_thirdparty_test
     INTERFACE
     GTest::gtest
@@ -159,10 +152,19 @@ target_link_libraries(halo_thirdparty_test
 )
 
 thirdparty_get_executable_definitions(_executable_definitions)
-target_compile_definitions(halo_thirdparty 
+target_compile_definitions(halo_thirdparty_core 
     INTERFACE 
     ${_executable_definitions}
 )
-
-set_target_properties(halo_thirdparty PROPERTIES EXPORT_NAME thirdparty)
-set_target_properties(halo_thirdparty_test PROPERTIES EXPORT_NAME thirdparty_test)
+target_compile_definitions(halo_thirdparty_with_thrift 
+    INTERFACE 
+    ${_executable_definitions}
+)
+target_compile_definitions(halo_thirdparty_with_fbthrift 
+    INTERFACE 
+    ${_executable_definitions}
+)
+target_compile_definitions(halo_thirdparty_test 
+    INTERFACE 
+    ${_executable_definitions}
+)

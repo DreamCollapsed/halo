@@ -17,10 +17,6 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
-#include <functional>
-#include <memory>
-#include <string>
-#include <thread>
 #include <vector>
 
 // Test fixture for libevent integration tests

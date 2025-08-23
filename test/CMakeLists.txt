@@ -9,7 +9,7 @@ file(MAKE_DIRECTORY "${TEST_OUTPUT_DIR}")
 
 # Generic test function: creates test executable files
 function(add_module_test module_name test_sources)
-    set(options PERFORMANCE USE_CUSTOM_TARGETS_ONLY)
+    set(options PERFORMANCE)
     set(oneValueArgs TIMEOUT WORKING_DIRECTORY)
     set(multiValueArgs LIBRARIES LABELS DEPENDENCIES LINK_LIBRARIES HEADER_INCLUDES CUSTOM_TARGETS)
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -25,36 +25,15 @@ function(add_module_test module_name test_sources)
         OUTPUT_NAME "${test_target}"
     )
     
-    # Link libraries based on configuration
-    if(ARG_USE_CUSTOM_TARGETS_ONLY)
-        # Use only custom targets specified by the caller
-        if(ARG_CUSTOM_TARGETS)
-            target_link_libraries(${test_target}
-                PRIVATE
-                ${ARG_CUSTOM_TARGETS}
-                ${ARG_LIBRARIES}
-                ${ARG_LINK_LIBRARIES}
-            )
-        else()
-            message(WARNING "USE_CUSTOM_TARGETS_ONLY specified but no CUSTOM_TARGETS provided for ${test_target}")
-            # Fallback to minimal linking
-            target_link_libraries(${test_target}
-                PRIVATE
-                ${ARG_LIBRARIES}
-                ${ARG_LINK_LIBRARIES}
-            )
-        endif()
-    else()
-        # Default behavior: link centralized third-party targets plus any custom targets
-        target_link_libraries(${test_target}
-            PRIVATE
-            halo::thirdparty
-            halo::thirdparty_test
-            ${ARG_CUSTOM_TARGETS}
-            ${ARG_LIBRARIES}
-            ${ARG_LINK_LIBRARIES}
-        )
-    endif()
+    # Link libraries
+    target_link_libraries(${test_target}
+        PRIVATE
+        halo_thirdparty_core
+        halo_thirdparty_test
+        ${ARG_CUSTOM_TARGETS}
+        ${ARG_LIBRARIES}
+        ${ARG_LINK_LIBRARIES}
+    )
     # Apply additional include directories if provided (e.g., Folly headers)
     if(ARG_HEADER_INCLUDES)
         target_include_directories(${test_target} PRIVATE ${ARG_HEADER_INCLUDES})

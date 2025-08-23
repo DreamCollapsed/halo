@@ -6,41 +6,6 @@ thirdparty_setup_directories("thrift")
 thirdparty_download_and_check("${THRIFT_URL}" "${THRIFT_DOWNLOAD_FILE}" "${THRIFT_SHA256}")
 thirdparty_extract_and_rename("${THRIFT_DOWNLOAD_FILE}" "${THRIFT_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/${THRIFT_NAME}-*")
 
-# ---- Begin: Halo custom patch section (symbol conflict avoidance) ----
-# We optionally rename Apache Thrift's protocol base64 helper functions
-#   base64_encode / base64_decode
-# to unique internal names to avoid duplicate symbol conflicts with FBThrift
-# which ships its own TBase64Utils.cpp in libthriftprotocol.a.
-#
-# This keeps the original implementation semantics while ensuring both
-# libraries can be linked statically without ld duplicate symbol errors.
-#
-# The patch is textual (string replacement) and intentionally minimal so it
-# can be re-applied across upstream version bumps with low merge friction.
-option(HALO_THRIFT_PATCH_BASE64 "Rename Apache Thrift base64 helpers to unique internal names to avoid FBThrift duplicate symbols" ON)
-
-if(HALO_THRIFT_PATCH_BASE64)
-    set(_THRIFT_BASE64_HEADER "${THRIFT_SOURCE_DIR}/lib/cpp/src/thrift/protocol/TBase64Utils.h")
-    set(_THRIFT_BASE64_SOURCE "${THRIFT_SOURCE_DIR}/lib/cpp/src/thrift/protocol/TBase64Utils.cpp")
-    foreach(_f IN LISTS _THRIFT_BASE64_HEADER _THRIFT_BASE64_SOURCE)
-        if(EXISTS "${_f}")
-            file(READ "${_f}" _CONTENT)
-            # Simple textual replacement; low risk because the identifiers are unique in this context.
-            string(REPLACE "base64_encode(" "apache_thrift_base64_encode_internal(" _CONTENT "${_CONTENT}")
-            string(REPLACE "base64_decode(" "apache_thrift_base64_decode_internal(" _CONTENT "${_CONTENT}")
-            # Ensure compatibility macros exist in header (idempotent)
-            if(_f STREQUAL _THRIFT_BASE64_HEADER AND NOT _CONTENT MATCHES "#define base64_encode apache_thrift_base64_encode_internal")
-                string(APPEND _CONTENT "\n#ifndef base64_encode\n#define base64_encode apache_thrift_base64_encode_internal\n#endif\n#ifndef base64_decode\n#define base64_decode apache_thrift_base64_decode_internal\n#endif\n")
-            endif()
-            file(WRITE "${_f}" "${_CONTENT}")
-        else()
-            message(WARNING "HALO_THRIFT_PATCH_BASE64 enabled but file not found: ${_f}")
-        endif()
-    endforeach()
-    message(STATUS "HALO_THRIFT_PATCH_BASE64: renamed base64_encode/base64_decode in Apache Thrift to apache_thrift_base64_*_internal")
-endif()
-# ---- End: Halo custom patch section ----
-
 set(THRIFT_TSSL_FILE "${THRIFT_SOURCE_DIR}/lib/cpp/src/thrift/transport/TSSLSocket.cpp")
 if(EXISTS "${THRIFT_TSSL_FILE}")
     message(STATUS "Applying OpenSSL compatibility fixes to TSSLSocket.cpp")

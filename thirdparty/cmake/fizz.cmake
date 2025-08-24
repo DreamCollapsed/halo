@@ -32,6 +32,23 @@ list(APPEND _opt_flags
 thirdparty_build_cmake_library("fizz"
     SOURCE_SUBDIR "${FIZZ_NAME}"
     CMAKE_ARGS ${_opt_flags}
+    FILE_REPLACEMENTS
+        "fizz/protocol/AsyncFizzBase.h"
+        "  class FizzMsgHdr;"
+        "  class FizzMsgHdr;
+  struct FizzMsgHdrDeleter {
+    void operator()(FizzMsgHdr* p);
+  };"
+        "fizz/protocol/AsyncFizzBase.h" 
+        "  std::unique_ptr<FizzMsgHdr> msgHdr_;"
+        "  std::unique_ptr<FizzMsgHdr, FizzMsgHdrDeleter> msgHdr_;"
+        "fizz/protocol/AsyncFizzBase.cpp"
+        "class AsyncFizzBase::FizzMsgHdr : public folly::EventRecvmsgCallback::MsgHdr {"
+        "void AsyncFizzBase::FizzMsgHdrDeleter::operator()(FizzMsgHdr* p) {
+  delete p;
+}
+
+class AsyncFizzBase::FizzMsgHdr : public folly::EventRecvmsgCallback::MsgHdr {"
     VALIDATION_FILES
         "${FIZZ_INSTALL_DIR}/lib/libfizz.a"
         "${FIZZ_INSTALL_DIR}/include/fizz/fizz-config.h"

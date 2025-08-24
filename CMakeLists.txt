@@ -5,10 +5,48 @@ project(halo VERSION 1.0.0 LANGUAGES C CXX)
 cmake_policy(VERSION 3.25)
 
 # C++ standard settings
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(APPLE)
+    # Auto-detect macOS deployment target with multiple fallback strategies
+    set(_macos_target "")
+    
+    # Priority 1: Use explicitly set CMAKE_OSX_DEPLOYMENT_TARGET from command line or cache
+    if(DEFINED CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_OSX_DEPLOYMENT_TARGET)
+        set(_macos_target "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+    else()
+        # Priority 2: Auto-detect from system version using sw_vers
+        find_program(SW_VERS_EXECUTABLE sw_vers)
+        if(SW_VERS_EXECUTABLE)
+            execute_process(
+                COMMAND ${SW_VERS_EXECUTABLE} -productVersion
+                OUTPUT_VARIABLE _system_version
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+            )
+            if(_system_version)
+                # Extract major.minor version (e.g., "14.5.1" -> "14.5")
+                string(REGEX MATCH "^([0-9]+\\.[0-9]+)" _macos_target "${_system_version}")
+            endif()
+        endif()
+        
+        # Priority 3: Fallback to CMAKE_HOST_SYSTEM_VERSION if sw_vers failed
+        if(NOT _macos_target AND CMAKE_HOST_SYSTEM_VERSION)
+            string(REGEX MATCH "^([0-9]+\\.[0-9]+)" _macos_target "${CMAKE_HOST_SYSTEM_VERSION}")
+            if(_macos_target)
+            endif()
+        endif()
+    endif()
+    message(STATUS "Detected macOS deployment target: ${_macos_target}")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "${_macos_target}" CACHE STRING "macOS deployment target" FORCE)
+    add_compile_options(-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET})
+    add_link_options(-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET})
+    
+    set(HALO_MACOS_DEPLOYMENT_TARGET "${_macos_target}" CACHE INTERNAL "Detected macOS deployment target for third-party libraries")
+endif()
 
 # Force static libraries for the entire project and all third-party libraries
 # This CACHE FORCE ensures all subprojects use static libraries

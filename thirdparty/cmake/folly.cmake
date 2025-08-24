@@ -91,8 +91,8 @@ thirdparty_build_cmake_library("folly"
         -DFOLLY_USE_SYMBOLIZER:BOOL=ON
         -DFOLLY_HAVE_BACKTRACE:BOOL=ON
     VALIDATION_FILES
-        "${FOLLY_INSTALL_DIR}/lib/libfolly.a"
-        "${FOLLY_INSTALL_DIR}/include/folly/folly-config.h"
+        "${THIRDPARTY_INSTALL_DIR}/folly/lib/libfolly.a"
+        "${THIRDPARTY_INSTALL_DIR}/folly/include/folly/folly-config.h"
 )
 
 if(EXISTS "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake")

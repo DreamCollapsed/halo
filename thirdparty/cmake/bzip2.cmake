@@ -1,8 +1,7 @@
 # bzip2
 thirdparty_setup_directories(bzip2)
 
-thirdparty_download_and_check("${BZIP2_URL}" "${BZIP2_DOWNLOAD_FILE}" "${BZIP2_SHA256}")
-thirdparty_extract_and_rename("${BZIP2_DOWNLOAD_FILE}" "${BZIP2_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/bzip2-*")
+thirdparty_acquire_source("bzip2" BZIP2_SOURCE_DIR)
 
 set(_validation_files
     "${BZIP2_INSTALL_DIR}/lib/libbz2.a"

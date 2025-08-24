@@ -7,10 +7,7 @@ set(Boost_USE_STATIC_RUNTIME ON CACHE BOOL "Force static runtime for Boost")
 
 thirdparty_setup_directories("boost")
 
-thirdparty_download_and_check("${BOOST_URL}" "${BOOST_DOWNLOAD_FILE}" "${BOOST_SHA256}")
-if(NOT EXISTS "${BOOST_SOURCE_DIR}/bootstrap.sh")
-    thirdparty_extract_and_rename("${BOOST_DOWNLOAD_FILE}" "${BOOST_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/boost_*")
-endif()
+thirdparty_acquire_source("boost" BOOST_SOURCE_DIR)
 
 function(boost_configure_and_build)
     thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _parallel_jobs)

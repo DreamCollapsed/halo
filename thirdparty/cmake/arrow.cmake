@@ -56,6 +56,10 @@ list(APPEND _opt_flags
 
     # OpenSSL
     -DOpenSSL_SOURCE=SYSTEM
+    -DOPENSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
+    -DOPENSSL_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/openssl/include
+    -DOPENSSL_SSL_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
+    -DOPENSSL_CRYPTO_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
 
     # Jemalloc
     -DARROW_JEMALLOC=ON

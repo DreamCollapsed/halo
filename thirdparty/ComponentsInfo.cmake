@@ -142,6 +142,10 @@ set(UTF8PROC_VERSION "2.10.0")
 set(UTF8PROC_URL "https://github.com/JuliaStrings/utf8proc/releases/download/v${UTF8PROC_VERSION}/utf8proc-${UTF8PROC_VERSION}.tar.gz")
 set(UTF8PROC_SHA256 "276a37dc4d1dd24d7896826a579f4439d1e5fe33603add786bb083cab802e23e")
 
+set(VELOX_VERSION "main")
+set(VELOX_URL "https://github.com/facebookincubator/velox")
+set(VELOX_USE_GIT ON)
+
 set(WANGLE_VERSION "2025.07.21.00")
 set(WANGLE_URL "https://github.com/facebook/wangle/releases/download/v${WANGLE_VERSION}/wangle-v${WANGLE_VERSION}.zip")
 set(WANGLE_SHA256 "900a73498f6e99c7e0fc7aa15b3f6947a8bd02f64a4a24a99380d2b7ec639310")

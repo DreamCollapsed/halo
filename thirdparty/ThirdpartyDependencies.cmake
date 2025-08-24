@@ -213,7 +213,7 @@ thirdparty_register_component(boost
     VERSION "${BOOST_VERSION}"
     URL "${BOOST_URL}"
     SHA256 "${BOOST_SHA256}"
-    DEPENDS_ON xz zlib
+    DEPENDS_ON xz zlib cares
 )
 thirdparty_register_component(faiss
     VERSION "${FAISS_VERSION}"

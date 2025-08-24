@@ -28,9 +28,6 @@ function(thirdparty_register_to_cmake_prefix_path install_path)
             endif()
         endforeach()
     endif()
-    if(NOT _config_dir)
-        message(WARNING "[thirdparty] No CMake config directory found under ${_abs_path}, will register install prefix only")
-    endif()
     set(_merged_prefix_path "${_abs_path}")
     if(_config_dir)
         list(INSERT _merged_prefix_path 0 "${_config_dir}")
@@ -217,8 +214,25 @@ function(thirdparty_acquire_source lib_name out_src_var)
     endif()
 
     set(_src_dir "${THIRDPARTY_SRC_DIR}/${lib_name}")
+    set(_source_fresh FALSE)
 
     if(_use_git)
+        # Pre-check if existing clone is already at requested commit -> not fresh
+        set(_existing_match FALSE)
+        if(EXISTS "${_src_dir}/.git")
+            find_program(GIT_EXECUTABLE git)
+            if(GIT_EXECUTABLE)
+                execute_process(
+                    COMMAND ${GIT_EXECUTABLE} -C "${_src_dir}" rev-parse HEAD
+                    OUTPUT_VARIABLE _current_commit
+                    OUTPUT_STRIP_TRAILING_WHITESPACE
+                    RESULT_VARIABLE _rev_parse_result
+                )
+                if(_rev_parse_result EQUAL 0 AND _current_commit STREQUAL "${_sha256}")
+                    set(_existing_match TRUE)
+                endif()
+            endif()
+        endif()
         # Additional optional flags: <UPPER>_GIT_SHALLOW (default ON) <UPPER>_GIT_RECURSE_SUBMODULES (default OFF)
         set(_git_flags)
         if(DEFINED ${_upper}_GIT_SHALLOW AND NOT ${_upper}_GIT_SHALLOW)
@@ -229,6 +243,11 @@ function(thirdparty_acquire_source lib_name out_src_var)
         endif()
         message(STATUS "[thirdparty] ${lib_name}: acquiring via git repo=${_url} commit=${_sha256} ${_git_flags}")
         thirdparty_git_clone_and_checkout("${_url}" "${_src_dir}" "${_sha256}")
+        if(_existing_match)
+            set(_source_fresh FALSE)
+        else()
+            set(_source_fresh TRUE)
+        endif()
     else()
         # Derive archive extension
         get_filename_component(_url_filename "${_url}" NAME)
@@ -251,11 +270,48 @@ function(thirdparty_acquire_source lib_name out_src_var)
         endif()
         set(_download_file "${THIRDPARTY_DOWNLOAD_DIR}/${lib_name}-${_version}${_extension}")
         set(_extract_pattern "${THIRDPARTY_SRC_DIR}/${lib_name}-*")
-        thirdparty_download_and_check("${_url}" "${_download_file}" "${_sha256}")
-        thirdparty_extract_and_rename("${_download_file}" "${_src_dir}" "${_extract_pattern}")
+        # Determine if source already extracted by checking a SHA256 marker
+        set(_marker "${_src_dir}/.thirdparty_sha256")
+        set(_already_extracted FALSE)
+        if(EXISTS "${_marker}")
+            file(READ "${_marker}" _prev_sha)
+            string(STRIP "${_prev_sha}" _prev_sha)
+            if(_prev_sha STREQUAL "${_sha256}")
+                set(_already_extracted TRUE)
+            endif()
+        endif()
+
+        # Fallback: if srcdir exists and is non-empty, assume already extracted (boost has no top-level CMakeLists.txt)
+        if(NOT _already_extracted AND EXISTS "${_src_dir}")
+            file(GLOB _existing_entries "${_src_dir}/*")
+            list(LENGTH _existing_entries _existing_len)
+            set(_signature_good FALSE)
+            if(EXISTS "${_src_dir}/CMakeLists.txt" OR EXISTS "${_src_dir}/configure" OR EXISTS "${_src_dir}/bootstrap.sh" OR EXISTS "${_src_dir}/Jamroot")
+                set(_signature_good TRUE)
+            endif()
+            if(_existing_len GREATER 0 AND _signature_good)
+                set(_already_extracted TRUE)
+                file(WRITE "${_marker}" "${_sha256}\n")
+            endif()
+        endif()
+
+        if(_already_extracted)
+            # Fast path: reuse existing extracted source, skip re-download and re-extract
+            message(STATUS "[thirdparty] ${lib_name}: reusing existing source at ${_src_dir}; skip download and extract")
+            set(_source_fresh FALSE)
+        else()
+            message(STATUS "[thirdparty] ${lib_name}: downloading and extracting archive")
+            thirdparty_download_and_check("${_url}" "${_download_file}" "${_sha256}")
+            thirdparty_extract_and_rename("${_download_file}" "${_src_dir}" "${_extract_pattern}")
+            # Write/update the SHA256 marker to identify the extracted content
+            file(WRITE "${_marker}" "${_sha256}\n")
+            set(_source_fresh TRUE)
+        endif()
     endif()
 
     set(${out_src_var} "${_src_dir}" PARENT_SCOPE)
+    # Export freshness flag for callers to decide whether to patch
+    set(${_upper}_SOURCE_FRESH ${_source_fresh} PARENT_SCOPE)
 endfunction()
 
     # --- Git clone utility (supports checkout of specific commit with retries) ---
@@ -397,55 +453,97 @@ endfunction()
     endfunction()
 
 function(thirdparty_extract_and_rename tarfile srcdir pattern)
-    if(NOT EXISTS "${srcdir}/CMakeLists.txt")
-        file(GLOB _old_dirs "${pattern}")
-        foreach(_d ${_old_dirs})
-            if(EXISTS "${_d}")
-                file(REMOVE_RECURSE "${_d}")
+    file(GLOB _old_dirs "${pattern}")
+    foreach(_d ${_old_dirs})
+        if(EXISTS "${_d}")
+            file(REMOVE_RECURSE "${_d}")
+        endif()
+    endforeach()
+
+    get_filename_component(_workdir "${srcdir}" DIRECTORY)
+    file(MAKE_DIRECTORY "${_workdir}")
+    string(RANDOM LENGTH 8 ALPHABET 0123456789abcdef _rand)
+    set(_tmp_extract_dir "${_workdir}/.extract_${_rand}")
+    file(MAKE_DIRECTORY "${_tmp_extract_dir}")
+
+    # Try to use GNU tar for progress dots; otherwise use system tar without unsupported flags; fall back to cmake -E tar
+    set(_extract_failed 1)
+    find_program(GNU_TAR gtar)
+    if(GNU_TAR)
+        execute_process(
+            COMMAND ${GNU_TAR} --extract --file "${tarfile}" --checkpoint=1000 --checkpoint-action=dot
+            WORKING_DIRECTORY "${_tmp_extract_dir}"
+            RESULT_VARIABLE _extract_failed
+        )
+    else()
+        find_program(SYS_TAR tar)
+        if(SYS_TAR)
+            execute_process(
+                COMMAND ${SYS_TAR} --version
+                OUTPUT_VARIABLE _tar_ver_out
+                ERROR_VARIABLE _tar_ver_err
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_STRIP_TRAILING_WHITESPACE
+                RESULT_VARIABLE _tar_ver_res
+            )
+            set(_use_checkpoint FALSE)
+            if(_tar_ver_res EQUAL 0)
+                if(_tar_ver_out MATCHES "GNU tar" OR _tar_ver_err MATCHES "GNU tar")
+                    set(_use_checkpoint TRUE)
+                endif()
             endif()
-        endforeach()
-
-        get_filename_component(_workdir "${srcdir}" DIRECTORY)
-        file(MAKE_DIRECTORY "${_workdir}")
-        string(RANDOM LENGTH 8 ALPHABET 0123456789abcdef _rand)
-        set(_tmp_extract_dir "${_workdir}/.extract_${_rand}")
-        file(MAKE_DIRECTORY "${_tmp_extract_dir}")
-
+            if(_use_checkpoint)
+                execute_process(
+                    COMMAND ${SYS_TAR} --extract --file "${tarfile}" --checkpoint=1000 --checkpoint-action=dot
+                    WORKING_DIRECTORY "${_tmp_extract_dir}"
+                    RESULT_VARIABLE _extract_failed
+                )
+            else()
+                execute_process(
+                    COMMAND ${SYS_TAR} -xf "${tarfile}"
+                    WORKING_DIRECTORY "${_tmp_extract_dir}"
+                    RESULT_VARIABLE _extract_failed
+                    OUTPUT_QUIET ERROR_QUIET
+                )
+            endif()
+        endif()
+    endif()
+    if(_extract_failed)
         execute_process(
             COMMAND ${CMAKE_COMMAND} -E tar xf "${tarfile}"
             WORKING_DIRECTORY "${_tmp_extract_dir}"
             RESULT_VARIABLE _extract_failed
         )
-        if(_extract_failed)
-            file(REMOVE_RECURSE "${_tmp_extract_dir}")
-            message(FATAL_ERROR "Failed to extract ${tarfile}")
-        endif()
+    endif()
+    if(_extract_failed)
+        file(REMOVE_RECURSE "${_tmp_extract_dir}")
+        message(FATAL_ERROR "Failed to extract ${tarfile}")
+    endif()
 
-        file(GLOB _top_entries "${_tmp_extract_dir}/*")
-        set(_dirs)
-        set(_files)
-        foreach(_e ${_top_entries})
-            if(IS_DIRECTORY "${_e}")
-                list(APPEND _dirs "${_e}")
-            else()
-                list(APPEND _files "${_e}")
-            endif()
-        endforeach()
-
-        if(EXISTS "${srcdir}")
-            file(REMOVE_RECURSE "${srcdir}")
-        endif()
-
-        list(LENGTH _dirs _dir_count)
-        list(LENGTH _files _file_count)
-
-        if(_dir_count EQUAL 1 AND _file_count EQUAL 0)
-            list(GET _dirs 0 _only_dir)
-            file(RENAME "${_only_dir}" "${srcdir}")
-            file(REMOVE_RECURSE "${_tmp_extract_dir}")
+    file(GLOB _top_entries "${_tmp_extract_dir}/*")
+    set(_dirs)
+    set(_files)
+    foreach(_e ${_top_entries})
+        if(IS_DIRECTORY "${_e}")
+            list(APPEND _dirs "${_e}")
         else()
-            file(RENAME "${_tmp_extract_dir}" "${srcdir}")
+            list(APPEND _files "${_e}")
         endif()
+    endforeach()
+
+    if(EXISTS "${srcdir}")
+        file(REMOVE_RECURSE "${srcdir}")
+    endif()
+
+    list(LENGTH _dirs _dir_count)
+    list(LENGTH _files _file_count)
+
+    if(_dir_count EQUAL 1 AND _file_count EQUAL 0)
+        list(GET _dirs 0 _only_dir)
+        file(RENAME "${_only_dir}" "${srcdir}")
+        file(REMOVE_RECURSE "${_tmp_extract_dir}")
+    else()
+        file(RENAME "${_tmp_extract_dir}" "${srcdir}")
     endif()
 endfunction()
 
@@ -650,7 +748,7 @@ function(thirdparty_get_optimization_flags output_var)
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DBUILD_SHARED_LIBS:BOOL=OFF
-        -DCMAKE_CXX_STANDARD=20
+        -DCMAKE_CXX_STANDARD=23
         -DCMAKE_CXX_STANDARD_REQUIRED=ON
         -DBUILD_TESTING=OFF
         -DCMAKE_SUPPRESS_DEVELOPER_WARNINGS=ON
@@ -688,6 +786,18 @@ function(thirdparty_get_optimization_flags output_var)
     # Add Link Time Optimization (LTO) if supported
     if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE)
         list(APPEND _opt_flags -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON)
+    endif()
+    
+    if(APPLE)
+        if(DEFINED HALO_MACOS_DEPLOYMENT_TARGET AND HALO_MACOS_DEPLOYMENT_TARGET)
+            set(_macos_target "${HALO_MACOS_DEPLOYMENT_TARGET}")
+        elseif(DEFINED CMAKE_OSX_DEPLOYMENT_TARGET AND CMAKE_OSX_DEPLOYMENT_TARGET)
+            set(_macos_target "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+        endif()
+        
+        list(APPEND _opt_flags
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=${_macos_target}
+        )
     endif()
     
     # --- ccache Support for faster rebuilds ---
@@ -913,6 +1023,16 @@ function(thirdparty_build_cmake_library library_name)
     thirdparty_acquire_source("${library_name}" _source_dir)
 
     if(ARG_FILE_REPLACEMENTS)
+        # Only patch when source is freshly acquired to avoid repeated replacements
+        set(_do_patch TRUE)
+        if(DEFINED ${_upper_name}_SOURCE_FRESH)
+            if(NOT ${${_upper_name}_SOURCE_FRESH})
+                set(_do_patch FALSE)
+                message(STATUS "[thirdparty] ${library_name}: source reused; skipping FILE_REPLACEMENTS")
+            endif()
+        endif()
+
+        if(_do_patch)
         list(LENGTH ARG_FILE_REPLACEMENTS _replacement_count)
         math(EXPR _group_count "${_replacement_count} / 3")
         
@@ -946,7 +1066,7 @@ function(thirdparty_build_cmake_library library_name)
                 
                 # Check if replacement actually happened
                 if(_modified_content STREQUAL _file_content)
-                    message(WARNING "[thirdparty] No replacement made in ${_relative_file_path} - old string not found")
+                    message(STATUS "[thirdparty] No replacement needed in ${_relative_file_path} (pattern not present)")
                 else()
                     # Write modified content back
                     file(WRITE "${_target_file}" "${_modified_content}")
@@ -955,6 +1075,7 @@ function(thirdparty_build_cmake_library library_name)
                 
                 math(EXPR _index "${_index} + 3")
             endwhile()
+        endif()
         endif()
     endif()
 

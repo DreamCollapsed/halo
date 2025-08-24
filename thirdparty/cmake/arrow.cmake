@@ -114,6 +114,13 @@ list(APPEND _opt_flags
 thirdparty_build_cmake_library("arrow"
     SOURCE_SUBDIR "cpp"
     CMAKE_ARGS ${_opt_flags}
+    FILE_REPLACEMENTS
+    # Fix C++23 derived-to-base pointer conversion at BackpressureController creation
+    # (AsofJoinNode* to ExecNode*). Use an explicit cast on the call site to avoid
+    # incomplete-type conversion errors when AsofJoinNode is forward-declared.
+    "cpp/src/arrow/acero/asof_join_node.cc"
+    "/*output=*/asof_node"
+    "/*output=*/(ExecNode*)asof_node"
     VALIDATION_FILES
         "${ARROW_INSTALL_DIR}/lib/libarrow.a"
         "${ARROW_INSTALL_DIR}/lib/cmake/Arrow/ArrowConfig.cmake"

@@ -23,8 +23,7 @@ if(_all_files_exist)
 endif()
 
 if(_need_build)
-    thirdparty_download_and_check("${LIBSTEMMER_URL}" "${LIBSTEMMER_DOWNLOAD_FILE}" "${LIBSTEMMER_SHA256}")
-    thirdparty_extract_and_rename("${LIBSTEMMER_DOWNLOAD_FILE}" "${LIBSTEMMER_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/libstemmer_c-*")
+    thirdparty_acquire_source("libstemmer" LIBSTEMMER_SOURCE_DIR)
 
     file(MAKE_DIRECTORY "${LIBSTEMMER_BUILD_DIR}")
     

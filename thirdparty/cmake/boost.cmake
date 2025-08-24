@@ -1,6 +1,6 @@
 # Boost third-party integration
 # Reference: https://github.com/boostorg/boost
-# Dependencies: None
+# Dependencies: xz, zlib, cares
 
 set(Boost_USE_STATIC_LIBS ON CACHE BOOL "Force static linking for Boost")
 set(Boost_USE_STATIC_RUNTIME ON CACHE BOOL "Force static runtime for Boost")
@@ -25,7 +25,7 @@ function(boost_configure_and_build)
         link=static
         runtime-link=static
         threading=multi
-        cxxstd=17
+        cxxstd=23
         address-model=${BOOST_ADDRESS_MODEL}
         architecture=${BOOST_ARCHITECTURE}
         --layout=tagged
@@ -37,6 +37,9 @@ function(boost_configure_and_build)
         -sLZMA_INCLUDE=${THIRDPARTY_INSTALL_DIR}/xz/include
         -sLZMA_LIBPATH=${THIRDPARTY_INSTALL_DIR}/xz/lib
         -sLZMA_LIBRARY=${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
+        -sCARES_INCLUDE=${THIRDPARTY_INSTALL_DIR}/cares/include
+        -sCARES_LIBPATH=${THIRDPARTY_INSTALL_DIR}/cares/lib
+        -sCARES_LIBRARY=${THIRDPARTY_INSTALL_DIR}/cares/lib/libcares.a
         -sNO_ZLIB=1
         -sNO_LZMA=1
         -sNO_BZIP2=1
@@ -44,9 +47,11 @@ function(boost_configure_and_build)
         -sLZMA_NAME=
         linkflags=-L${THIRDPARTY_INSTALL_DIR}/zlib/lib
         linkflags=-L${THIRDPARTY_INSTALL_DIR}/xz/lib
+        linkflags=-L${THIRDPARTY_INSTALL_DIR}/cares/lib
         linkflags=-Wl,-search_paths_first
         linkflags=-Wl,-force_load,${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a
         linkflags=-Wl,-force_load,${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
+        linkflags=-Wl,-force_load,${THIRDPARTY_INSTALL_DIR}/cares/lib/libcares.a
         --with-atomic
         --with-chrono
         --with-container

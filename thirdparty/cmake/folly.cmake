@@ -2,11 +2,6 @@
 # Reference: https://github.com/facebook/folly/blob/main/README.md
 
 thirdparty_build_cmake_library("folly"
-    FILE_REPLACEMENTS
-        # Fix Boost version dependency
-        "CMake/folly-deps.cmake"
-        "find_package(Boost 1.88.0 MODULE"
-        "find_package(Boost ${BOOST_VERSION} MODULE"
     CMAKE_ARGS
         -DCMAKE_POLICY_DEFAULT_CMP0167=OLD
 
@@ -97,10 +92,6 @@ thirdparty_build_cmake_library("folly"
 )
 
 if(EXISTS "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake")
-    file(READ "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake" folly_config_content)
-    string(REPLACE "find_dependency(Boost 1.51.0 MODULE" "find_dependency(Boost ${BOOST_VERSION} MODULE" folly_config_content "${folly_config_content}")
-    file(WRITE "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake" "${folly_config_content}")
-
     find_package(Folly CONFIG REQUIRED)
     
     # Some dependents (fizz/wangle) ask for "folly" in lowercase via find_dependency

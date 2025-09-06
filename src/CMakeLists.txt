@@ -6,10 +6,12 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 # Create main executable
 add_executable(halo main.cpp)
 
-# Link centralized third-party target (replaces individual find_package calls)
+# Link with third-party libraries and Velox
 target_link_libraries(halo
     PRIVATE
     halo_thirdparty_core
+    halo_thirdparty_with_thrift
+    halo_velox_unified
 )
 
 # Platform-specific libraries

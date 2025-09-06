@@ -1,5 +1,5 @@
 diff --git a/CMake/FindSnappy.cmake b/CMake/FindSnappy.cmake
-index e2a0359f8..7f2a3b68d 100644
+index 2d65b3d17..21ec6d1bd 100644
 --- a/CMake/FindSnappy.cmake
 +++ b/CMake/FindSnappy.cmake
 @@ -10,7 +10,7 @@
@@ -12,10 +12,10 @@ index e2a0359f8..7f2a3b68d 100644
  
  find_path(SNAPPY_INCLUDE_DIR snappy.h PATHS ${SNAPPY_INCLUDEDIR})
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 292611660..a6e197d29 100644
+index 577a06b7c..f443c2185 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -230,6 +230,8 @@ if(${VELOX_ENABLE_DUCKDB})
+@@ -239,6 +239,8 @@ if(${VELOX_ENABLE_DUCKDB})
  endif()
  
  if(VELOX_ENABLE_FAISS)
@@ -24,7 +24,7 @@ index 292611660..a6e197d29 100644
    velox_set_source(faiss)
    velox_resolve_dependency(faiss)
    if(NOT TARGET FAISS::faiss)
-@@ -570,7 +572,7 @@ if(${VELOX_BUILD_MINIMAL_WITH_DWIO}
+@@ -591,7 +593,7 @@ if(${VELOX_BUILD_MINIMAL_WITH_DWIO} OR ${VELOX_ENABLE_HIVE_CONNECTOR} OR VELOX_E
  endif()
  
  velox_set_source(simdjson)
@@ -33,7 +33,7 @@ index 292611660..a6e197d29 100644
  
  velox_set_source(folly)
  velox_resolve_dependency(folly)
-@@ -664,7 +666,7 @@ if(NOT VELOX_DISABLE_GOOGLETEST)
+@@ -683,7 +685,7 @@ if(NOT VELOX_DISABLE_GOOGLETEST)
  endif()
  
  velox_set_source(xsimd)
@@ -43,22 +43,56 @@ index 292611660..a6e197d29 100644
  velox_set_source(stemmer)
  velox_resolve_dependency(stemmer)
 diff --git a/velox/common/memory/Scratch.h b/velox/common/memory/Scratch.h
-index dcde26e90..f48759101 100644
+index dcde26e90..1f38f9db5 100644
 --- a/velox/common/memory/Scratch.h
 +++ b/velox/common/memory/Scratch.h
-@@ -82,9 +82,10 @@ class Scratch {
+@@ -82,9 +82,9 @@ class Scratch {
        Item* newItems =
            reinterpret_cast<Item*>(::malloc(sizeof(Item) * newCapacity));
        if (fill_ > 0) {
 -        ::memcpy(newItems, items_, fill_ * sizeof(Item));
-+        ::memcpy((void*)newItems, items_, fill_ * sizeof(Item));
++        ::memcpy(static_cast<void*>(newItems), items_, fill_ * sizeof(Item));
        }
 -      ::memset(newItems + fill_, 0, (newCapacity - fill_) * sizeof(Item));
-+      ::memset(
-+          (void*)(newItems + fill_), 0, (newCapacity - fill_) * sizeof(Item));
++      ::memset(static_cast<void*>(newItems + fill_), 0, (newCapacity - fill_) * sizeof(Item));
        ::free(items_);
        items_ = newItems;
        capacity_ = newCapacity;
+diff --git a/velox/connectors/hive/storage_adapters/s3fs/S3Util.h b/velox/connectors/hive/storage_adapters/s3fs/S3Util.h
+index ab2e25790..4edc0fda1 100644
+--- a/velox/connectors/hive/storage_adapters/s3fs/S3Util.h
++++ b/velox/connectors/hive/storage_adapters/s3fs/S3Util.h
+@@ -237,7 +237,7 @@ class StringViewStream : Aws::Utils::Stream::PreallocatedStreamBuf,
+ 
+ template <>
+ struct fmt::formatter<Aws::Http::HttpResponseCode> : formatter<int> {
+-  auto format(Aws::Http::HttpResponseCode s, format_context& ctx) {
++  auto format(Aws::Http::HttpResponseCode s, format_context& ctx) const {
+     return formatter<int>::format(static_cast<int>(s), ctx);
+   }
+ };
+diff --git a/velox/connectors/tpcds/TpcdsConnectorSplit.h b/velox/connectors/tpcds/TpcdsConnectorSplit.h
+index 1f51eb22a..e0acd2dcd 100644
+--- a/velox/connectors/tpcds/TpcdsConnectorSplit.h
++++ b/velox/connectors/tpcds/TpcdsConnectorSplit.h
+@@ -54,7 +54,7 @@ struct fmt::formatter<facebook::velox::connector::tpcds::TpcdsConnectorSplit>
+     : formatter<std::string> {
+   auto format(
+       facebook::velox::connector::tpcds::TpcdsConnectorSplit s,
+-      format_context& ctx) {
++      format_context& ctx) const {
+     return formatter<std::string>::format(s.toString(), ctx);
+   }
+ };
+@@ -65,7 +65,7 @@ struct fmt::formatter<
+     : formatter<std::string> {
+   auto format(
+       std::shared_ptr<facebook::velox::connector::tpcds::TpcdsConnectorSplit> s,
+-      format_context& ctx) {
++      format_context& ctx) const {
+     return formatter<std::string>::format(s->toString(), ctx);
+   }
+ };
 diff --git a/velox/dwio/common/CacheInputStream.cpp b/velox/dwio/common/CacheInputStream.cpp
 index dedda0c72..41fa2d5dd 100644
 --- a/velox/dwio/common/CacheInputStream.cpp
@@ -875,19 +909,6 @@ index 000000000..3cc4340d2
 +}
 +
 +} // namespace facebook::velox::parquet::arrow::util::internal
-diff --git a/velox/exec/Aggregate.h b/velox/exec/Aggregate.h
-index b2d605011..b322cdbf7 100644
---- a/velox/exec/Aggregate.h
-+++ b/velox/exec/Aggregate.h
-@@ -434,7 +434,7 @@ class Aggregate {
-     if (isInitialized(group)) {
-       auto accumulator = value<T>(group);
-       std::destroy_at(accumulator);
--      ::memset(accumulator, 0, sizeof(T));
-+      ::memset((void*)accumulator, 0, sizeof(T));
-     }
-   }
- 
 diff --git a/velox/external/date/date.h b/velox/external/date/date.h
 index b0ae226e29a0a718e8bcd2ea486db01c16a94b2c..c8eef8dbe3633891e5be8606b6092348b202e366 100644
 GIT binary patch
@@ -919,7 +940,7 @@ delta 16
 YcmZ1__Fr_vKBmb@%z>M&m_M)s06Yi=bpQYW
 
 diff --git a/velox/functions/prestosql/geospatial/GeometryUtils.h b/velox/functions/prestosql/geospatial/GeometryUtils.h
-index a77f1d7d6..884866ec3 100644
+index af32c0ae6..cd0d16486 100644
 --- a/velox/functions/prestosql/geospatial/GeometryUtils.h
 +++ b/velox/functions/prestosql/geospatial/GeometryUtils.h
 @@ -23,6 +23,7 @@

@@ -1,13 +1,3 @@
-# Define base paths relative to current directory
-set(THIRDPARTY_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-
-set(THIRDPARTY_DOWNLOAD_DIR ${THIRDPARTY_BASE_DIR}/downloads)
-set(THIRDPARTY_SRC_DIR ${THIRDPARTY_BASE_DIR}/src)
-set(THIRDPARTY_BUILD_DIR ${THIRDPARTY_BASE_DIR}/builds)
-set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_BASE_DIR}/installed)
-
-set(THIRDPARTY_EXECUTABLE_PATHS "" CACHE INTERNAL "Collected third-party executable paths")
-
 include(ComponentsInfo.cmake)
 include(ThirdpartyUtils.cmake)
 include(ThirdpartyDependencies.cmake)
@@ -118,6 +108,8 @@ target_link_libraries(halo_thirdparty_core
     GEOS::geos
     GEOS::geos_c
     simdjson::simdjson
+    OpenMP::OpenMP_CXX
+    unwind::unwind
 )
 
 add_library(halo_thirdparty_with_thrift INTERFACE)

@@ -497,3 +497,36 @@ add_module_test(thirdparty_thrift
         integration
     TIMEOUT 30
 )
+
+# Velox integration test (basic API)
+add_module_test(test_velox_integration
+  "${CMAKE_CURRENT_SOURCE_DIR}/test_velox_integration.cpp"
+  LINK_LIBRARIES
+    velox_type
+  DEPENDENCIES
+    velox_type
+  HEADER_INCLUDES
+    ${CMAKE_SOURCE_DIR}/velox
+)
+
+# OpenMP integration test
+add_module_test(thirdparty_openmp
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_openmp_integration.cpp"
+    LABELS
+        openmp
+        llvm-project
+        parallel
+        thirdparty
+        integration
+)
+
+# libunwind integration test
+add_module_test(thirdparty_libunwind
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_libunwind_integration.cpp"
+    LABELS
+        libunwind
+        llvm-project
+        debugging
+        thirdparty
+        integration
+)

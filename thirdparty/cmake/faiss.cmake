@@ -16,9 +16,5 @@ thirdparty_build_cmake_library(faiss
         "${FAISS_INSTALL_DIR}/lib/libfaiss.a"
 )
 
-# `find_package faiss` will use the target `OpenMP::OpenMP_CXX`,
-# but it won't call `find_dependency(OpenMP)` or `find_package(OpenMP)`
-# which will cause the error of the `target not found`
-find_dependency(OpenMP REQUIRED)
 find_package(faiss CONFIG REQUIRED)
 message(STATUS "faiss package imported via CMake configs: ${faiss_DIR}")

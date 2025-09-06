@@ -1,6 +1,7 @@
 #include <absl/container/flat_hash_map.h>
 #include <absl/container/flat_hash_set.h>
 #include <absl/hash/hash.h>
+#include <absl/numeric/int128.h>
 #include <absl/status/status.h>
 #include <absl/status/statusor.h>
 #include <absl/strings/str_cat.h>
@@ -11,6 +12,7 @@
 #include <absl/time/time.h>
 #include <gtest/gtest.h>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -140,6 +142,38 @@ TEST_F(AbseilIntegrationTest, HashOperations) {
 
   EXPECT_TRUE(hash_map.contains("key1"));
   EXPECT_FALSE(hash_map.contains("key3"));
+}
+
+// absl::uint128 construction, bit access, hashing, and containers
+TEST_F(AbseilIntegrationTest, Uint128BasicAndHash) {
+  const uint64_t hi = 0x0123456789ABCDEFULL;
+  const uint64_t lo = 0x0FEDCBA987654321ULL;
+
+  // Construct and verify high/low 64-bit halves
+  absl::uint128 v = absl::MakeUint128(hi, lo);
+  EXPECT_EQ(absl::Uint128High64(v), hi);
+  EXPECT_EQ(absl::Uint128Low64(v), lo);
+
+  // Hash stability and difference across values
+  absl::Hash<absl::uint128> h;
+  size_t hv1 = h(v);
+  size_t hv2 = h(v);
+  EXPECT_EQ(hv1, hv2);
+
+  // Change one bit in the low part to ensure hash changes
+  absl::uint128 v2 = absl::MakeUint128(hi, lo ^ 0x1ULL);
+  EXPECT_NE(h(v2), hv1);
+
+  // Use as key in flat_hash_map
+  absl::flat_hash_map<absl::uint128, int> m;
+  m[v] = 42;
+  m[v2] = 7;
+  EXPECT_EQ(m.at(v), 42);
+  EXPECT_EQ(m.at(v2), 7);
+
+  // Ordering and arithmetic sanity
+  absl::uint128 v3 = v + absl::uint128(1);
+  EXPECT_LT(v, v3);
 }
 
 // Performance test to ensure the libraries are working efficiently

@@ -76,6 +76,7 @@ function(boost_configure_and_build)
         --with-timer
         --with-url
         --with-wave
+        --with-process
         headers
         -j${_parallel_jobs}
     )

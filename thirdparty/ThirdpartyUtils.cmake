@@ -606,7 +606,7 @@ function(thirdparty_cmake_configure srcdir builddir)
         set(_cmake_cmd_str "${_cmake_cmd_str} -DCMAKE_PREFIX_PATH=${THIRDPARTY_CMAKE_PREFIX_PATH_STRING}")
     endif()
     
-    message(STATUS "[thirdparty_cmake_configure] CMake command: ${_cmake_cmd_str}")
+    message(DEBUG "[thirdparty_cmake_configure] CMake command: ${_cmake_cmd_str}")
     
     # Execute with special handling for CMAKE_PREFIX_PATH
     if(THIRDPARTY_CMAKE_PREFIX_PATH_STRING)
@@ -744,7 +744,11 @@ function(thirdparty_get_optimization_flags output_var)
     set(_opt_flags)
     
     # Base optimization flags
-    list(APPEND _opt_flags 
+    list(APPEND _opt_flags
+        # Use compilers from main project
+        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+        -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+
         -DCMAKE_BUILD_TYPE=Release
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DBUILD_SHARED_LIBS:BOOL=OFF
@@ -983,7 +987,7 @@ function(thirdparty_build_cmake_library library_name)
     # Parse arguments
     set(options)
     set(oneValueArgs EXTRACT_PATTERN SOURCE_SUBDIR)
-    set(multiValueArgs VALIDATION_FILES CMAKE_ARGS FILE_REPLACEMENTS)
+    set(multiValueArgs VALIDATION_FILES CMAKE_ARGS CMAKE_CACHE_ARGS FILE_REPLACEMENTS)
     cmake_parse_arguments(PARSE_ARGV 1 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
 
     # Uppercase the library name to get variable prefixes (e.g., gflags -> GFLAGS)
@@ -1081,15 +1085,42 @@ function(thirdparty_build_cmake_library library_name)
 
     thirdparty_get_optimization_flags(_common_cmake_args COMPONENT "${library_name}")
 
+    # Handle cache args with semicolons by creating a temporary cache file
+    set(_cache_file "")
+    if(ARG_CMAKE_CACHE_ARGS)
+        set(_cache_file "${CMAKE_BINARY_DIR}/thirdparty_cache_${library_name}.cmake")
+        file(WRITE "${_cache_file}" "# Auto-generated cache file for ${library_name}\n")
+        foreach(_cache_arg ${ARG_CMAKE_CACHE_ARGS})
+            # Parse VAR=VALUE format
+            string(FIND "${_cache_arg}" "=" _eq_pos)
+            if(_eq_pos GREATER -1)
+                string(SUBSTRING "${_cache_arg}" 0 ${_eq_pos} _var_name)
+                math(EXPR _val_start "${_eq_pos} + 1")
+                string(SUBSTRING "${_cache_arg}" ${_val_start} -1 _var_value)
+                # Remove surrounding quotes if present
+                string(REGEX REPLACE "^\"(.*)\"$" "\\1" _var_value "${_var_value}")
+                file(APPEND "${_cache_file}" "set(${_var_name} \"${_var_value}\" CACHE STRING \"\" FORCE)\n")
+            else()
+                # Fallback for arguments without equals
+                file(APPEND "${_cache_file}" "set(${_cache_arg} CACHE STRING \"\" FORCE)\n")
+            endif()
+        endforeach()
+    endif()
+
+    set(_final_cmake_args)
+    if(_cache_file)
+        list(APPEND _final_cmake_args "-C${_cache_file}")
+    endif()
+    list(APPEND _final_cmake_args -DCMAKE_INSTALL_PREFIX=${_install_dir})
+    list(APPEND _final_cmake_args ${_common_cmake_args})
+    list(APPEND _final_cmake_args ${ARG_CMAKE_ARGS})
+
     thirdparty_cmake_configure("${_source_dir}" "${_build_dir}"
         SOURCE_SUBDIR "${ARG_SOURCE_SUBDIR}"
         VALIDATION_FILES
             "${_build_dir}/Makefile"
             "${_build_dir}/build.ninja" # For Ninja generator
-        CMAKE_ARGS
-            -DCMAKE_INSTALL_PREFIX=${_install_dir}
-            ${_common_cmake_args}
-            ${ARG_CMAKE_ARGS}
+        CMAKE_ARGS ${_final_cmake_args}
     )
 
     thirdparty_cmake_install("${_build_dir}" "${_install_dir}"

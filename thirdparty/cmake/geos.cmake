@@ -17,6 +17,10 @@ thirdparty_build_cmake_library("geos"
         -DGEOS_BUILD_TESTS=OFF
         -DGEOS_BUILD_BENCHMARKS=OFF
         -DGEOS_ENABLE_TESTS=OFF
+    FILE_REPLACEMENTS
+        "include/geos/operation/overlay/snap/SnapOverlayOp.h"
+        "#include <geos/operation/overlay/OverlayOp.h> // for enums"
+        "#include <geos/operation/overlay/OverlayOp.h> // for enums\n#include <geos/geom/Geometry.h> // for complete type definition required by unique_ptr in C++23"
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/geos/lib/libgeos.a"
         "${THIRDPARTY_INSTALL_DIR}/geos/lib/libgeos_c.a"

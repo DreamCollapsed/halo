@@ -500,13 +500,16 @@ add_module_test(thirdparty_thrift
 
 # Velox integration test (basic API)
 add_module_test(test_velox_integration
-  "${CMAKE_CURRENT_SOURCE_DIR}/test_velox_integration.cpp"
-  LINK_LIBRARIES
-    velox_type
-  DEPENDENCIES
-    velox_type
-  HEADER_INCLUDES
-    ${CMAKE_SOURCE_DIR}/velox
+    "${CMAKE_CURRENT_SOURCE_DIR}/test_velox_integration.cpp"
+    CUSTOM_TARGETS
+        halo_thirdparty_with_thrift
+        halo_velox_unified
+    LABELS
+        velox
+        query-engine
+        columnar
+        thirdparty
+        integration
 )
 
 # OpenMP integration test

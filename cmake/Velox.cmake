@@ -280,3 +280,25 @@ if(DEFINED THIRDPARTY_INSTALL_DIR AND EXISTS "${THIRDPARTY_INSTALL_DIR}/jemalloc
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc/jemalloc.h")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
 endif()
+
+# Create a unified Velox target for easier consumption in main project
+# This function will be automatically called via cmake_language(DEFER) after velox is added
+function(_create_velox_unified_target_internal)
+  if(TARGET velox)
+    add_library(halo_velox_unified INTERFACE)
+    target_link_libraries(halo_velox_unified INTERFACE velox)
+    target_include_directories(halo_velox_unified INTERFACE 
+      $<BUILD_INTERFACE:${HALO_VELOX_SOURCE_DIR}>
+      $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/velox>
+    )
+
+    target_include_directories(halo_velox_unified SYSTEM INTERFACE 
+      ${HALO_VELOX_SOURCE_DIR}
+      ${CMAKE_BINARY_DIR}/velox
+    )
+    message(STATUS "Created halo_velox_unified target automatically")
+  endif()
+endfunction()
+
+# Schedule the unified target creation to happen after all CMakeLists.txt files are processed
+cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR} CALL _create_velox_unified_target_internal)

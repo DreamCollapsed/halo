@@ -1,59 +1,3 @@
-From: Hongkai Wei <hongkai.wei@qq.com>
-Date: Fri, 6 Sep 2025 13:10:00 +0800
-Subject: [PATCH] Fix C++23 compatibility issues and modernize codebase
-
-This patch addresses multiple compatibility issues for C++23 and modernizes
-the codebase with the following changes:
-
-1. Fix 128-bit integer hashing:
-   - Replace folly::hasher<int128_t> with custom hash implementation
-   - Add stable hash functions for 128-bit integers using bit mixing
-   - Fixes undefined behavior with folly::hasher on 128-bit types
-
-2. Modernize protobuf usage:
-   - Replace deprecated Arena::CreateMessage with Arena::Create
-   - Update ByteCount method signatures from google::protobuf::int64 to int64_t
-   - Align with modern protobuf API standards
-
-3. Fix CMake configuration:
-   - Fix syntax error in FindSnappy.cmake
-   - Add missing OpenMP dependency for FAISS
-   - Update dependency versions (simdjson 3.13.0, xsimd 13.2.0)
-
-4. Add Arrow compatibility:
-   - Add BitPacking.h for Arrow bit-packing operations
-   - Add Spaced.h utilities for Arrow spaced operations
-   - Update Arrow API usage and exception handling
-
-5. Improve 128-bit type conversions:
-   - Add decimal string conversion for 128-bit integers
-   - Fix folly::to instantiation issues
-   - Add proper type traits for 128-bit types
-
-6. Fix SIMD compatibility:
-   - Disable SIMD for bool types to prevent xsimd::batch<bool> issues
-   - Update SIMD type constraints
-
-This patch ensures Velox builds successfully with C++23 compilers and
-modern dependency versions while maintaining backward compatibility.
-
-Note: Some external files (hdfs, md5, tzdb) may require separate binary patches.
-
----
-diff --git a/velox/external/tzdb/tzdb_list_private.h b/velox/external/tzdb/tzdb_list_private.h
-index 9fa8dbab5..f74bf5092 100644
---- a/velox/external/tzdb/tzdb_list_private.h
-+++ b/velox/external/tzdb/tzdb_list_private.h
-@@ -21,6 +21,9 @@
- 
- namespace facebook::velox::tzdb {
- 
-+using std::mutex;
-+using std::unique_lock;
-+
- //===----------------------------------------------------------------------===//
- //                          Private API
- //===----------------------------------------------------------------------===//
 diff --git a/CMake/FindSnappy.cmake b/CMake/FindSnappy.cmake
 index e2a0359f8..7f2a3b68d 100644
 --- a/CMake/FindSnappy.cmake
@@ -98,61 +42,23 @@ index 292611660..a6e197d29 100644
  
  velox_set_source(stemmer)
  velox_resolve_dependency(stemmer)
-diff --git a/velox/connectors/hive/HivePartitionUtil.cpp b/velox/connectors/hive/HivePartitionUtil.cpp
-index cb95b916d..d0613e7a5 100644
---- a/velox/connectors/hive/HivePartitionUtil.cpp
-+++ b/velox/connectors/hive/HivePartitionUtil.cpp
-@@ -15,6 +15,8 @@
-  */
- 
- #include "velox/connectors/hive/HivePartitionUtil.h"
-+#include "velox/type/Conversions.h"
-+#include "velox/type/Type.h"
- #include "velox/vector/SimpleVector.h"
- 
- namespace facebook::velox::connector::hive {
-@@ -44,6 +46,18 @@ inline std::string makePartitionValueString(T value) {
-   return folly::to<std::string>(value);
- }
- 
-+// Avoid folly::to for 128-bit integers; use Velox decimal helpers instead.
-+template <>
-+inline std::string makePartitionValueString(::facebook::velox::int128_t value) {
-+  return ::facebook::velox::util::detail::i128ToDecimal(value);
-+}
-+
-+template <>
-+inline std::string makePartitionValueString(
-+    ::facebook::velox::uint128_t value) {
-+  return ::facebook::velox::util::detail::u128ToDecimal(value);
-+}
-+
- template <>
- inline std::string makePartitionValueString(bool value) {
-   return value ? "true" : "false";
-diff --git a/velox/core/Expressions.cpp b/velox/core/Expressions.cpp
-index b39152c10..2d358cec9 100644
---- a/velox/core/Expressions.cpp
-+++ b/velox/core/Expressions.cpp
-@@ -14,6 +14,7 @@
-  * limitations under the License.
-  */
- #include "velox/core/Expressions.h"
-+#include "velox/common/base/BitUtil.h"
- #include "velox/common/encode/Base64.h"
- #include "velox/vector/ComplexVector.h"
- #include "velox/vector/SimpleVector.h"
-@@ -336,6 +337,10 @@ uint64_t hashImpl(const TypePtr& type, const Variant& value) {
- 
-   if constexpr (std::is_floating_point_v<T>) {
-     return util::floating_point::NaNAwareHash<T>{}(T(v));
-+  } else if constexpr (std::is_integral_v<T> && sizeof(T) == 16) {
-+    // Avoid instantiating folly::hasher for 128-bit integers; hash the halves.
-+    const auto* p = reinterpret_cast<const uint64_t*>(&v);
-+    return bits::hashMix(p[0], p[1]);
-   } else {
-     return folly::hasher<T>{}(T(v));
-   }
+diff --git a/velox/common/memory/Scratch.h b/velox/common/memory/Scratch.h
+index dcde26e90..f48759101 100644
+--- a/velox/common/memory/Scratch.h
++++ b/velox/common/memory/Scratch.h
+@@ -82,9 +82,10 @@ class Scratch {
+       Item* newItems =
+           reinterpret_cast<Item*>(::malloc(sizeof(Item) * newCapacity));
+       if (fill_ > 0) {
+-        ::memcpy(newItems, items_, fill_ * sizeof(Item));
++        ::memcpy((void*)newItems, items_, fill_ * sizeof(Item));
+       }
+-      ::memset(newItems + fill_, 0, (newCapacity - fill_) * sizeof(Item));
++      ::memset(
++          (void*)(newItems + fill_), 0, (newCapacity - fill_) * sizeof(Item));
+       ::free(items_);
+       items_ = newItems;
+       capacity_ = newCapacity;
 diff --git a/velox/dwio/common/CacheInputStream.cpp b/velox/dwio/common/CacheInputStream.cpp
 index dedda0c72..41fa2d5dd 100644
 --- a/velox/dwio/common/CacheInputStream.cpp
@@ -593,7 +499,7 @@ index 000000000..3cc4340d2
 +
 +} // namespace facebook::velox::parquet::arrow::util::internal
 diff --git a/velox/dwio/parquet/writer/arrow/Encoding.cpp b/velox/dwio/parquet/writer/arrow/Encoding.cpp
-index 996d6455d..0f7b88f01 100644
+index 996d6455d..87a950d49 100644
 --- a/velox/dwio/parquet/writer/arrow/Encoding.cpp
 +++ b/velox/dwio/parquet/writer/arrow/Encoding.cpp
 @@ -165,7 +165,7 @@ class PlainEncoder : public EncoderImpl, virtual public TypedEncoder<DType> {
@@ -623,31 +529,7 @@ index 996d6455d..0f7b88f01 100644
          src, num_values, valid_bits, valid_bits_offset, data);
      Put(data, num_valid_values);
    } else {
-@@ -1379,8 +1379,9 @@ struct ArrowBinaryHelper<ByteArrayType> {
-   Status Prepare(std::optional<int64_t> estimated_data_length = {}) {
-     RETURN_NOT_OK(acc_->builder->Reserve(entries_remaining_));
-     if (estimated_data_length.has_value()) {
--      RETURN_NOT_OK(acc_->builder->ReserveData(std::min<int64_t>(
--          *estimated_data_length, ::arrow::kBinaryMemoryLimit)));
-+      RETURN_NOT_OK(acc_->builder->ReserveData(
-+          std::min<int64_t>(
-+              *estimated_data_length, ::arrow::kBinaryMemoryLimit)));
-     }
-     return Status::OK();
-   }
-@@ -1393,8 +1394,9 @@ struct ArrowBinaryHelper<ByteArrayType> {
-       RETURN_NOT_OK(PushChunk());
-       RETURN_NOT_OK(acc_->builder->Reserve(entries_remaining_));
-       if (estimated_remaining_data_length.has_value()) {
--        RETURN_NOT_OK(acc_->builder->ReserveData(std::min<int64_t>(
--            *estimated_remaining_data_length, chunk_space_remaining_)));
-+        RETURN_NOT_OK(acc_->builder->ReserveData(
-+            std::min<int64_t>(
-+                *estimated_remaining_data_length, chunk_space_remaining_)));
-       }
-     }
-     return Status::OK();
-@@ -2743,7 +2745,7 @@ void DeltaBitPackEncoder<DType>::PutSpaced(
+@@ -2743,7 +2743,7 @@ void DeltaBitPackEncoder<DType>::PutSpaced(
          auto buffer,
          ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
      T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -656,7 +538,7 @@ index 996d6455d..0f7b88f01 100644
          src, num_values, valid_bits, valid_bits_offset, data);
      Put(data, num_valid_values);
    } else {
-@@ -3115,7 +3117,7 @@ void DeltaLengthByteArrayEncoder<DType>::PutSpaced(
+@@ -3115,7 +3115,7 @@ void DeltaLengthByteArrayEncoder<DType>::PutSpaced(
          auto buffer,
          ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
      T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -665,29 +547,7 @@ index 996d6455d..0f7b88f01 100644
          src, num_values, valid_bits, valid_bits_offset, data);
      Put(data, num_valid_values);
    } else {
-@@ -3331,13 +3333,14 @@ class RleBooleanEncoder final : public EncoderImpl,
-         buffered_append_values_.push_back(boolean_array.Value(i));
-       }
-     } else {
--      PARQUET_THROW_NOT_OK(::arrow::VisitArraySpanInline<::arrow::BooleanType>(
--          *boolean_array.data(),
--          [&](bool value) {
--            buffered_append_values_.push_back(value);
--            return Status::OK();
--          },
--          []() { return Status::OK(); }));
-+      PARQUET_THROW_NOT_OK(
-+          ::arrow::VisitArraySpanInline<::arrow::BooleanType>(
-+              *boolean_array.data(),
-+              [&](bool value) {
-+                buffered_append_values_.push_back(value);
-+                return Status::OK();
-+              },
-+              []() { return Status::OK(); }));
-     }
-   }
- 
-@@ -3351,7 +3354,7 @@ class RleBooleanEncoder final : public EncoderImpl,
+@@ -3351,7 +3351,7 @@ class RleBooleanEncoder final : public EncoderImpl,
            auto buffer,
            ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
        T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -696,7 +556,7 @@ index 996d6455d..0f7b88f01 100644
            src, num_values, valid_bits, valid_bits_offset, data);
        Put(data, num_valid_values);
      } else {
-@@ -3563,7 +3566,7 @@ class DeltaByteArrayEncoder : public EncoderImpl,
+@@ -3563,7 +3563,7 @@ class DeltaByteArrayEncoder : public EncoderImpl,
          PARQUET_THROW_NOT_OK(buffer_->Resize(num_values * sizeof(T), false));
        }
        T* data = reinterpret_cast<T*>(buffer_->mutable_data());
@@ -732,7 +592,7 @@ index b57ee2b68..b119b5d11 100644
      } else {
        return Decode(buffer, num_values);
 diff --git a/velox/dwio/parquet/writer/arrow/Exception.h b/velox/dwio/parquet/writer/arrow/Exception.h
-index 927df3407..a648bccf1 100644
+index 927df3407..70924fa88 100644
 --- a/velox/dwio/parquet/writer/arrow/Exception.h
 +++ b/velox/dwio/parquet/writer/arrow/Exception.h
 @@ -23,8 +23,13 @@
@@ -797,22 +657,8 @@ index 927df3407..a648bccf1 100644
  
    explicit ParquetException(std::string msg) : msg_(std::move(msg)) {}
  
-@@ -154,9 +184,10 @@ class ParquetInvalidOrCorruptedFileException : public ParquetStatusException {
-           int>::type = 0,
-       typename... Args>
-   explicit ParquetInvalidOrCorruptedFileException(Arg arg, Args&&... args)
--      : ParquetStatusException(::arrow::Status::Invalid(
--            std::forward<Arg>(arg),
--            std::forward<Args>(args)...)) {}
-+      : ParquetStatusException(
-+            ::arrow::Status::Invalid(
-+                std::forward<Arg>(arg),
-+                std::forward<Args>(args)...)) {}
- };
- 
- template <typename StatusReturnBlock>
 diff --git a/velox/dwio/parquet/writer/arrow/Writer.cpp b/velox/dwio/parquet/writer/arrow/Writer.cpp
-index e6572bb76..c5cbb5133 100644
+index e6572bb76..25a8401f2 100644
 --- a/velox/dwio/parquet/writer/arrow/Writer.cpp
 +++ b/velox/dwio/parquet/writer/arrow/Writer.cpp
 @@ -419,16 +419,21 @@ class FileWriterImpl : public FileWriter {
@@ -842,49 +688,6 @@ index e6572bb76..c5cbb5133 100644
      }
      return Status::OK();
    }
-@@ -480,12 +485,13 @@ class FileWriterImpl : public FileWriter {
- 
-       if (arrow_properties_->use_threads()) {
-         VELOX_DCHECK_EQ(parallel_column_write_contexts_.size(), writers.size());
--        RETURN_NOT_OK(::arrow::internal::ParallelFor(
--            static_cast<int>(writers.size()),
--            [&](int i) {
--              return writers[i]->Write(&parallel_column_write_contexts_[i]);
--            },
--            arrow_properties_->executor()));
-+        RETURN_NOT_OK(
-+            ::arrow::internal::ParallelFor(
-+                static_cast<int>(writers.size()),
-+                [&](int i) {
-+                  return writers[i]->Write(&parallel_column_write_contexts_[i]);
-+                },
-+                arrow_properties_->executor()));
-       }
- 
-       return Status::OK();
-@@ -658,16 +664,18 @@ Result<std::unique_ptr<FileWriter>> FileWriter::Open(
- Status WriteFileMetaData(
-     const FileMetaData& file_metadata,
-     ::arrow::io::OutputStream* sink) {
--  PARQUET_CATCH_NOT_OK(::facebook::velox::parquet::arrow::WriteFileMetaData(
--      file_metadata, sink));
-+  PARQUET_CATCH_NOT_OK(
-+      ::facebook::velox::parquet::arrow::WriteFileMetaData(
-+          file_metadata, sink));
-   return Status::OK();
- }
- 
- Status WriteMetaDataFile(
-     const FileMetaData& file_metadata,
-     ::arrow::io::OutputStream* sink) {
--  PARQUET_CATCH_NOT_OK(::facebook::velox::parquet::arrow::WriteMetaDataFile(
--      file_metadata, sink));
-+  PARQUET_CATCH_NOT_OK(
-+      ::facebook::velox::parquet::arrow::WriteMetaDataFile(
-+          file_metadata, sink));
-   return Status::OK();
- }
- 
 diff --git a/velox/dwio/parquet/writer/arrow/tests/ColumnWriterTest.cpp b/velox/dwio/parquet/writer/arrow/tests/ColumnWriterTest.cpp
 index 4d9b10f35..8d1171661 100644
 --- a/velox/dwio/parquet/writer/arrow/tests/ColumnWriterTest.cpp
@@ -900,7 +703,7 @@ index 4d9b10f35..8d1171661 100644
    // valgrind will warn about out of bounds access into def_levels_data
    typed_writer->WriteBatchSpaced(
 diff --git a/velox/dwio/parquet/writer/arrow/tests/EncodingTest.cpp b/velox/dwio/parquet/writer/arrow/tests/EncodingTest.cpp
-index 92570dc13..5bd0f6129 100644
+index 92570dc13..5286efff8 100644
 --- a/velox/dwio/parquet/writer/arrow/tests/EncodingTest.cpp
 +++ b/velox/dwio/parquet/writer/arrow/tests/EncodingTest.cpp
 @@ -138,7 +138,7 @@ class PlainEncoder : public EncoderImpl, virtual public TypedEncoder<DType> {
@@ -948,29 +751,7 @@ index 92570dc13..5bd0f6129 100644
          src, num_values, valid_bits, valid_bits_offset, data);
      Put(data, num_valid_values);
    } else {
-@@ -3295,13 +3295,14 @@ class RleBooleanEncoder final : public EncoderImpl,
-         buffered_append_values_.push_back(boolean_array.Value(i));
-       }
-     } else {
--      PARQUET_THROW_NOT_OK(::arrow::VisitArraySpanInline<::arrow::BooleanType>(
--          *boolean_array.data(),
--          [&](bool value) {
--            buffered_append_values_.push_back(value);
--            return Status::OK();
--          },
--          []() { return Status::OK(); }));
-+      PARQUET_THROW_NOT_OK(
-+          ::arrow::VisitArraySpanInline<::arrow::BooleanType>(
-+              *boolean_array.data(),
-+              [&](bool value) {
-+                buffered_append_values_.push_back(value);
-+                return Status::OK();
-+              },
-+              []() { return Status::OK(); }));
-     }
-   }
- 
-@@ -3315,7 +3316,7 @@ class RleBooleanEncoder final : public EncoderImpl,
+@@ -3315,7 +3315,7 @@ class RleBooleanEncoder final : public EncoderImpl,
            auto buffer,
            ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
        T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -1094,69 +875,51 @@ index 000000000..3cc4340d2
 +}
 +
 +} // namespace facebook::velox::parquet::arrow::util::internal
-diff --git a/velox/exec/ContainerRowSerde.cpp b/velox/exec/ContainerRowSerde.cpp
-index 89f2de3f3..818f622bc 100644
---- a/velox/exec/ContainerRowSerde.cpp
-+++ b/velox/exec/ContainerRowSerde.cpp
-@@ -16,6 +16,7 @@
- 
- #include "velox/exec/ContainerRowSerde.h"
- #include "velox/type/FloatingPointUtil.h"
-+#include "velox/type/Type.h"
- #include "velox/vector/ComplexVector.h"
- #include "velox/vector/FlatVector.h"
- 
-@@ -913,6 +914,13 @@ uint64_t hashOne(ByteInputStream& stream, const Type* type) {
-         value);
-   } else if constexpr (std::is_floating_point_v<T>) {
-     return util::floating_point::NaNAwareHash<T>()(value);
-+  } else if constexpr (std::is_same_v<T, facebook::velox::int128_t>) {
-+    // Avoid folly::hasher for 128-bit; mix hi/lo 64-bit halves instead.
-+    using U = unsigned __int128;
-+    U uv = static_cast<U>(value);
-+    uint64_t lo = static_cast<uint64_t>(uv);
-+    uint64_t hi = static_cast<uint64_t>(uv >> 64);
-+    return bits::hashMix(hi, lo);
-   } else {
-     return folly::hasher<T>()(value);
-   }
-diff --git a/velox/exec/RowContainer.cpp b/velox/exec/RowContainer.cpp
-index cbf28e6c6..efb5525ba 100644
---- a/velox/exec/RowContainer.cpp
-+++ b/velox/exec/RowContainer.cpp
-@@ -903,6 +903,12 @@ void RowContainer::hashTyped(
-                    ->hash(valueAt<T>(row, offset));
-       } else if constexpr (std::is_floating_point_v<T>) {
-         hash = util::floating_point::NaNAwareHash<T>()(valueAt<T>(row, offset));
-+      } else if constexpr (std::is_same_v<T, facebook::velox::int128_t>) {
-+        using U = unsigned __int128;
-+        U uv = static_cast<U>(valueAt<T>(row, offset));
-+        uint64_t lo = static_cast<uint64_t>(uv);
-+        uint64_t hi = static_cast<uint64_t>(uv >> 64);
-+        hash = bits::hashMix(hi, lo);
-       } else {
-         hash = folly::hasher<T>()(valueAt<T>(row, offset));
-       }
-diff --git a/velox/exec/VectorHasher.cpp b/velox/exec/VectorHasher.cpp
-index e502575aa..e5ceb6b55 100644
---- a/velox/exec/VectorHasher.cpp
-+++ b/velox/exec/VectorHasher.cpp
-@@ -73,6 +73,13 @@ uint64_t hashOne(DecodedVector& decoded, vector_size_t index) {
-           ->hash(value);
-     } else if constexpr (std::is_floating_point_v<T>) {
-       return util::floating_point::NaNAwareHash<T>()(value);
-+    } else if constexpr (std::is_integral_v<T> && sizeof(T) == 16) {
-+      // Avoid folly::hasher for 128-bit integers which is undefined.
-+      // Mix the high/low 64-bit halves for a stable hash.
-+      auto u = static_cast<unsigned __int128>(value);
-+      uint64_t hi = static_cast<uint64_t>(u >> 64);
-+      uint64_t lo = static_cast<uint64_t>(u);
-+      return bits::hashMix(hi, lo);
-     } else {
-       return folly::hasher<T>()(value);
+diff --git a/velox/exec/Aggregate.h b/velox/exec/Aggregate.h
+index b2d605011..b322cdbf7 100644
+--- a/velox/exec/Aggregate.h
++++ b/velox/exec/Aggregate.h
+@@ -434,7 +434,7 @@ class Aggregate {
+     if (isInitialized(group)) {
+       auto accumulator = value<T>(group);
+       std::destroy_at(accumulator);
+-      ::memset(accumulator, 0, sizeof(T));
++      ::memset((void*)accumulator, 0, sizeof(T));
      }
+   }
+ 
+diff --git a/velox/external/date/date.h b/velox/external/date/date.h
+index b0ae226e29a0a718e8bcd2ea486db01c16a94b2c..c8eef8dbe3633891e5be8606b6092348b202e366 100644
+GIT binary patch
+delta 55
+zcmey+!}p?xZv$5olakV8#!HHm^_%2D%!W&fn~R&e{2{{CK&rXnQhUQC#_bK4m_BR<
+E07e=X5C8xG
+
+delta 75
+zcmaFS!}p<wZv$5on}U*(LVU{PfF_a2N=;fUAns<rrq%w)5`vdf!4i}GniMC`T`$nQ
+R@>2WCON`rBUSit6834b!8@K=f
+
+diff --git a/velox/external/date/iso_week.h b/velox/external/date/iso_week.h
+index e5572b8e41922db7fe30f61b23b95f6bf89f4b16..3080791b8375b8c74206d1edb77985e32b4eef15 100644
+GIT binary patch
+delta 30
+mcmccE!gRKUX+w(%i;_}&<zxX<k;(H+a+s8qHuIS}`vL%{jS0K}
+
+delta 28
+gcmX@x!gR5PX+w(%i-MAp!sIrSCNN_&m#MQa0E})3bN~PV
+
+diff --git a/velox/external/tzdb/tzdb_list_private.h b/velox/external/tzdb/tzdb_list_private.h
+index 9fa8dbab56b851ddc6a4c8b21654b565dd43719d..aef3acb8e325b048921051a04a351a6b36c7121c 100644
+GIT binary patch
+delta 58
+zcmew_x=L)rJ|^wb;>^5sh2oMFE34enlGF-oE+moCyv)MV)cBnI<ZNp$t_i`L1)1Nm
+F0|1up6@LH#
+
+delta 16
+YcmZ1__Fr_vKBmb@%z>M&m_M)s06Yi=bpQYW
+
 diff --git a/velox/functions/prestosql/geospatial/GeometryUtils.h b/velox/functions/prestosql/geospatial/GeometryUtils.h
-index a77f1d7d6..5e4614729 100644
+index a77f1d7d6..884866ec3 100644
 --- a/velox/functions/prestosql/geospatial/GeometryUtils.h
 +++ b/velox/functions/prestosql/geospatial/GeometryUtils.h
 @@ -23,6 +23,7 @@
@@ -1167,114 +930,11 @@ index a77f1d7d6..5e4614729 100644
  #include "velox/common/base/Status.h"
  
  namespace facebook::velox::functions::geospatial {
-@@ -112,11 +113,12 @@ FOLLY_ALWAYS_INLINE Status validateType(
-     std::string callerFunctionName) {
-   geos::geom::GeometryTypeId type = geometry.getGeometryTypeId();
-   if (!std::count(validTypes.begin(), validTypes.end(), type)) {
--    return Status::UserError(fmt::format(
--        "{} only applies to {}. Input type is: {}",
--        callerFunctionName,
--        fmt::join(getGeosTypeNames(validTypes), " or "),
--        getGeosTypeToStringIdentifier().at(type)));
-+    return Status::UserError(
-+        fmt::format(
-+            "{} only applies to {}. Input type is: {}",
-+            callerFunctionName,
-+            fmt::join(getGeosTypeNames(validTypes), " or "),
-+            getGeosTypeToStringIdentifier().at(type)));
-   }
-   return Status::OK();
- }
-diff --git a/velox/functions/prestosql/types/IPAddressType.h b/velox/functions/prestosql/types/IPAddressType.h
-index 3dd46b688..f02428e8c 100644
---- a/velox/functions/prestosql/types/IPAddressType.h
-+++ b/velox/functions/prestosql/types/IPAddressType.h
-@@ -72,7 +72,10 @@ class IPAddressType final : public HugeintType {
-   }
- 
-   uint64_t hash(const int128_t& value) const override {
--    return folly::hasher<int128_t>()(value);
-+    // Mix two 64-bit halves of the 128-bit value for a stable hash.
-+    uint64_t lo = static_cast<uint64_t>(value);
-+    uint64_t hi = static_cast<uint64_t>(static_cast<__int128_t>(value) >> 64);
-+    return bits::hashMix(hi, lo);
-   }
- 
-   bool equivalent(const Type& other) const override {
-diff --git a/velox/functions/sparksql/In.cpp b/velox/functions/sparksql/In.cpp
-index bcae3ecaf..c1a4b458e 100644
---- a/velox/functions/sparksql/In.cpp
-+++ b/velox/functions/sparksql/In.cpp
-@@ -16,18 +16,47 @@
- #include "folly/container/F14Set.h"
- #include "folly/hash/Hash.h"
- 
-+#include "velox/common/base/BitUtil.h"
- #include "velox/expression/VectorFunction.h"
- #include "velox/functions/Macros.h"
- #include "velox/functions/lib/RegistrationHelpers.h"
- #include "velox/functions/sparksql/Arena.h"
- #include "velox/functions/sparksql/Comparisons.h"
- #include "velox/type/Filter.h"
-+#include "velox/type/Type.h"
- 
- namespace facebook::velox::functions::sparksql {
- namespace {
- 
-+// Custom hasher for 128-bit integers to avoid relying on
-+// folly::hasher<__int128>.
-+struct Int128Hasher {
-+  using folly_is_avalanching = std::true_type;
-+  size_t operator()(facebook::velox::int128_t v) const noexcept {
-+    using u128 = unsigned __int128;
-+    u128 uv = static_cast<u128>(v);
-+    uint64_t lo = static_cast<uint64_t>(uv);
-+    uint64_t hi = static_cast<uint64_t>(uv >> 64);
-+    return facebook::velox::bits::hashMix(hi, lo);
-+  }
-+};
-+
-+// Type trait to select hasher per type.
- template <typename T>
--class Set : public folly::F14FastSet<T, folly::hasher<T>, Equal<T>> {};
-+struct HasherFor {
-+  using type = folly::hasher<T>;
-+};
-+
-+template <>
-+struct HasherFor<facebook::velox::int128_t> {
-+  using type = Int128Hasher;
-+};
-+
-+template <typename T>
-+class Set : public folly::F14FastSet<T, typename HasherFor<T>::type, Equal<T>> {
-+};
-+
-+// Also specialize for builtin alias to be robust to instantiation spelling.
- 
- template <>
- class Set<float> : public folly::F14FastSet<
 diff --git a/velox/functions/sparksql/fuzzer/SparkQueryRunner.cpp b/velox/functions/sparksql/fuzzer/SparkQueryRunner.cpp
-index 451ce15c8..a4ed6e408 100644
+index 451ce15c8..a0451c5c0 100644
 --- a/velox/functions/sparksql/fuzzer/SparkQueryRunner.cpp
 +++ b/velox/functions/sparksql/fuzzer/SparkQueryRunner.cpp
-@@ -150,10 +150,11 @@ SparkQueryRunner::executeAndReturnVector(const core::PlanNodePtr& plan) {
-         writeToFile(filePath, input, writerPool.get());
-         // Create temporary view for this table in Spark by reading the
-         // generated Parquet file.
--        execute(fmt::format(
--            "CREATE OR REPLACE TEMPORARY VIEW {} AS (SELECT * from parquet.`file://{}`);",
--            tableName,
--            filePath));
-+        execute(
-+            fmt::format(
-+                "CREATE OR REPLACE TEMPORARY VIEW {} AS (SELECT * from parquet.`file://{}`);",
-+                tableName,
-+                filePath));
-       }
- 
-       // Run the query.
-@@ -177,21 +178,20 @@ SparkQueryRunner::executeAndReturnVector(const core::PlanNodePtr& plan) {
+@@ -177,21 +177,20 @@ SparkQueryRunner::executeAndReturnVector(const core::PlanNodePtr& plan) {
  
  std::vector<RowVectorPtr> SparkQueryRunner::execute(
      const std::string& content) {
@@ -1301,184 +961,8 @@ index 451ce15c8..a4ed6e408 100644
    request->set_session_id(sessionId_);
    request->set_allocated_user_context(context);
    request->set_allocated_plan(plan);
-diff --git a/velox/type/Conversions.h b/velox/type/Conversions.h
-index b0c175a9f..18bdbbdb5 100644
---- a/velox/type/Conversions.h
-+++ b/velox/type/Conversions.h
-@@ -127,8 +127,9 @@ Expected<bool> castToBoolean(const char* data, size_t len) {
-     }
-   }
- 
--  return folly::makeUnexpected(Status::UserError(
--      "Cannot cast {} to BOOLEAN", std::string_view(data, len)));
-+  return folly::makeUnexpected(
-+      Status::UserError(
-+          "Cannot cast {} to BOOLEAN", std::string_view(data, len)));
- }
- 
- namespace detail {
-@@ -140,13 +141,45 @@ Expected<T> callFollyTo(const F& v) {
-     if (threadSkipErrorDetails()) {
-       return folly::makeUnexpected(Status::UserError());
-     }
--    return folly::makeUnexpected(Status::UserError(
--        "{}", folly::makeConversionError(result.error(), "").what()));
-+    return folly::makeUnexpected(
-+        Status::UserError(
-+            "{}", folly::makeConversionError(result.error(), "").what()));
-   }
- 
-   return result.value();
- }
- 
-+// Convert unsigned 128-bit to decimal string without relying on folly::to.
-+inline std::string u128ToDecimal(uint128_t value) {
-+  if (value == 0) {
-+    return std::string("0");
-+  }
-+  char buf[40];
-+  int idx = 0;
-+  while (value > 0) {
-+    auto digit = static_cast<unsigned>(value % 10);
-+    buf[idx++] = static_cast<char>('0' + digit);
-+    value /= 10;
-+  }
-+  std::string out(idx, '0');
-+  for (int i = 0; i < idx; ++i) {
-+    out[i] = buf[idx - 1 - i];
-+  }
-+  return out;
-+}
-+
-+// Convert signed 128-bit to decimal string.
-+inline std::string i128ToDecimal(int128_t value) {
-+  if (value >= 0) {
-+    return u128ToDecimal(static_cast<uint128_t>(value));
-+  }
-+  // Compute absolute in unsigned space to avoid overflow on min value.
-+  uint128_t absVal = static_cast<uint128_t>(~static_cast<uint128_t>(value) + 1);
-+  std::string s = u128ToDecimal(absVal);
-+  s.insert(s.begin(), '-');
-+  return s;
-+}
-+
- } // namespace detail
- 
- /// To BOOLEAN converter.
-@@ -235,8 +268,9 @@ struct Converter<TypeKind::BOOLEAN, void, TPolicy> {
-   }
- 
-   static Expected<T> tryCast(const Timestamp&) {
--    return folly::makeUnexpected(Status::UserError(
--        "Conversion of Timestamp to Boolean is not supported"));
-+    return folly::makeUnexpected(
-+        Status::UserError(
-+            "Conversion of Timestamp to Boolean is not supported"));
-   }
- };
- 
-@@ -271,8 +305,9 @@ struct Converter<
-     int index = 0;
-     int len = v.size();
-     if (len == 0) {
--      return folly::makeUnexpected(Status::UserError(
--          "Cannot cast an empty string to an integral value."));
-+      return folly::makeUnexpected(
-+          Status::UserError(
-+              "Cannot cast an empty string to an integral value."));
-     }
- 
-     // Setting negative flag
-@@ -281,8 +316,9 @@ struct Converter<
-     bool decimalPoint = false;
-     if (v[0] == '-' || v[0] == '+') {
-       if (len == 1) {
--        return folly::makeUnexpected(Status::UserError(
--            "Cannot cast an '{}' string to an integral value.", v[0]));
-+        return folly::makeUnexpected(
-+            Status::UserError(
-+                "Cannot cast an '{}' string to an integral value.", v[0]));
-       }
-       negative = v[0] == '-';
-       index = 1;
-@@ -555,8 +591,9 @@ struct Converter<
-   }
- 
-   static Expected<T> tryCast(const Timestamp&) {
--    return folly::makeUnexpected(Status::UserError(
--        "Conversion of Timestamp to Real or Double is not supported"));
-+    return folly::makeUnexpected(
-+        Status::UserError(
-+            "Conversion of Timestamp to Real or Double is not supported"));
-   }
- };
- 
-@@ -602,7 +639,13 @@ struct Converter<TypeKind::VARCHAR, void, TPolicy> {
-       return str;
-     }
- 
--    return folly::to<std::string>(val);
-+    if constexpr (std::is_same_v<T, int128_t>) {
-+      return detail::i128ToDecimal(val);
-+    } else if constexpr (std::is_same_v<T, uint128_t>) {
-+      return detail::u128ToDecimal(val);
-+    } else {
-+      return folly::to<std::string>(val);
-+    }
-   }
- 
-   static Expected<std::string> tryCast(const Timestamp& val) {
-diff --git a/velox/type/Type.h b/velox/type/Type.h
-index f3913003c..0e9a553f8 100644
---- a/velox/type/Type.h
-+++ b/velox/type/Type.h
-@@ -2334,6 +2334,24 @@ std::string Type::valueToString(T value) const {
-     } else {
-       return velox::to<std::string>(value);
-     }
-+  } else if constexpr (std::is_same_v<T, uint128_t>) {
-+    // Print unsigned 128-bit as decimal without relying on folly::to.
-+    auto v = value;
-+    if (v == 0) {
-+      return std::string("0");
-+    }
-+    char buf[40];
-+    int idx = 0;
-+    while (v > 0) {
-+      auto digit = static_cast<unsigned>(v % 10);
-+      buf[idx++] = static_cast<char>('0' + digit);
-+      v /= 10;
-+    }
-+    std::string out(idx, '0');
-+    for (int i = 0; i < idx; ++i) {
-+      out[i] = buf[idx - 1 - i];
-+    }
-+    return out;
-   } else if constexpr (std::is_same_v<T, int32_t>) {
-     if (isDate()) {
-       return DATE()->toString(value);
-diff --git a/velox/type/Variant.cpp b/velox/type/Variant.cpp
-index 8799a83d1..002a1ae4e 100644
---- a/velox/type/Variant.cpp
-+++ b/velox/type/Variant.cpp
-@@ -895,8 +895,13 @@ uint64_t Variant::hash() const {
-   if constexpr (std::is_floating_point_v<T>) {
-     return NaNAwareHash<T>{}(value<KIND>());
-   }
--
--  return folly::Hash{}(value<KIND>());
-+  if constexpr (std::is_integral_v<T> && sizeof(T) == 16) {
-+    const auto& v = value<KIND>();
-+    const auto* p = reinterpret_cast<const uint64_t*>(&v);
-+    return bits::hashMix(p[0], p[1]);
-+  } else {
-+    return folly::Hash{}(value<KIND>());
-+  }
- }
- 
- template <>
 diff --git a/velox/vector/ConstantVector.h b/velox/vector/ConstantVector.h
-index c63b06add..443dabe95 100644
+index c63b06add..f6db0ad80 100644
 --- a/velox/vector/ConstantVector.h
 +++ b/velox/vector/ConstantVector.h
 @@ -42,7 +42,7 @@ class ConstantVector final : public SimpleVector<T> {
@@ -1490,109 +974,3 @@ index c63b06add..443dabe95 100644
  
    ConstantVector(
        velox::memory::MemoryPool* pool,
-@@ -242,10 +242,11 @@ class ConstantVector final : public SimpleVector<T> {
-     static const DummyReleaser kDummy;
-     auto* wrapInfo = wrapInfo_.load();
-     if (FOLLY_UNLIKELY(!wrapInfo)) {
--      wrapInfo = new BufferPtr(BufferView<DummyReleaser>::create(
--          reinterpret_cast<const uint8_t*>(&index_),
--          sizeof(vector_size_t),
--          kDummy));
-+      wrapInfo = new BufferPtr(
-+          BufferView<DummyReleaser>::create(
-+              reinterpret_cast<const uint8_t*>(&index_),
-+              sizeof(vector_size_t),
-+              kDummy));
-       BufferPtr* oldWrapInfo = nullptr;
-       if (!wrapInfo_.compare_exchange_strong(oldWrapInfo, wrapInfo)) {
-         delete wrapInfo;
-diff --git a/velox/vector/FlatVector-inl.h b/velox/vector/FlatVector-inl.h
-index 2b761b127..edefd47ac 100644
---- a/velox/vector/FlatVector-inl.h
-+++ b/velox/vector/FlatVector-inl.h
-@@ -83,19 +83,28 @@ std::unique_ptr<SimpleVector<uint64_t>> FlatVector<T>::hashAll() const {
-   BufferPtr hashBuffer =
-       AlignedBuffer::allocate<uint64_t>(BaseVector::length_, BaseVector::pool_);
-   auto hashData = hashBuffer->asMutable<uint64_t>();
--
--  folly::hasher<T> hasher;
-+  // Local hasher that avoids instantiating folly::hasher for 128-bit ints.
-+  auto hashOne = [](const T& v) -> uint64_t {
-+    if constexpr (
-+        // Prefer a size check to catch both signed/unsigned 128-bit ints.
-+        sizeof(T) == 16 && std::is_integral_v<T>) {
-+      const auto* p = reinterpret_cast<const uint64_t*>(&v);
-+      return bits::hashMix(p[0], p[1]);
-+    } else {
-+      return folly::hasher<T>()(v);
-+    }
-+  };
-   if (!BaseVector::rawNulls_) {
-     VELOX_DCHECK_NOT_NULL(rawValues_);
-     for (len_type i = 0; i < BaseVector::length_; ++i) {
--      hashData[i] = hasher(valueAtFast(i));
-+      hashData[i] = hashOne(valueAtFast(i));
-     }
-   } else {
-     for (len_type i = 0; i < BaseVector::length_; ++i) {
-       if (bits::isBitNull(BaseVector::rawNulls_, i)) {
-         hashData[i] = BaseVector::kNullHash;
-       } else {
--        hashData[i] = hasher(valueAtFast(i));
-+        hashData[i] = hashOne(valueAtFast(i));
-       }
-     }
-   }
-@@ -118,6 +127,10 @@ bool FlatVector<T>::useSimdEquality(size_t numCmpVals) const {
-   if constexpr (!std::is_integral_v<T>) {
-     return false;
-   } else {
-+    if constexpr (std::is_same_v<T, bool>) {
-+      // Avoid instantiating xsimd::batch<bool> anywhere.
-+      return false;
-+    }
-     // Uses a cost estimate for a SIMD comparison of a single comparison
-     // value vs. that of doing the fallback set lookup to determine
-     // whether or not to pursue the SIMD path or the fallback path.
-diff --git a/velox/vector/FlatVector.h b/velox/vector/FlatVector.h
-index aab6c3858..d1e5dbedf 100644
---- a/velox/vector/FlatVector.h
-+++ b/velox/vector/FlatVector.h
-@@ -40,7 +40,7 @@ class FlatVector final : public SimpleVector<T> {
-   static constexpr bool can_simd =
-       (std::is_same_v<T, int64_t> || std::is_same_v<T, int32_t> ||
-        std::is_same_v<T, int16_t> || std::is_same_v<T, int8_t> ||
--       std::is_same_v<T, bool> || std::is_same_v<T, size_t>);
-+       std::is_same_v<T, size_t>);
- 
-   /// Minimum size of a string buffer. 32 KB value is chosen to ensure that a
-   /// single buffer is sufficient for a "typical" vector: 1K rows, medium size
-diff --git a/velox/vector/SimpleVector.h b/velox/vector/SimpleVector.h
-index 42abccb76..f021ca612 100644
---- a/velox/vector/SimpleVector.h
-+++ b/velox/vector/SimpleVector.h
-@@ -27,6 +27,7 @@
- #include <folly/hash/Hash.h>
- #include <glog/logging.h>
- 
-+#include "velox/common/base/BitUtil.h"
- #include "velox/functions/lib/string/StringCore.h"
- #include "velox/type/DecimalUtil.h"
- #include "velox/type/FloatingPointUtil.h"
-@@ -217,6 +218,16 @@ class SimpleVector : public BaseVector {
- 
-     if constexpr (std::is_floating_point_v<T>) {
-       return util::floating_point::NaNAwareHash<T>{}(valueAt(index));
-+    } else if constexpr (std::is_same_v<T, int128_t>) {
-+      auto v = valueAt(index);
-+      uint64_t lo = static_cast<uint64_t>(v);
-+      uint64_t hi = static_cast<uint64_t>(static_cast<__int128_t>(v) >> 64);
-+      return bits::hashMix(hi, lo);
-+    } else if constexpr (std::is_same_v<T, uint128_t>) {
-+      auto v = valueAt(index);
-+      uint64_t lo = static_cast<uint64_t>(v);
-+      uint64_t hi = static_cast<uint64_t>(static_cast<__uint128_t>(v) >> 64);
-+      return bits::hashMix(hi, lo);
-     } else {
-       return folly::hasher<T>{}(valueAt(index));
-     }

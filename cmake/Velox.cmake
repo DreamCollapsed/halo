@@ -1,6 +1,6 @@
 #[[
-  velox.cmake (single-file integration)
-  - Acquires Velox sources via Git (clone + optional checkout + submodules)
+  velox.cmake (submodule integration)
+  - Ensures Velox submodule is initialized and at correct commit
   - Sets Velox CMake cache options
   - Caller should then: add_subdirectory(velox)
 
@@ -8,61 +8,47 @@
     include(cmake/Velox.cmake)
     add_subdirectory(velox)
 ]]
-set(VELOX_URL "https://github.com/facebookincubator/velox")
 set(VELOX_SHA256 "e23a4e90fb3cfcb159b26072b55b824c9c630b71")
 
 include_guard(GLOBAL)
 
 set(HALO_VELOX_SOURCE_DIR "${CMAKE_SOURCE_DIR}/velox" CACHE PATH "Velox source dir" FORCE)
 
+# Check if Velox submodule is initialized and at the correct commit
 if(NOT EXISTS "${HALO_VELOX_SOURCE_DIR}/CMakeLists.txt")
-  find_package(Git QUIET)
-  if(NOT GIT_EXECUTABLE)
-    message(FATAL_ERROR "Git not found but required to acquire Velox sources.")
+  find_package(Git REQUIRED)
+
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive velox
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    RESULT_VARIABLE _submodule_res
+    OUTPUT_QUIET ERROR_QUIET)
+  if(NOT _submodule_res EQUAL 0)
+    message(FATAL_ERROR "Failed to initialize Velox submodule (exit ${_submodule_res}).")
   endif()
+endif()
 
-  file(MAKE_DIRECTORY "${HALO_VELOX_SOURCE_DIR}")
-
-  if(DEFINED VELOX_SHA256 AND NOT VELOX_SHA256 STREQUAL "")
-    message(STATUS "Fetching Velox commit ${VELOX_SHA256} (shallow) into ${HALO_VELOX_SOURCE_DIR}")
-    # Initialize empty repo and fetch only the desired commit shallowly
+# Ensure we're at the correct commit
+if(DEFINED VELOX_SHA256 AND NOT VELOX_SHA256 STREQUAL "")
+  find_package(Git QUIET)
+  if(GIT_EXECUTABLE)
     execute_process(
-      COMMAND "${GIT_EXECUTABLE}" init
+      COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
       WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
-      RESULT_VARIABLE _init_res
-      OUTPUT_QUIET ERROR_QUIET)
-    if(NOT _init_res EQUAL 0)
-      message(FATAL_ERROR "Failed to initialize git repository at ${HALO_VELOX_SOURCE_DIR} (exit ${_init_res}).")
-    endif()
-    execute_process(
-      COMMAND "${GIT_EXECUTABLE}" -C "${HALO_VELOX_SOURCE_DIR}" remote add origin "${VELOX_URL}"
-      RESULT_VARIABLE _remote_res
-      OUTPUT_QUIET ERROR_QUIET)
-    if(NOT _remote_res EQUAL 0)
-      message(FATAL_ERROR "Failed to add origin ${VELOX_URL} to ${HALO_VELOX_SOURCE_DIR} (exit ${_remote_res}).")
-    endif()
-    execute_process(
-      COMMAND "${GIT_EXECUTABLE}" -C "${HALO_VELOX_SOURCE_DIR}" fetch --depth 1 origin "${VELOX_SHA256}"
-      RESULT_VARIABLE _fetch_res
-      OUTPUT_QUIET ERROR_QUIET)
-    if(NOT _fetch_res EQUAL 0)
-      message(FATAL_ERROR "Failed to fetch commit ${VELOX_SHA256} from ${VELOX_URL} (exit ${_fetch_res}).")
-    endif()
-    execute_process(
-      COMMAND "${GIT_EXECUTABLE}" -C "${HALO_VELOX_SOURCE_DIR}" checkout --detach FETCH_HEAD
-      RESULT_VARIABLE _checkout_res
-      OUTPUT_QUIET ERROR_QUIET)
-    if(NOT _checkout_res EQUAL 0)
-      message(FATAL_ERROR "Failed to checkout commit ${VELOX_SHA256} in ${HALO_VELOX_SOURCE_DIR}.")
-    endif()
-  else()
-    message(STATUS "Cloning Velox (shallow) from ${VELOX_URL} into ${HALO_VELOX_SOURCE_DIR}")
-    execute_process(
-      COMMAND "${GIT_EXECUTABLE}" clone --depth 1 "${VELOX_URL}" "${HALO_VELOX_SOURCE_DIR}"
-      RESULT_VARIABLE _clone_res
-      OUTPUT_QUIET ERROR_QUIET)
-    if(NOT _clone_res EQUAL 0)
-      message(FATAL_ERROR "Failed to clone Velox repository (exit ${_clone_res}) from ${VELOX_URL}.")
+      OUTPUT_VARIABLE _current_commit
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET)
+    
+    if(NOT _current_commit STREQUAL VELOX_SHA256)
+      message(STATUS "Velox at commit ${_current_commit}, switching to ${VELOX_SHA256}")
+      execute_process(
+        COMMAND "${GIT_EXECUTABLE}" checkout ${VELOX_SHA256}
+        WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
+        RESULT_VARIABLE _checkout_res
+        OUTPUT_QUIET ERROR_QUIET)
+      if(NOT _checkout_res EQUAL 0)
+        message(WARNING "Failed to checkout Velox commit ${VELOX_SHA256}. Continuing with current commit.")
+      endif()
     endif()
   endif()
 endif()

@@ -46,6 +46,22 @@ if(APPLE)
     add_link_options(-mmacosx-version-min=${CMAKE_OSX_DEPLOYMENT_TARGET})
     
     set(HALO_MACOS_DEPLOYMENT_TARGET "${_macos_target}" CACHE INTERNAL "Detected macOS deployment target for third-party libraries")
+
+    # macOS: ensure system SDK is visible to Homebrew LLVM/clang-scan-deps
+    if(NOT DEFINED CMAKE_OSX_SYSROOT OR CMAKE_OSX_SYSROOT STREQUAL "")
+      find_program(XCRUN_EXECUTABLE xcrun)
+      if(XCRUN_EXECUTABLE)
+        execute_process(
+          COMMAND "${XCRUN_EXECUTABLE}" --show-sdk-path
+          OUTPUT_VARIABLE _HALO_MACOS_SDK
+          OUTPUT_STRIP_TRAILING_WHITESPACE
+          ERROR_QUIET)
+        if(_HALO_MACOS_SDK AND EXISTS "${_HALO_MACOS_SDK}")
+          add_compile_options(-isysroot "${_HALO_MACOS_SDK}")
+          add_link_options(-isysroot "${_HALO_MACOS_SDK}")
+        endif()
+      endif()
+    endif()
 endif()
 
 # Force static libraries for the entire project and all third-party libraries
@@ -144,13 +160,6 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
     )
 endif()
 
-# Define paths for third-party libraries
-set(THIRDPARTY_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty)
-set(THIRDPARTY_DOWNLOAD_DIR ${THIRDPARTY_ROOT}/downloads)
-set(THIRDPARTY_SRC_DIR ${THIRDPARTY_ROOT}/src)
-set(THIRDPARTY_BUILD_DIR ${THIRDPARTY_ROOT}/builds)
-set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_ROOT}/installed)
-
 # Suppress CMake developer warnings (including third-party library warnings)
 set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS ON CACHE BOOL "Suppress CMake developer warnings")
 set(CMAKE_WARN_DEPRECATED OFF CACHE BOOL "Suppress deprecated warnings")
@@ -162,7 +171,17 @@ add_link_options(
     $<$<PLATFORM_ID:Linux>:-Wl,--allow-multiple-definition>  # Allow multiple definitions on Linux
 )
 
+set(THIRDPARTY_BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty)
+set(THIRDPARTY_DOWNLOAD_DIR ${THIRDPARTY_BASE_DIR}/downloads)
+set(THIRDPARTY_SRC_DIR ${THIRDPARTY_BASE_DIR}/src)
+set(THIRDPARTY_BUILD_DIR ${THIRDPARTY_BASE_DIR}/builds)
+set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_BASE_DIR}/installed)
+set(THIRDPARTY_EXECUTABLE_PATHS "" CACHE INTERNAL "Collected third-party executable paths")
 add_subdirectory(thirdparty)
+
+include(cmake/Velox.cmake)
+add_subdirectory(velox)
+
 add_subdirectory(src)
 add_subdirectory(test)
 

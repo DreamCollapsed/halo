@@ -148,6 +148,13 @@ thirdparty_register_component(gflags
     SHA256 "${GFLAGS_SHA256}"
 )
 
+# LLVM Project (includes OpenMP and libunwind) - no external dependencies
+thirdparty_register_component(llvm-project
+    VERSION "${LLVM_PROJECT_VERSION}"
+    URL "${LLVM_PROJECT_URL}"
+    SHA256 "${LLVM_PROJECT_SHA256}"
+)
+
 thirdparty_register_component(double-conversion
     VERSION "${DOUBLE_CONVERSION_VERSION}"
     URL "${DOUBLE_CONVERSION_URL}"
@@ -219,6 +226,7 @@ thirdparty_register_component(faiss
     VERSION "${FAISS_VERSION}"
     URL     "${FAISS_URL}"
     SHA256  "${FAISS_SHA256}"
+    DEPENDS_ON llvm-project
 )
 
 thirdparty_register_component(openssl

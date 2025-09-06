@@ -17,6 +17,7 @@ thirdparty_build_cmake_library("folly"
         -DGLOG_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/glog/include
         -DGLOG_FOUND=TRUE
         -DFOLLY_HAVE_LIBGLOG:BOOL=ON
+        -DFOLLY_HAVE_INT128_T:BOOL=ON
 
         # Boost
         -DFOLLY_BOOST_LINK_STATIC=ON

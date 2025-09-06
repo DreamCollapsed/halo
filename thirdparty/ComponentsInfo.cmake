@@ -55,9 +55,9 @@ set(FOLLY_VERSION "2025.08.18.00")
 set(FOLLY_URL "https://github.com/facebook/folly/releases/download/v${FOLLY_VERSION}/folly-v${FOLLY_VERSION}.zip")
 set(FOLLY_SHA256 "91932d9937ebaef22c57f5c5e4ddb00a6b94576aff7d9995fbe071efe9e8de0a")
 
-set(GEOS_VERSION "3.13.1")
+set(GEOS_VERSION "3.11.5")
 set(GEOS_URL "https://download.osgeo.org/geos/geos-${GEOS_VERSION}.tar.bz2")
-set(GEOS_SHA256 "df2c50503295f325e7c8d7b783aca8ba4773919cde984193850cf9e361dfd28c")
+set(GEOS_SHA256 "7d9432f94e2c743cca13977b1f9943dfcc9a83854578870a215fb8dd7d6f21c1")
 
 set(GFLAGS_VERSION "2.2.2")
 set(GFLAGS_URL "https://github.com/gflags/gflags/archive/refs/tags/v${GFLAGS_VERSION}.tar.gz")
@@ -100,6 +100,10 @@ set(LIBUNWIND_VERSION "20.1.8")
 set(LIBUNWIND_URL "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LIBUNWIND_VERSION}/libunwind-${LIBUNWIND_VERSION}.src.tar.xz")
 set(LIBUNWIND_SHA256 "0bced9d701e300f8fe6599523367e214c1f928ac559afceece58f47018e9c4a7")
 
+set(LLVM_PROJECT_VERSION "20.1.8")
+set(LLVM_PROJECT_URL "https://github.com/llvm/llvm-project/releases/download/llvmorg-${LLVM_PROJECT_VERSION}/llvm-project-${LLVM_PROJECT_VERSION}.src.tar.xz")
+set(LLVM_PROJECT_SHA256 "6898f963c8e938981e6c4a302e83ec5beb4630147c7311183cf61069af16333d")
+
 set(LZ4_VERSION "1.10.0")
 set(LZ4_URL "https://github.com/lz4/lz4/archive/refs/tags/v${LZ4_VERSION}.tar.gz")
 set(LZ4_SHA256 "537512904744b35e232912055ccf8ec66d768639ff3abe5788d90d792ec5f48b")
@@ -141,10 +145,6 @@ set(THRIFT_SHA256 "c4649c5879dd56c88f1e7a1c03e0fbfcc3b2a2872fb81616bffba5aa8a225
 set(UTF8PROC_VERSION "2.10.0")
 set(UTF8PROC_URL "https://github.com/JuliaStrings/utf8proc/releases/download/v${UTF8PROC_VERSION}/utf8proc-${UTF8PROC_VERSION}.tar.gz")
 set(UTF8PROC_SHA256 "276a37dc4d1dd24d7896826a579f4439d1e5fe33603add786bb083cab802e23e")
-
-set(VELOX_VERSION "main")
-set(VELOX_URL "https://github.com/facebookincubator/velox")
-set(VELOX_USE_GIT ON)
 
 set(WANGLE_VERSION "2025.08.18.00")
 set(WANGLE_URL "https://github.com/facebook/wangle/releases/download/v${WANGLE_VERSION}/wangle-v${WANGLE_VERSION}.zip")

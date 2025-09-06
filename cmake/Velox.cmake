@@ -14,6 +14,102 @@ include_guard(GLOBAL)
 
 set(HALO_VELOX_SOURCE_DIR "${CMAKE_SOURCE_DIR}/velox" CACHE PATH "Velox source dir" FORCE)
 
+# Check if Velox submodule is initialized and has content
+set(VELOX_NEEDS_INIT FALSE)
+set(VELOX_NEEDS_PATCH FALSE)
+
+if(NOT EXISTS "${HALO_VELOX_SOURCE_DIR}/CMakeLists.txt")
+  set(VELOX_NEEDS_INIT TRUE)
+  set(VELOX_NEEDS_PATCH TRUE)
+  message(STATUS "Velox submodule not initialized. Will initialize and apply patches.")
+else()
+  # Check if patches have been applied by looking for a patch marker
+  if(NOT EXISTS "${HALO_VELOX_SOURCE_DIR}/.velox_patched")
+    set(VELOX_NEEDS_PATCH TRUE)
+  endif()
+endif()
+
+# Initialize submodule if needed
+if(VELOX_NEEDS_INIT)
+  find_package(Git REQUIRED)
+  
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive velox
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    RESULT_VARIABLE _submodule_res
+    OUTPUT_QUIET ERROR_QUIET)
+  if(NOT _submodule_res EQUAL 0)
+    message(FATAL_ERROR "Failed to initialize Velox submodule (exit ${_submodule_res}).")
+  endif()
+endif()
+
+# Ensure we're at the correct commit
+if(DEFINED VELOX_SHA256 AND NOT VELOX_SHA256 STREQUAL "")
+  find_package(Git QUIET)
+  if(GIT_EXECUTABLE)
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
+      WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
+      OUTPUT_VARIABLE _current_commit
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_QUIET)
+    
+    if(NOT _current_commit STREQUAL VELOX_SHA256)
+      message(STATUS "Velox at commit ${_current_commit}, switching to ${VELOX_SHA256}")
+      execute_process(
+        COMMAND "${GIT_EXECUTABLE}" checkout ${VELOX_SHA256}
+        WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
+        RESULT_VARIABLE _checkout_res
+        OUTPUT_QUIET ERROR_QUIET)
+      if(NOT _checkout_res EQUAL 0)
+        message(WARNING "Failed to checkout Velox commit ${VELOX_SHA256}. Continuing with current commit.")
+      else()
+        # If we changed commits, we may need to re-apply patches
+        if(NOT VELOX_NEEDS_INIT AND EXISTS "${HALO_VELOX_SOURCE_DIR}/.velox_patched")
+          set(VELOX_NEEDS_PATCH TRUE)
+          message(STATUS "Commit changed, will re-apply patches.")
+        endif()
+      endif()
+    endif()
+  endif()
+endif()
+
+# Apply patches if needed
+if(VELOX_NEEDS_PATCH)
+  set(VELOX_PATCH_FILE "${CMAKE_SOURCE_DIR}/cmake/patches/velox.patch")
+  if(EXISTS "${VELOX_PATCH_FILE}")
+    find_package(Git REQUIRED)
+    if(EXISTS "${HALO_VELOX_SOURCE_DIR}/.velox_patched")
+      file(REMOVE "${HALO_VELOX_SOURCE_DIR}/.velox_patched")
+    endif()
+    
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" apply "${VELOX_PATCH_FILE}"
+      WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
+      RESULT_VARIABLE _patch_res
+      OUTPUT_VARIABLE _patch_output
+      ERROR_VARIABLE _patch_error)
+    
+    if(_patch_res EQUAL 0)
+      file(WRITE "${HALO_VELOX_SOURCE_DIR}/.velox_patched" 
+            "# This file indicates that Velox patches have been applied
+"
+            "# Commit: ${_current_commit}
+"
+            "# Patch file: ${VELOX_PATCH_FILE}
+"
+            "# Applied at: ${CMAKE_CURRENT_LIST_FILE}:${CMAKE_CURRENT_LIST_LINE}
+"
+      )
+      message(STATUS "Successfully applied Velox patches.")
+    else()
+      message(FATAL_ERROR "Failed to apply Velox patches (exit ${_patch_res}). Output: ${_patch_output}. Error: ${_patch_error}")
+    endif()
+  else()
+    message(WARNING "No Velox patch file found at ${VELOX_PATCH_FILE}, skipping patch application.")
+  endif()
+endif()
+
 # Check if Velox submodule is initialized and at the correct commit
 if(NOT EXISTS "${HALO_VELOX_SOURCE_DIR}/CMakeLists.txt")
   find_package(Git REQUIRED)

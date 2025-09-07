@@ -42,6 +42,65 @@ index 577a06b7c..f443c2185 100644
  
  velox_set_source(stemmer)
  velox_resolve_dependency(stemmer)
+diff --git a/velox/common/caching/AsyncDataCache.cpp b/velox/common/caching/AsyncDataCache.cpp
+index 717107416..433b8b08a 100644
+--- a/velox/common/caching/AsyncDataCache.cpp
++++ b/velox/common/caching/AsyncDataCache.cpp
+@@ -660,6 +660,9 @@ AsyncDataCache::AsyncDataCache(
+     std::unique_ptr<SsdCache> ssdCache)
+     : AsyncDataCache({}, allocator, std::move(ssdCache)){};
+ 
++AsyncDataCache::AsyncDataCache(memory::MemoryAllocator* allocator)
++    : AsyncDataCache(allocator, nullptr){};
++
+ AsyncDataCache::AsyncDataCache(
+     const Options& options,
+     memory::MemoryAllocator* allocator,
+@@ -686,6 +689,12 @@ std::shared_ptr<AsyncDataCache> AsyncDataCache::create(
+   return cache;
+ }
+ 
++// static
++std::shared_ptr<AsyncDataCache> AsyncDataCache::create(
++    memory::MemoryAllocator* allocator) {
++  return create(allocator, nullptr, AsyncDataCache::Options{});
++}
++
+ // static
+ AsyncDataCache* AsyncDataCache::getInstance() {
+   return *getInstancePtr();
+diff --git a/velox/common/caching/AsyncDataCache.h b/velox/common/caching/AsyncDataCache.h
+index 605e95cd5..5c82974f1 100644
+--- a/velox/common/caching/AsyncDataCache.h
++++ b/velox/common/caching/AsyncDataCache.h
+@@ -727,19 +727,24 @@ class AsyncDataCache : public memory::Cache {
+   AsyncDataCache(
+       const Options& options,
+       memory::MemoryAllocator* allocator,
+-      std::unique_ptr<SsdCache> ssdCache = nullptr);
++      std::unique_ptr<SsdCache> ssdCache);
+ 
+   AsyncDataCache(
+       memory::MemoryAllocator* allocator,
+-      std::unique_ptr<SsdCache> ssdCache = nullptr);
++      std::unique_ptr<SsdCache> ssdCache);
++
++  explicit AsyncDataCache(memory::MemoryAllocator* allocator);
+ 
+   ~AsyncDataCache() override;
+ 
+   static std::shared_ptr<AsyncDataCache> create(
+       memory::MemoryAllocator* allocator,
+-      std::unique_ptr<SsdCache> ssdCache = nullptr,
++      std::unique_ptr<SsdCache> ssdCache,
+       const AsyncDataCache::Options& = {});
+ 
++  static std::shared_ptr<AsyncDataCache> create(
++      memory::MemoryAllocator* allocator);
++
+   static AsyncDataCache* getInstance();
+ 
+   static void setInstance(AsyncDataCache* asyncDataCache);
 diff --git a/velox/common/memory/Scratch.h b/velox/common/memory/Scratch.h
 index dcde26e90..1f38f9db5 100644
 --- a/velox/common/memory/Scratch.h

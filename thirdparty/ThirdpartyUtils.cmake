@@ -871,9 +871,9 @@ function(thirdparty_setup_ccache)
         # ============================================================
         # ccache Performance Optimization
         # ============================================================
-        # Set cache size to 5GB (adjust based on available disk space)
+        # Set cache size to 50GB (adjust based on available disk space)
         execute_process(
-            COMMAND ${CCACHE_EXECUTABLE} --max-size=5G
+            COMMAND ${CCACHE_EXECUTABLE} --max-size=50G
             OUTPUT_QUIET ERROR_QUIET
         )
         

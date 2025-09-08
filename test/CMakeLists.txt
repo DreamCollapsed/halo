@@ -8,15 +8,15 @@ set(TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/test")
 file(MAKE_DIRECTORY "${TEST_OUTPUT_DIR}")
 
 # Generic test function: creates test executable files
-function(add_module_test module_name test_sources)
+function(add_module_test module_name)
     set(options PERFORMANCE)
     set(oneValueArgs TIMEOUT WORKING_DIRECTORY)
-    set(multiValueArgs LIBRARIES LABELS DEPENDENCIES LINK_LIBRARIES HEADER_INCLUDES CUSTOM_TARGETS)
+    set(multiValueArgs TEST_SOURCES LIBRARIES LABELS DEPENDENCIES LINK_LIBRARIES HEADER_INCLUDES CUSTOM_TARGETS)
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
     # Create test executable
     set(test_target "test_${module_name}")
-    add_executable(${test_target} ${test_sources})
+    add_executable(${test_target} ${ARG_TEST_SOURCES})
     
     # Set output directory
     set_target_properties(${test_target}

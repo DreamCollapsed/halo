@@ -2,7 +2,7 @@
 
 # Abseil integration test
 add_module_test(thirdparty_abseil
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_abseil_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_abseil_integration.cpp"
     LABELS
         abseil
         thirdparty
@@ -12,7 +12,7 @@ add_module_test(thirdparty_abseil
 
 # Boost integration test
 add_module_test(thirdparty_boost
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_boost_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_boost_integration.cpp"
     LABELS
         boost
         thirdparty
@@ -22,7 +22,7 @@ add_module_test(thirdparty_boost
 
 # Bison integration test
 add_module_test(thirdparty_bison
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_bison_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_bison_integration.cpp"
     LABELS
         bison
         parser
@@ -34,7 +34,7 @@ add_module_test(thirdparty_bison
 
 # Flex integration test
 add_module_test(thirdparty_flex
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_flex_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_flex_integration.cpp"
     LABELS
         flex
         lexer
@@ -46,7 +46,7 @@ add_module_test(thirdparty_flex
 
 # GTest/GMock integration test
 add_module_test(thirdparty_gtest
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_gtest_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_gtest_integration.cpp"
     LABELS
         gtest
         gmock
@@ -57,7 +57,7 @@ add_module_test(thirdparty_gtest
 
 # Combined integration test (Abseil + GTest/GMock)
 add_module_test(thirdparty_combined
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_combined_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_combined_integration.cpp"
     LABELS
         combined
         thirdparty
@@ -68,7 +68,7 @@ add_module_test(thirdparty_combined
 
 # gflags integration test
 add_module_test(thirdparty_gflags
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_gflags_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_gflags_integration.cpp"
     LABELS
         gflags
         thirdparty
@@ -78,7 +78,7 @@ add_module_test(thirdparty_gflags
 
 # glog integration test
 add_module_test(thirdparty_glog
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_glog_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_glog_integration.cpp"
     LABELS
         glog
         thirdparty
@@ -88,7 +88,7 @@ add_module_test(thirdparty_glog
 
 # double-conversion integration test
 add_module_test(thirdparty_double_conversion
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_double_conversion_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_double_conversion_integration.cpp"
     LABELS
         double-conversion
         thirdparty
@@ -98,7 +98,7 @@ add_module_test(thirdparty_double_conversion
 
 # fast-float integration test
 add_module_test(thirdparty_fast_float
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_fast_float_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_fast_float_integration.cpp"
     LABELS
         fast-float
         thirdparty
@@ -108,7 +108,7 @@ add_module_test(thirdparty_fast_float
 
 # fmt integration test
 add_module_test(thirdparty_fmt
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_fmt_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_fmt_integration.cpp"
     LABELS
         fmt
         thirdparty
@@ -118,7 +118,7 @@ add_module_test(thirdparty_fmt
 
 # zlib integration test
 add_module_test(thirdparty_zlib
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_zlib_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_zlib_integration.cpp"
     LABELS
         zlib
         compression
@@ -129,7 +129,7 @@ add_module_test(thirdparty_zlib
 
 # zstd integration test
 add_module_test(thirdparty_zstd
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_zstd_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_zstd_integration.cpp"
     LABELS
         zstd
         thirdparty
@@ -139,7 +139,7 @@ add_module_test(thirdparty_zstd
 
 # lz4 integration test
 add_module_test(thirdparty_lz4
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_lz4_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_lz4_integration.cpp"
     LABELS
         lz4
         thirdparty
@@ -149,7 +149,7 @@ add_module_test(thirdparty_lz4
 
 # jemalloc comprehensive integration test
 add_module_test(thirdparty_jemalloc_comprehensive
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_jemalloc_comprehensive.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_jemalloc_comprehensive.cpp"
     LABELS
         jemalloc
         comprehensive
@@ -161,7 +161,7 @@ add_module_test(thirdparty_jemalloc_comprehensive
 
 # lz4-zstd integration test
 add_module_test(thirdparty_lz4_zstd
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_lz4_zstd_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_lz4_zstd_integration.cpp"
     LABELS
         lz4
         zstd
@@ -173,7 +173,7 @@ add_module_test(thirdparty_lz4_zstd
 
 # snappy integration test
 add_module_test(thirdparty_snappy
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_snappy_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_snappy_integration.cpp"
     LABELS
         snappy
         thirdparty
@@ -183,7 +183,7 @@ add_module_test(thirdparty_snappy
 
 # xxhash integration test
 add_module_test(thirdparty_xxhash
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_xxhash_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_xxhash_integration.cpp"
     LABELS
         xxhash
         thirdparty
@@ -193,7 +193,7 @@ add_module_test(thirdparty_xxhash
 
 # faiss integration test
 add_module_test(thirdparty_faiss
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_faiss_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_faiss_integration.cpp"
     LABELS
         faiss
         thirdparty
@@ -203,7 +203,7 @@ add_module_test(thirdparty_faiss
 
 # fizz integration test
 add_module_test(thirdparty_fizz
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_fizz_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_fizz_integration.cpp"
     LABELS
         fizz
         tls
@@ -214,7 +214,7 @@ add_module_test(thirdparty_fizz
 
 # OpenSSL integration test
 add_module_test(thirdparty_openssl
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_openssl_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_openssl_integration.cpp"
     LABELS
         openssl
         ssl
@@ -226,7 +226,7 @@ add_module_test(thirdparty_openssl
 
 # libevent integration test
 add_module_test(thirdparty_libevent
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_libevent_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_libevent_integration.cpp"
     LABELS
         libevent
         event
@@ -238,7 +238,7 @@ add_module_test(thirdparty_libevent
 
 # Folly integration test
 add_module_test(thirdparty_folly
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_folly_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_folly_integration.cpp"
     LABELS
         folly
         fbstring
@@ -249,7 +249,7 @@ add_module_test(thirdparty_folly
 
 # XZ integration test
 add_module_test(thirdparty_xz
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_xz_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_xz_integration.cpp"
     LABELS
         xz
         lzma
@@ -261,7 +261,7 @@ add_module_test(thirdparty_xz
 
 # ICU4C integration test
 add_module_test(thirdparty_icu4c
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_icu4c_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_icu4c_integration.cpp"
     LABELS
         icu4c
         unicode
@@ -273,7 +273,7 @@ add_module_test(thirdparty_icu4c
 
 # bzip2 integration test
 add_module_test(thirdparty_bzip2
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_bzip2_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_bzip2_integration.cpp"
     LABELS
         bzip2
         compression
@@ -284,7 +284,7 @@ add_module_test(thirdparty_bzip2
 
 # libsodium integration test
 add_module_test(thirdparty_libsodium
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_libsodium_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_libsodium_integration.cpp"
     LABELS
         libsodium
         crypto
@@ -297,7 +297,7 @@ add_module_test(thirdparty_libsodium
 
 # libstemmer integration test
 add_module_test(thirdparty_libstemmer
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_libstemmer_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_libstemmer_integration.cpp"
     LABELS
         libstemmer
         nlp
@@ -310,7 +310,7 @@ add_module_test(thirdparty_libstemmer
 
 # protobuf integration test
 add_module_test(thirdparty_protobuf
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_protobuf_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_protobuf_integration.cpp"
     LABELS
         protobuf
         serialization
@@ -323,7 +323,7 @@ add_module_test(thirdparty_protobuf
 
 # wangle integration test
 add_module_test(thirdparty_wangle
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_wangle_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_wangle_integration.cpp"
     LABELS
         wangle
         networking
@@ -336,7 +336,7 @@ add_module_test(thirdparty_wangle
 
 # mvfst integration test
 add_module_test(thirdparty_mvfst
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_mvfst_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_mvfst_integration.cpp"
     LABELS
         mvfst
         quic
@@ -348,7 +348,7 @@ add_module_test(thirdparty_mvfst
 
 # Arrow integration test
 add_module_test(thirdparty_arrow
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_arrow_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_arrow_integration.cpp"
     CUSTOM_TARGETS halo_thirdparty_with_thrift
     LABELS
         arrow
@@ -360,7 +360,7 @@ add_module_test(thirdparty_arrow
 
 # Arrow extended components test (json, compute, dataset, acero, flight ...)
 add_module_test(thirdparty_arrow_extended
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_arrow_extended.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_arrow_extended.cpp"
     CUSTOM_TARGETS halo_thirdparty_with_thrift
     LABELS
         arrow
@@ -372,7 +372,7 @@ add_module_test(thirdparty_arrow_extended
 
 # xsimd integration test
 add_module_test(thirdparty_xsimd
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_xsimd_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_xsimd_integration.cpp"
     LABELS
         xsimd
         simd
@@ -383,7 +383,7 @@ add_module_test(thirdparty_xsimd
 
 # xtl integration test
 add_module_test(thirdparty_xtl
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_xtl_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_xtl_integration.cpp"
     LABELS
         xtl
         utilities
@@ -394,7 +394,7 @@ add_module_test(thirdparty_xtl
 
 # rapidjson integration test
 add_module_test(thirdparty_rapidjson
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_rapidjson_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_rapidjson_integration.cpp"
     LABELS
         rapidjson
         json
@@ -405,7 +405,7 @@ add_module_test(thirdparty_rapidjson
 
 # re2 integration test
 add_module_test(thirdparty_re2
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_re2_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_re2_integration.cpp"
     LABELS
         re2
         regex
@@ -416,7 +416,7 @@ add_module_test(thirdparty_re2
 
 # utf8proc integration test
 add_module_test(thirdparty_utf8proc
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_utf8proc_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_utf8proc_integration.cpp"
     LABELS
         utf8proc
         unicode
@@ -428,7 +428,7 @@ add_module_test(thirdparty_utf8proc
 
 # gRPC integration test
 add_module_test(thirdparty_grpc
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_grpc_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_grpc_integration.cpp"
     LABELS
         grpc
         thirdparty
@@ -438,7 +438,7 @@ add_module_test(thirdparty_grpc
 
 # c-ares integration test
 add_module_test(thirdparty_cares
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_cares_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_cares_integration.cpp"
     LABELS
         cares
         dns
@@ -449,7 +449,7 @@ add_module_test(thirdparty_cares
 
 # GEOS integration test
 add_module_test(thirdparty_geos
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_geos_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_geos_integration.cpp"
     LABELS
         geos
         geometry
@@ -461,7 +461,7 @@ add_module_test(thirdparty_geos
 
 # simdjson integration test
 add_module_test(thirdparty_simdjson
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_simdjson_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_simdjson_integration.cpp"
     LABELS
         simdjson
         json
@@ -473,7 +473,7 @@ add_module_test(thirdparty_simdjson
 
 # fbthrift integration test
 add_module_test(thirdparty_fbthrift
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_fbthrift_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_fbthrift_integration.cpp"
     CUSTOM_TARGETS halo_thirdparty_with_fbthrift
     LABELS
         fbthrift
@@ -486,7 +486,7 @@ add_module_test(thirdparty_fbthrift
 
 # thrift integration test
 add_module_test(thirdparty_thrift
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_thrift_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_thrift_integration.cpp"
     CUSTOM_TARGETS halo_thirdparty_with_thrift
     LABELS
         thrift
@@ -499,8 +499,10 @@ add_module_test(thirdparty_thrift
 )
 
 # Velox integration test (basic API)
-add_module_test(test_velox_integration
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_velox_integration.cpp"
+add_module_test(velox_integration
+    TEST_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/velox_test_env.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/test_velox_integration.cpp"
     CUSTOM_TARGETS
         halo_thirdparty_with_thrift
         halo_velox_unified
@@ -512,9 +514,40 @@ add_module_test(test_velox_integration
         integration
 )
 
+# Velox vector tests (vectors, memory, calculations)
+add_module_test(velox_vectors
+    TEST_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/velox_test_env.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/test_velox_vectors.cpp"
+    CUSTOM_TARGETS
+        halo_thirdparty_with_thrift
+        halo_velox_unified
+    LABELS
+        velox
+        vectors
+        thirdparty
+        integration
+)
+
+# Velox pipeline tests (plan execution, joins, aggregations)
+add_module_test(velox_pipeline
+    TEST_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/velox_test_env.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/test_velox_pipeline.cpp"
+    CUSTOM_TARGETS
+        halo_thirdparty_with_thrift
+        halo_velox_unified
+    LABELS
+        velox
+        pipeline
+        execution
+        thirdparty
+        integration
+)
+
 # OpenMP integration test
 add_module_test(thirdparty_openmp
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_openmp_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_openmp_integration.cpp"
     LABELS
         openmp
         llvm-project
@@ -525,7 +558,7 @@ add_module_test(thirdparty_openmp
 
 # libunwind integration test
 add_module_test(thirdparty_libunwind
-    "${CMAKE_CURRENT_SOURCE_DIR}/test_libunwind_integration.cpp"
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_libunwind_integration.cpp"
     LABELS
         libunwind
         llvm-project

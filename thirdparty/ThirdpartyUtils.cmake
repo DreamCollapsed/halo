@@ -960,7 +960,7 @@ function(thirdparty_setup_ccache)
         # ============================================================
         # Set cache size to 50GB (adjust based on available disk space)
         execute_process(
-            COMMAND ${CCACHE_EXECUTABLE} --max-size=50G
+            COMMAND ${CCACHE_EXECUTABLE} --max-size=15G
             OUTPUT_QUIET ERROR_QUIET
         )
         

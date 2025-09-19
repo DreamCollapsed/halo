@@ -3,9 +3,10 @@
 
 thirdparty_build_cmake_library("lz4"
     SOURCE_SUBDIR "build/cmake"
+    # LZ4_INSTALL_DIR is only defined after the helper returns; use deterministic path here.
     VALIDATION_FILES
-        "${LZ4_INSTALL_DIR}/lib/liblz4.a"
-        "${LZ4_INSTALL_DIR}/include/lz4.h"
+        "${THIRDPARTY_INSTALL_DIR}/lz4/lib/liblz4.a"
+        "${THIRDPARTY_INSTALL_DIR}/lz4/include/lz4.h"
     CMAKE_ARGS
         -DLZ4_BUILD_CLI=OFF
         -DLZ4_BUILD_LEGACY_LIBS=OFF

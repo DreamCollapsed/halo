@@ -69,4 +69,4 @@ set(ZLIB_INCLUDE_DIRS ${THIRDPARTY_INSTALL_DIR}/zlib/include)
 set(ZLIB_LIBRARIES ${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a)
 set(ZLIB_VERSION_STRING "1.3.1")
 
-find_package(fizz CONFIG REQUIRED)
+halo_find_package(fizz CONFIG QUIET REQUIRED)

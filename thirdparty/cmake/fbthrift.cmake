@@ -29,5 +29,4 @@ thirdparty_build_cmake_library("fbthrift"
         ${THIRDPARTY_INSTALL_DIR}/fbthrift/include/thrift/lib/cpp2/Thrift.h
 )
 
-find_package(fbthrift CONFIG REQUIRED)
-message(STATUS "fbthrift integrated: target FBTHRIFT::thriftcpp2 available (install=${FBTHRIFT_INSTALL_DIR})")
+halo_find_package(fbthrift CONFIG REQUIRED)

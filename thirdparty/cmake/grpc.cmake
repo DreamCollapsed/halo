@@ -37,7 +37,7 @@ thirdparty_build_cmake_library("grpc"
         "${THIRDPARTY_INSTALL_DIR}/grpc/bin/grpc_cpp_plugin"
 )
 
-find_package(gRPC CONFIG REQUIRED)
+halo_find_package(gRPC CONFIG REQUIRED)
 
 set(GRPC_CPP_PLUGIN_EXECUTABLE_PATH "${THIRDPARTY_INSTALL_DIR}/grpc/bin/grpc_cpp_plugin" CACHE INTERNAL "Path to project grpc_cpp_plugin executable")
 if(EXISTS "${GRPC_CPP_PLUGIN_EXECUTABLE_PATH}")

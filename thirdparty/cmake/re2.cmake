@@ -15,4 +15,4 @@ thirdparty_build_cmake_library("re2"
         "${THIRDPARTY_INSTALL_DIR}/re2/lib/libre2.a"
 )
 
-find_package(re2 CONFIG REQUIRED)
+halo_find_package(re2 CONFIG REQUIRED)

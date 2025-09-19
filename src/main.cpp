@@ -18,8 +18,9 @@ int main() {
 
   // Simple Velox integration test
   try {
-    auto intType = facebook::velox::TypeFactory<facebook::velox::TypeKind::INTEGER>::create();
-    std::cout << "Velox integration successful! Created INTEGER type: " 
+    auto intType = facebook::velox::TypeFactory<
+        facebook::velox::TypeKind::INTEGER>::create();
+    std::cout << "Velox integration successful! Created INTEGER type: "
               << intType->toString() << std::endl;
   } catch (const std::exception& e) {
     std::cout << "Velox integration error: " << e.what() << std::endl;

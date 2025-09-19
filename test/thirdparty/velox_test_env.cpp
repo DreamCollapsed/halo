@@ -15,4 +15,4 @@ struct VeloxTestEnvOnce {
 };
 
 static VeloxTestEnvOnce kVeloxTestEnvOnce;
-} // namespace
+}  // namespace

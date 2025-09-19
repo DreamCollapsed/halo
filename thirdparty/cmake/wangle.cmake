@@ -33,4 +33,4 @@ thirdparty_build_cmake_library("wangle"
         "${WANGLE_INSTALL_DIR}/include/wangle/channel/Pipeline.h"
 )
 
-find_package(wangle CONFIG REQUIRED)
+halo_find_package(wangle CONFIG REQUIRED)

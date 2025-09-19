@@ -24,7 +24,7 @@ if(EXISTS "${LIBSODIUM_INSTALL_DIR}/lib/libsodium.a")
             IMPORTED_LOCATION "${LIBSODIUM_INSTALL_DIR}/lib/libsodium.a"
             INTERFACE_INCLUDE_DIRECTORIES "${LIBSODIUM_INSTALL_DIR}/include"
         )
-        find_package(Threads)
+        halo_find_package(Threads)
         if(Threads_FOUND)
             set_target_properties(libsodium::libsodium PROPERTIES
                 INTERFACE_LINK_LIBRARIES "Threads::Threads"

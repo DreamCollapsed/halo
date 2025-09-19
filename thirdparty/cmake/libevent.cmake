@@ -31,4 +31,4 @@ thirdparty_build_cmake_library("libevent"
         "${THIRDPARTY_INSTALL_DIR}/libevent/include/event2/http.h"
 )
 
-find_package(Libevent CONFIG REQUIRED COMPONENTS core extra openssl pthreads)
+find_package(Libevent CONFIG QUIET REQUIRED COMPONENTS core extra openssl pthreads)

@@ -170,4 +170,4 @@ thirdparty_cmake_install("${MVFST_BUILD_DIR}" "${MVFST_INSTALL_DIR}"
         "${MVFST_INSTALL_DIR}/lib/cmake/mvfst/mvfst-config.cmake"
 )
 
-find_package(mvfst CONFIG REQUIRED)
+halo_find_package(mvfst CONFIG QUIET REQUIRED)

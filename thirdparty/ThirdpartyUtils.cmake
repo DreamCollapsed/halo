@@ -551,7 +551,7 @@ function(thirdparty_cmake_configure srcdir builddir)
     cmake_parse_arguments(PARSE_ARGV 2
         ARG
         "FORCE_CONFIGURE"
-        "VALIDATION_PATTERN;SOURCE_SUBDIR"
+        "VALIDATION_PATTERN;SOURCE_SUBDIR;VALIDATION_MODE"
         "VALIDATION_FILES;CMAKE_ARGS")
 
     set(_actual_src_dir "${srcdir}")
@@ -567,48 +567,83 @@ function(thirdparty_cmake_configure srcdir builddir)
 
     if(NOT ARG_FORCE_CONFIGURE)
         set(need_configure TRUE)
+        set(_mode ALL)
+        if(ARG_VALIDATION_MODE)
+            string(TOUPPER "${ARG_VALIDATION_MODE}" _mode)
+        endif()
         if(ARG_VALIDATION_FILES)
-            set(need_configure FALSE)
-            foreach(file IN LISTS ARG_VALIDATION_FILES)
-                if(NOT EXISTS "${file}")
-                    set(need_configure TRUE)
-                    break()
+            if(_mode STREQUAL "ALL")
+                set(need_configure FALSE)
+                foreach(file IN LISTS ARG_VALIDATION_FILES)
+                    if(NOT EXISTS "${file}")
+                        set(need_configure TRUE)
+                        break()
+                    endif()
+                endforeach()
+                if(NOT need_configure)
+                    message(STATUS "[thirdparty_cmake_configure] Skip: validation mode=ALL and all files exist.")
                 endif()
-            endforeach()
+            elseif(_mode STREQUAL "ANY")
+                foreach(file IN LISTS ARG_VALIDATION_FILES)
+                    if(EXISTS "${file}")
+                        set(need_configure FALSE)
+                        message(STATUS "[thirdparty_cmake_configure] Skip: validation mode=ANY and file '${file}' exists.")
+                        break()
+                    endif()
+                endforeach()
+            else()
+                message(WARNING "[thirdparty_cmake_configure] Unknown VALIDATION_MODE='${_mode}', defaulting to ALL")
+                # fall back to ALL semantics: already handled by initial logic, so re-run
+                set(need_configure FALSE)
+                foreach(file IN LISTS ARG_VALIDATION_FILES)
+                    if(NOT EXISTS "${file}")
+                        set(need_configure TRUE)
+                        break()
+                    endif()
+                endforeach()
+            endif()
         elseif(ARG_VALIDATION_PATTERN)
             file(GLOB _matched_files "${ARG_VALIDATION_PATTERN}")
             if(_matched_files)
                 set(need_configure FALSE)
+                message(STATUS "[thirdparty_cmake_configure] Skip: pattern '${ARG_VALIDATION_PATTERN}' matched.")
             endif()
         endif()
-        
+
         if(NOT need_configure)
-            message(STATUS "[thirdparty_cmake_configure] All validation files exist or pattern matched, skip configure.")
+            set(CMAKE_CURRENT_FUNCTION_RESULT 0 PARENT_SCOPE)
+            return()
+        endif()
+    endif()
+
+    # Argument hash based skip (after validation logic but before actual configure)
+    set(_cmake_args ${ARG_CMAKE_ARGS})
+    set(_arg_fingerprint "${_actual_src_dir};${_cmake_args};${THIRDPARTY_CMAKE_PREFIX_PATH_STRING}")
+    string(SHA1 _arg_hash "${_arg_fingerprint}")
+    set(_hash_file "${builddir}/.thirdparty_cmake_arg_hash")
+    if(EXISTS "${builddir}/CMakeCache.txt" AND EXISTS "${_hash_file}")
+        file(READ "${_hash_file}" _prev_hash)
+        string(STRIP "${_prev_hash}" _prev_hash)
+        if(_prev_hash STREQUAL "${_arg_hash}")
+            message(STATUS "[thirdparty_cmake_configure] Skip: argument hash unchanged (${_arg_hash}).")
             set(CMAKE_CURRENT_FUNCTION_RESULT 0 PARENT_SCOPE)
             return()
         endif()
     endif()
 
     message(STATUS "[thirdparty_cmake_configure] Configuring ${_actual_src_dir} to ${builddir}")
-    
-    # Apply Ninja optimizations to the cmake arguments
-    set(_cmake_args ${ARG_CMAKE_ARGS})
+
     thirdparty_configure_ninja_optimization(_cmake_args)
-    
-    # Print the complete cmake command for debugging
+
     set(_cmake_cmd_str "${CMAKE_COMMAND} -S \"${_actual_src_dir}\" -B \"${builddir}\"")
     foreach(_arg ${_cmake_args})
         set(_cmake_cmd_str "${_cmake_cmd_str} ${_arg}")
     endforeach()
-    
-    # Add CMAKE_PREFIX_PATH if it was set
     if(THIRDPARTY_CMAKE_PREFIX_PATH_STRING)
         set(_cmake_cmd_str "${_cmake_cmd_str} -DCMAKE_PREFIX_PATH=${THIRDPARTY_CMAKE_PREFIX_PATH_STRING}")
     endif()
-    
     message(DEBUG "[thirdparty_cmake_configure] CMake command: ${_cmake_cmd_str}")
-    
-    # Execute with special handling for CMAKE_PREFIX_PATH
+
     if(THIRDPARTY_CMAKE_PREFIX_PATH_STRING)
         execute_process(
             COMMAND ${CMAKE_COMMAND} -S "${_actual_src_dir}" -B "${builddir}" 
@@ -626,6 +661,7 @@ function(thirdparty_cmake_configure srcdir builddir)
         message(FATAL_ERROR "[thirdparty_cmake_configure] CMake configure failed for ${_actual_src_dir} with exit code ${result}")
     else()
         message(STATUS "[thirdparty_cmake_configure] Successfully configured ${_actual_src_dir}")
+        file(WRITE "${_hash_file}" "${_arg_hash}\n")
     endif()
 
     set(CMAKE_CURRENT_FUNCTION_RESULT "${result}" PARENT_SCOPE)
@@ -1168,6 +1204,7 @@ function(thirdparty_build_cmake_library library_name)
 
     thirdparty_cmake_configure("${_source_dir}" "${_build_dir}"
         SOURCE_SUBDIR "${ARG_SOURCE_SUBDIR}"
+        VALIDATION_MODE ANY
         VALIDATION_FILES
             "${_build_dir}/Makefile"
             "${_build_dir}/build.ninja" # For Ninja generator
@@ -1312,7 +1349,11 @@ function(thirdparty_build_autotools_library library_name)
             message(FATAL_ERROR "Failed to configure ${library_name}")
         endif()
     else()
-        message(STATUS "[thirdparty_build_autotools_library] Makefile found for ${library_name}, skip configure.")
+        if(EXISTS "${_work_dir}/config.status")
+            message(STATUS "[thirdparty_build_autotools_library] Skip configure: Makefile & config.status present for ${library_name}.")
+        else()
+            message(STATUS "[thirdparty_build_autotools_library] Makefile found (no config.status) for ${library_name}, assuming prior configure; skipping.")
+        endif()
     endif()
 
     # --- Build and Install Step ---

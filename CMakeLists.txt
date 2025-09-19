@@ -93,7 +93,7 @@ set(CMAKE_CXX_FLAGS_MINSIZEREL "-Os -DNDEBUG" CACHE STRING "Flags used by the CX
 message(STATUS "=== Build Configuration ===")
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
-message(STATUS "Static Libraries: ${BUILD_SHARED_LIBS}")
+message(STATUS "Shared Libraries: ${BUILD_SHARED_LIBS}")
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
     message(STATUS "Optimization: Maximum (-O3)")
 elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -104,6 +104,46 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
     message(STATUS "Optimization: Size (-Os)")
 endif()
 message(STATUS "============================")
+
+include(cmake/modules/FindLinker.cmake)
+linker_configure()
+linker_add_selfcheck()
+
+# -----------------------------------------------------------------------------
+# Linker switch detection & third-party cache invalidation
+# When the accelerated linker selection changes (kind or executable path),
+# previously built third-party objects/libraries may embed linker-specific
+# metadata or differ in subtle ways (especially with mold/lld vs system ld).
+# To avoid hard-to-diagnose inconsistencies we (optionally) wipe the
+# thirdparty/builds directory so that all external projects reconfigure
+# under the new linker. Installed artifacts are left intact by default to
+# minimize rebuild cost; if a full clean is desired the user can remove
+# thirdparty/installed manually.
+# -----------------------------------------------------------------------------
+option(HALO_RESET_THIRDPARTY_ON_LINKER_SWITCH "Automatically remove thirdparty/builds when linker selection changes" ON)
+
+set(_HALO_LINKER_SIGNATURE "${HALO_LINKER_KIND}|${HALO_LINKER_EXECUTABLE}")
+get_property(_HALO_PREV_SIG CACHE HALO_PREV_LINKER_SIGNATURE PROPERTY VALUE)
+if(NOT _HALO_PREV_SIG)
+    # First configure: record signature
+    set(HALO_PREV_LINKER_SIGNATURE "${_HALO_LINKER_SIGNATURE}" CACHE INTERNAL "Previous linker signature" FORCE)
+else()
+    if(NOT _HALO_PREV_SIG STREQUAL _HALO_LINKER_SIGNATURE)
+        set(HALO_LINKER_SWITCH_DETECTED TRUE CACHE INTERNAL "Linker switch detected" FORCE)
+        message(STATUS "[linker] Switch detected: '${_HALO_PREV_SIG}' -> '${_HALO_LINKER_SIGNATURE}'")
+        if(HALO_RESET_THIRDPARTY_ON_LINKER_SWITCH)
+            set(_thirdparty_build_dir "${CMAKE_SOURCE_DIR}/thirdparty/builds")
+            if(EXISTS "${_thirdparty_build_dir}")
+                message(WARNING "[linker] Removing stale third-party build cache: ${_thirdparty_build_dir}")
+                file(REMOVE_RECURSE "${_thirdparty_build_dir}")
+            endif()
+        else()
+            message(STATUS "[linker] HALO_RESET_THIRDPARTY_ON_LINKER_SWITCH=OFF; keeping existing third-party build cache (may be inconsistent).")
+        endif()
+        # Update stored signature after handling switch
+        set(HALO_PREV_LINKER_SIGNATURE "${_HALO_LINKER_SIGNATURE}" CACHE INTERNAL "Previous linker signature" FORCE)
+    endif()
+endif()
 
 # Add debug-specific compiler flags for better debugging experience
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")

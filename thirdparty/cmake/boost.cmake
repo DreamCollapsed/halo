@@ -131,4 +131,3 @@ find_package(Boost CONFIG REQUIRED
         serialization math json stacktrace_basic url wave
         fiber exception graph
 )
-message(STATUS "Boost found and exported globally: ${BOOST_INSTALL_DIR}")

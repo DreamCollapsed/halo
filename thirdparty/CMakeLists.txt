@@ -12,11 +12,11 @@ file(MAKE_DIRECTORY ${THIRDPARTY_INSTALL_DIR})
 thirdparty_show_dependencies()
 
 thirdparty_compute_build_order(_build_order)
-message(STATUS "Building components in order: ${_build_order}")
+message(DEBUG "Building components in order: ${_build_order}")
 
 set(_build_start_time "${CMAKE_CURRENT_LIST_FILE}")
 foreach(_component IN LISTS _build_order)
-    message(STATUS "Processing component: ${_component}")
+    message(STATUS "[ HaloThirdparty ] Processing component: ${_component}")
     include(cmake/${_component}.cmake)
 endforeach()
 

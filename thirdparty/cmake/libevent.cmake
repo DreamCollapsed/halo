@@ -32,4 +32,3 @@ thirdparty_build_cmake_library("libevent"
 )
 
 find_package(Libevent CONFIG REQUIRED COMPONENTS core extra openssl pthreads)
-message(STATUS "libevent found and exported globally: ${LIBEVENT_INSTALL_DIR}")

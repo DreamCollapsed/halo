@@ -67,15 +67,13 @@ if(EXISTS "${LIBSTEMMER_INSTALL_DIR}/lib/libstemmer.a")
             INTERFACE_INCLUDE_DIRECTORIES "${LIBSTEMMER_INSTALL_DIR}/include"
         )
         
-        message(STATUS "Created libstemmer::libstemmer target")
+        message(DEBUG "Created libstemmer::libstemmer target")
     endif()
     
     if(NOT TARGET stemmer)
         add_library(stemmer ALIAS libstemmer::libstemmer)
-        message(STATUS "Created stemmer alias for libstemmer::libstemmer")
+        message(DEBUG "Created stemmer alias for libstemmer::libstemmer")
     endif()
-    
-    message(STATUS "libstemmer found and exported globally: ${LIBSTEMMER_INSTALL_DIR}")
 else()
     message(FATAL_ERROR "libstemmer installation not found at ${LIBSTEMMER_INSTALL_DIR}")
 endif()

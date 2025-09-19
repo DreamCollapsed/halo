@@ -47,7 +47,7 @@ if(_need_build)
         message(FATAL_ERROR "Failed to install bzip2")
     endif()
 else()
-    message(STATUS "bzip2 already built.")
+    message(DEBUG "bzip2 already built.")
 endif()
 
 add_library(BZip2::BZip2 STATIC IMPORTED GLOBAL)
@@ -57,5 +57,3 @@ set_target_properties(BZip2::BZip2 PROPERTIES
 )
 
 thirdparty_register_to_cmake_prefix_path("${BZIP2_INSTALL_DIR}")
-
-message(STATUS "bzip2 found and exported globally: ${BZIP2_INSTALL_DIR}")

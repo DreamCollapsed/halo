@@ -56,7 +56,6 @@ if(EXISTS "${ICU4C_INSTALL_DIR}/lib/libicuuc.a")
             INTERFACE_INCLUDE_DIRECTORIES "${ICU4C_INSTALL_DIR}/include"
         )
     endif() 
-    message(STATUS "ICU4C found and exported globally: ${ICU4C_INSTALL_DIR}")
 else()
     message(FATAL_ERROR "ICU4C configuration failed - missing library files")
 endif()

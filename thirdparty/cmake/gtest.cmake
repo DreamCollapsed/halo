@@ -18,4 +18,3 @@ thirdparty_build_cmake_library("gtest"
 )
 
 find_package(GTest CONFIG REQUIRED)
-message(STATUS "GTest/GMock found and exported globally: ${GTEST_INSTALL_DIR}")

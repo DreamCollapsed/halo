@@ -29,7 +29,7 @@ function(thirdparty_register_component component_name)
         set(_reg_action "updated")
     endif()
     
-    message(STATUS "Component ${component_name} ${_reg_action} (depends on: ${ARG_DEPENDS_ON})")
+    message(DEBUG "Component ${component_name} ${_reg_action} (depends on: ${ARG_DEPENDS_ON})")
 endfunction()
 
 # Function to compute topological sort of components based on dependencies
@@ -88,22 +88,20 @@ endfunction()
 
 # Function to display dependency information
 function(thirdparty_show_dependencies)
-    message(STATUS "=== Third-party Library Dependencies ===")
     thirdparty_compute_build_order(_build_order)
     
-    message(STATUS "Build order: ${_build_order}")
-    message(STATUS "")
+    message(DEBUG "Build order: ${_build_order}")
+    message(DEBUG "")
     
     foreach(_component IN LISTS _build_order)
         get_property(_deps CACHE "${_component}_DEPENDENCIES" PROPERTY VALUE)
         get_property(_version CACHE "${_component}_VERSION" PROPERTY VALUE)
         if(_deps)
-            message(STATUS "${_component} v${_version} -> depends on: ${_deps}")
+            message(DEBUG "${_component} v${_version} -> depends on: ${_deps}")
         else()
-            message(STATUS "${_component} v${_version} -> no dependencies")
+            message(DEBUG "${_component} v${_version} -> no dependencies")
         endif()
     endforeach()
-    message(STATUS "========================================")
 endfunction()
 
 # Register all third-party components with their dependencies

@@ -17,4 +17,3 @@ thirdparty_build_cmake_library("cares"
 )
 
 find_package(c-ares CONFIG REQUIRED)
-message(STATUS "c-ares found and exported globally (config=${c-ares_FOUND})")

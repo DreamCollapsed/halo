@@ -97,7 +97,6 @@ if(EXISTS "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake")
     # Some dependents (fizz/wangle) ask for "folly" in lowercase via find_dependency
     # Populate lowercase cache too to avoid re-search and negative cache writes
     find_package(folly CONFIG REQUIRED)
-    message(STATUS "Folly imported into superproject: ${FOLLY_INSTALL_DIR}")
 else()
     message(FATAL_ERROR "Folly cmake config not found at ${FOLLY_INSTALL_DIR}")
 endif()

@@ -28,4 +28,3 @@ thirdparty_build_cmake_library("geos"
 )
 
 find_package(GEOS CONFIG REQUIRED)
-message(STATUS "GEOS found and exported globally: ${GEOS_INSTALL_DIR}")

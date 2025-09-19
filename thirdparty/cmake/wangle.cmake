@@ -34,4 +34,3 @@ thirdparty_build_cmake_library("wangle"
 )
 
 find_package(wangle CONFIG REQUIRED)
-message(STATUS "Wangle imported into superproject: ${WANGLE_INSTALL_DIR}")

@@ -15,4 +15,3 @@ thirdparty_build_cmake_library("xtl"
 )
 
 find_package(xtl CONFIG REQUIRED)
-message(STATUS "xtl imported into superproject: ${XTL_INSTALL_DIR}")

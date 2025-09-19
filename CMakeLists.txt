@@ -103,7 +103,6 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
 elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
     message(STATUS "Optimization: Size (-Os)")
 endif()
-message(STATUS "============================")
 
 include(cmake/modules/FindLinker.cmake)
 linker_configure()

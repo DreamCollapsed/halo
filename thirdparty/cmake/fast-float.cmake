@@ -12,4 +12,3 @@ thirdparty_build_cmake_library("fast-float"
 )
 
 find_package(FastFloat CONFIG REQUIRED)
-message(STATUS "fast-float found and exported globally: ${FAST_FLOAT_INSTALL_DIR}")

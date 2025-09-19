@@ -8,7 +8,7 @@ thirdparty_extract_and_rename("${THRIFT_DOWNLOAD_FILE}" "${THRIFT_SOURCE_DIR}" "
 
 set(THRIFT_TSSL_FILE "${THRIFT_SOURCE_DIR}/lib/cpp/src/thrift/transport/TSSLSocket.cpp")
 if(EXISTS "${THRIFT_TSSL_FILE}")
-    message(STATUS "Applying OpenSSL compatibility fixes to TSSLSocket.cpp")
+    message(DEBUG "Applying OpenSSL compatibility fixes to TSSLSocket.cpp")
     file(READ "${THRIFT_TSSL_FILE}" THRIFT_FILE_CONTENT)
     
     # Fix CRYPTO_num_locks() for OpenSSL 1.1+
@@ -74,7 +74,7 @@ if(EXISTS "${THRIFT_TSSL_FILE}")
         THRIFT_FILE_CONTENT "${THRIFT_FILE_CONTENT}")
     
     file(WRITE "${THRIFT_TSSL_FILE}" "${THRIFT_FILE_CONTENT}")
-    message(STATUS "OpenSSL compatibility fixes applied successfully")
+    message(DEBUG "OpenSSL compatibility fixes applied successfully")
 endif()
 
 thirdparty_get_optimization_flags(THRIFT_CMAKE_ARGS COMPONENT "${THRIFT_NAME}")
@@ -132,5 +132,3 @@ if(EXISTS "${THRIFT_EXECUTABLE_PATH}")
 else()
     message(FATAL_ERROR "thrift installation not found at ${THRIFT_INSTALL_DIR}")
 endif()
-
-message(STATUS "Finished building ${THRIFT_NAME}. Installed at: ${THRIFT_INSTALL_DIR}")

@@ -10,4 +10,3 @@ thirdparty_build_cmake_library("double-conversion"
 )
 
 find_package(double-conversion CONFIG REQUIRED)
-message(STATUS "double-conversion found and exported globally: ${DOUBLE_CONVERSION_INSTALL_DIR}")

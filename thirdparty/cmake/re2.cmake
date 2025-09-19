@@ -16,4 +16,3 @@ thirdparty_build_cmake_library("re2"
 )
 
 find_package(re2 CONFIG REQUIRED)
-message(STATUS "re2 found and exported globally")

@@ -15,4 +15,3 @@ thirdparty_build_cmake_library("fmt"
 )
 
 find_package(fmt CONFIG REQUIRED)
-message(STATUS "fmt found and exported globally: ${FMT_INSTALL_DIR}")

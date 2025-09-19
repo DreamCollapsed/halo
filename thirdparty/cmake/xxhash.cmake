@@ -19,4 +19,4 @@ set_target_properties(xxhash_thirdparty_static PROPERTIES
 )
 add_library(xxhash::xxhash ALIAS xxhash_thirdparty_static)
 
-message(STATUS "xxhash build configured and completed during configure time.")
+message(DEBUG "xxhash build configured and completed during configure time.")

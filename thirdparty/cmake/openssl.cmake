@@ -116,4 +116,3 @@ thirdparty_build_autotools_library(openssl
 )
 
 find_package(OpenSSL CONFIG REQUIRED HINTS "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL" NO_DEFAULT_PATH)
-message(STATUS "OpenSSL found and exported globally: ${OPENSSL_INSTALL_DIR}")

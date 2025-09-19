@@ -73,7 +73,7 @@ function(add_module_test module_name)
         add_dependencies(${test_target} ${ARG_DEPENDENCIES})
     endif()
     
-    message(STATUS "Added test module: ${test_name}")
+    message(DEBUG "Added test module: ${test_name}")
 endfunction()
 
 # Add test subdirectories

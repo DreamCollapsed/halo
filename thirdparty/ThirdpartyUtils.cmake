@@ -773,6 +773,57 @@ function(thirdparty_get_optimization_flags output_var)
         -DBoost_USE_STATIC_RUNTIME=ON
         -DBoost_NO_SYSTEM_PATHS=ON
     )
+
+    # Propagate lld usage to third-party CMake invocations on Apple only when enabled.
+    # We rely on:
+    #   HALO_LLD_ENABLED (BOOL)          - root detection result
+    #   HALO_LLD_LINKER_FLAG (maybe "") - the driver flag (e.g. -fuse-ld=lld) if supported
+    # Strategy for isolated builds:
+    #   * Always pass -DCMAKE_LINKER so child CMake uses the same linker binary.
+    #   * If HALO_LLD_LINKER_FLAG not empty, append it to each linker flags variable explicitly.
+    if(APPLE AND HALO_LLD_ENABLED)
+        if(CMAKE_LINKER)
+            list(APPEND _opt_flags -DCMAKE_LINKER=${CMAKE_LINKER})
+        endif()
+        if(DEFINED HALO_LLD_LINKER_FLAG AND NOT HALO_LLD_LINKER_FLAG STREQUAL "")
+            # Avoid duplicates: only add if current flags don't already contain it.
+            foreach(_lf_var CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS)
+                if(NOT "${${_lf_var}}" MATCHES "${HALO_LLD_LINKER_FLAG}")
+                    set(${_lf_var} "${${_lf_var}} ${HALO_LLD_LINKER_FLAG}")
+                endif()
+            endforeach()
+            list(APPEND _opt_flags
+                -DCMAKE_EXE_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS}
+                -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
+                -DCMAKE_MODULE_LINKER_FLAGS=${CMAKE_MODULE_LINKER_FLAGS}
+            )
+        endif()
+    endif()
+
+    # Linux mold propagation (only when enabled). Similar approach: pass CMAKE_LINKER and fuse flag.
+    if(UNIX AND NOT APPLE AND HALO_MOLD_ENABLED)
+        if(CMAKE_LINKER)
+            list(APPEND _opt_flags -DCMAKE_LINKER=${CMAKE_LINKER})
+        endif()
+        if(DEFINED HALO_MOLD_LINKER_FLAG AND NOT HALO_MOLD_LINKER_FLAG STREQUAL "")
+            foreach(_lf_var CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS)
+                if(NOT "${${_lf_var}}" MATCHES "${HALO_MOLD_LINKER_FLAG}")
+                    set(${_lf_var} "${${_lf_var}} ${HALO_MOLD_LINKER_FLAG}")
+                endif()
+            endforeach()
+            list(APPEND _opt_flags
+                -DCMAKE_EXE_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS}
+                -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
+                -DCMAKE_MODULE_LINKER_FLAGS=${CMAKE_MODULE_LINKER_FLAGS}
+            )
+        endif()
+    endif()
+
+    # Placeholder for future Linux mold integration mirroring the lld pattern above.
+    # if(LINUX AND HALO_MOLD_ENABLED)
+    #   list(APPEND _opt_flags -DCMAKE_LINKER=${CMAKE_LINKER})
+    #   ... similar propagation logic ...
+    # endif()
     
     # --- Ninja Generator Support for faster builds ---
     # Check if Ninja is available and use it for third-party libraries
@@ -1216,16 +1267,47 @@ function(thirdparty_build_autotools_library library_name)
         endif()
 
         # Construct configure command
+        # Propagate accelerated linker (lld/mold) to autotools projects via env:
+        #   * LD: path to linker executable chosen by FindLinker.cmake
+        #   * LDFLAGS: include -fuse-ld flag if supported to keep compiler driver consistent
+        set(_env_export)
+        if(HALO_LINKER_EXECUTABLE)
+            list(APPEND _env_export "LD=${HALO_LINKER_EXECUTABLE}")
+        endif()
+        set(_fuse_flag)
+        if(HALO_LLD_ENABLED AND HALO_LLD_LINKER_FLAG)
+            set(_fuse_flag "${HALO_LLD_LINKER_FLAG}")
+        elseif(HALO_MOLD_ENABLED AND HALO_MOLD_LINKER_FLAG)
+            set(_fuse_flag "${HALO_MOLD_LINKER_FLAG}")
+        endif()
+        if(_fuse_flag)
+            list(APPEND _env_export "LDFLAGS=${_fuse_flag} ${LDFLAGS}")
+        endif()
+        if(_env_export)
+            list(JOIN _env_export " " _env_string)
+            message(STATUS "[thirdparty_build_autotools_library] Linker env for ${library_name}: ${_env_string}")
+        endif()
         set(_configure_script "${_source_dir}/${ARGS_CONFIGURE_SCRIPT_NAME}")
         set(_configure_args --prefix=${_install_dir} ${ARGS_CONFIGURE_ARGS})
-        
-        message(STATUS "[thirdparty_build_autotools_library] Configure command: ${_configure_script} ${_configure_args}")
+        # For logging: produce a readable command line
+        list(JOIN _configure_args " " _configure_args_string)
 
-        execute_process(
-            COMMAND ${_configure_script} ${_configure_args}
-            WORKING_DIRECTORY "${_work_dir}"
-            RESULT_VARIABLE _configure_result
-        )
+        if(_env_export)
+            message(STATUS "[thirdparty_build_autotools_library] Configure command: ${_env_string} ${_configure_script} ${_configure_args_string}")
+            # Use cmake -E env to inject environment variables for this process only
+            execute_process(
+                COMMAND ${CMAKE_COMMAND} -E env ${_env_export} ${_configure_script} ${_configure_args}
+                WORKING_DIRECTORY "${_work_dir}"
+                RESULT_VARIABLE _configure_result
+            )
+        else()
+            message(STATUS "[thirdparty_build_autotools_library] Configure command: ${_configure_script} ${_configure_args_string}")
+            execute_process(
+                COMMAND ${_configure_script} ${_configure_args}
+                WORKING_DIRECTORY "${_work_dir}"
+                RESULT_VARIABLE _configure_result
+            )
+        endif()
         if(NOT _configure_result EQUAL 0)
             message(FATAL_ERROR "Failed to configure ${library_name}")
         endif()

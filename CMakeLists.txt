@@ -90,7 +90,6 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG" CACHE STRING "Flags used by
 set(CMAKE_CXX_FLAGS_MINSIZEREL "-Os -DNDEBUG" CACHE STRING "Flags used by the CXX compiler during MinSizeRel builds" FORCE)
 
 # Display current build configuration
-message(STATUS "=== Build Configuration ===")
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
 message(STATUS "Shared Libraries: ${BUILD_SHARED_LIBS}")
@@ -107,6 +106,9 @@ endif()
 include(cmake/modules/FindLinker.cmake)
 linker_configure()
 linker_add_selfcheck()
+
+option(HALO_FORCE_THIRDPARTY_REINSTALL "Force rebuilding and reinstalling all third-party CMake projects (disables install stamp skipping)" OFF)
+option(HALO_THIRDPARTY_VERBOSE_SUPPRESS "Print STATUS messages (instead of DEBUG) when third-party configure/install steps are skipped" ON)
 
 # -----------------------------------------------------------------------------
 # Linker switch detection & third-party cache invalidation
@@ -218,6 +220,7 @@ set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_BASE_DIR}/installed)
 set(THIRDPARTY_EXECUTABLE_PATHS "" CACHE INTERNAL "Collected third-party executable paths")
 add_subdirectory(thirdparty)
 
+message(STATUS "[  Halo Embedded Code  ] Velox integration")
 include(cmake/Velox.cmake)
 add_subdirectory(velox)
 

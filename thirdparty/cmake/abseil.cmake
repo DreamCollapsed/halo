@@ -12,4 +12,4 @@ thirdparty_build_cmake_library("abseil"
         "${THIRDPARTY_INSTALL_DIR}/abseil/include/absl/strings/string_view.h"
 )
 
-find_package(absl CONFIG REQUIRED)
+find_package(absl CONFIG QUIET REQUIRED)

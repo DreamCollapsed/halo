@@ -18,7 +18,7 @@ foreach(_file ${_validation_files})
     endif()
 endforeach()
 if(_all_files_exist)
-    message(STATUS "[libstemmer] All validation files exist, skip build.")
+    message(DEBUG "[libstemmer] All validation files exist, skip build.")
     set(_need_build FALSE)
 endif()
 

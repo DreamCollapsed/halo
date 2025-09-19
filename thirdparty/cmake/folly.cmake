@@ -92,11 +92,11 @@ thirdparty_build_cmake_library("folly"
 )
 
 if(EXISTS "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake")
-    find_package(Folly CONFIG REQUIRED)
+    halo_find_package(Folly CONFIG QUIET REQUIRED)
     
     # Some dependents (fizz/wangle) ask for "folly" in lowercase via find_dependency
     # Populate lowercase cache too to avoid re-search and negative cache writes
-    find_package(folly CONFIG REQUIRED)
+    halo_find_package(folly CONFIG QUIET REQUIRED)
 else()
     message(FATAL_ERROR "Folly cmake config not found at ${FOLLY_INSTALL_DIR}")
 endif()

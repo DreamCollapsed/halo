@@ -119,7 +119,7 @@ thirdparty_cmake_install("${THRIFT_BUILD_DIR}" "${THRIFT_INSTALL_DIR}"
         "${THRIFT_INSTALL_DIR}/bin/thrift"
 )
 
-find_package(thrift CONFIG REQUIRED)
+halo_find_package(thrift CONFIG QUIET REQUIRED)
 
 set(THRIFT_EXECUTABLE_PATH "${THRIFT_INSTALL_DIR}/bin/thrift" CACHE INTERNAL "Path to project thrift executable")
 if(EXISTS "${THRIFT_EXECUTABLE_PATH}")

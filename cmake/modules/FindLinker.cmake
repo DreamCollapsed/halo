@@ -88,7 +88,7 @@ function(linker_configure)
                     set(_cand "${HALO_LLD_EXECUTABLE}")
                 else()
                     find_program(_cand NAMES ld.lld lld
-                        HINTS /opt/homebrew/opt/llvm/bin /opt/homebrew/bin /usr/local/opt/llvm/bin /usr/local/bin /usr/bin)
+                        HINTS /opt/homebrew/opt/lld/bin /opt/homebrew/opt/llvm/bin /opt/homebrew/bin /usr/local/opt/llvm/bin /usr/local/bin /usr/bin)
                 endif()
                 if(_cand)
                     set(CMAKE_LINKER "${_cand}" CACHE FILEPATH "Selected linker executable" FORCE)

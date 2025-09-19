@@ -37,4 +37,4 @@ else()
     message(FATAL_ERROR "protoc installation not found at ${THIRDPARTY_INSTALL_DIR}/protobuf")
 endif()
 
-message(STATUS "Imported protobuf package targets")
+message(DEBUG "Imported protobuf package targets")

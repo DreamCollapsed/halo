@@ -171,4 +171,3 @@ thirdparty_cmake_install("${MVFST_BUILD_DIR}" "${MVFST_INSTALL_DIR}"
 )
 
 find_package(mvfst CONFIG REQUIRED)
-message(STATUS "mvfst imported into superproject: ${MVFST_INSTALL_DIR}")

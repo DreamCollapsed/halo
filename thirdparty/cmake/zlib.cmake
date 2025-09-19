@@ -28,7 +28,6 @@ if(EXISTS "${ZLIB_INSTALL_DIR}/lib/libz.a" AND EXISTS "${ZLIB_INSTALL_DIR}/inclu
     if(NOT TARGET ZLIB::ZLIB)
         add_library(ZLIB::ZLIB ALIAS zlib::zlib)
     endif()
-    message(STATUS "zlib found and exported globally: ${ZLIB_INSTALL_DIR}")
 else()
     message(FATAL_ERROR "zlib installation not found at ${ZLIB_INSTALL_DIR}")
 endif()

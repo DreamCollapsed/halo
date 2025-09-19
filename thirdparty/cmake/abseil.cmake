@@ -13,4 +13,3 @@ thirdparty_build_cmake_library("abseil"
 )
 
 find_package(absl CONFIG REQUIRED)
-message(STATUS "Abseil found and exported globally: ${ABSEIL_INSTALL_DIR}")

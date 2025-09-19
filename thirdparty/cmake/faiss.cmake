@@ -17,4 +17,3 @@ thirdparty_build_cmake_library(faiss
 )
 
 find_package(faiss CONFIG REQUIRED)
-message(STATUS "faiss package imported via CMake configs: ${faiss_DIR}")

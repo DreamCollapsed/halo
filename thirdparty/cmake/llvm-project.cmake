@@ -101,4 +101,4 @@ if(EXISTS "${LLVM_PROJECT_INSTALL_DIR}/bin/20/include/ompx.h")
          DESTINATION "${LLVM_PROJECT_INSTALL_DIR}/include")
 endif()
 
-message(STATUS "LLVM Project unified runtimes build (openmp;libunwind) complete")
+message(DEBUG "LLVM Project unified runtimes build (openmp;libunwind) complete")

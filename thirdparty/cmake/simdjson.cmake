@@ -20,4 +20,3 @@ thirdparty_build_cmake_library("simdjson"
 )
 
 find_package(simdjson CONFIG REQUIRED)
-message(STATUS "simdjson found and exported globally: ${THIRDPARTY_INSTALL_DIR}/simdjson")

@@ -50,5 +50,3 @@ if(EXISTS "${GRPC_CPP_PLUGIN_EXECUTABLE_PATH}")
 else()
     message(FATAL_ERROR "gRPC tools installation not found at ${THIRDPARTY_INSTALL_DIR}/grpc")
 endif()
-
-message(STATUS "gRPC found and exported globally (config=${gRPC_FOUND})")

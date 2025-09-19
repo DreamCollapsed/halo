@@ -114,4 +114,4 @@ endif()
 
 set(jemalloc_DIR "${JEMALLOC_INSTALL_DIR}" CACHE PATH "Path to installed jemalloc" FORCE)
 
-message(STATUS "jemalloc integration completed successfully")
+message(DEBUG "jemalloc integration completed successfully")

@@ -70,4 +70,3 @@ set(ZLIB_LIBRARIES ${THIRDPARTY_INSTALL_DIR}/zlib/lib/libz.a)
 set(ZLIB_VERSION_STRING "1.3.1")
 
 find_package(fizz CONFIG REQUIRED)
-message(STATUS "Fizz imported into superproject: ${FIZZ_INSTALL_DIR}")

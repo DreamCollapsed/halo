@@ -1,0 +1,301 @@
+name: CI (macOS + Linux)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: ${{ matrix.os }}-${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        build_type: [Release, RelWithDebInfo, Debug]
+        include:
+          - os: macos-latest
+            build_type: Release
+            run_halo: true
+          - os: macos-latest
+            build_type: RelWithDebInfo
+            run_halo: false
+          - os: macos-latest
+            build_type: Debug
+            run_halo: false
+          - os: ubuntu-latest
+            build_type: Release
+            run_halo: true
+          - os: ubuntu-latest
+            build_type: RelWithDebInfo
+            run_halo: false
+          - os: ubuntu-latest
+            build_type: Debug
+            run_halo: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Homebrew cache (optional)
+        if: startsWith(matrix.os, 'macos')
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            /usr/local/Homebrew/Library/Taps
+            /opt/homebrew/Cellar
+          key: brew-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            brew-${{ runner.os }}-${{ matrix.build_type }}-
+            brew-${{ runner.os }}-
+
+      - name: ccache cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.build_type }}-
+            ccache-${{ runner.os }}-
+
+      - name: Install dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          brew update
+
+
+          brew install llvm@20 lld@20 cmake ninja ccache autoconf automake libtool || true
+          brew link --overwrite llvm@20
+          echo "LLVM prefix: $(brew --prefix llvm@20)"
+          echo "LLD path: $(brew --prefix lld@20)/bin/ld.lld"
+
+      - name: Install dependencies (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release software-properties-common
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+          sudo apt-get install -y lld-20 ninja-build ccache cmake autoconf automake libtool gettext gettext-base autopoint
+          echo "LLVM prefix: /usr/lib/llvm-20"
+          which clang-20 || true
+          which ld.lld-20 || true
+          which autopoint || true
+
+      - name: Set compiler environment (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          echo "CC=$(brew --prefix llvm@20)/bin/clang" >> $GITHUB_ENV
+          echo "CXX=$(brew --prefix llvm@20)/bin/clang++" >> $GITHUB_ENV
+          echo "PATH=$(brew --prefix llvm@20)/bin:$PATH" >> $GITHUB_ENV
+          echo "HALO_LLD=$(brew --prefix lld@20)/bin/ld.lld" >> $GITHUB_ENV
+
+      - name: Set compiler environment (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          echo "CC=clang-20" >> $GITHUB_ENV
+          echo "CXX=clang++-20" >> $GITHUB_ENV
+          LLD_PATH=$(command -v ld.lld-20 || echo /usr/lib/llvm-20/bin/ld.lld)
+          echo "HALO_LLD=$LLD_PATH" >> $GITHUB_ENV
+          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
+          echo "PATH=/usr/lib/llvm-20/bin:$PATH" >> $GITHUB_ENV
+          clang-20 --version
+          ld.lld-20 --version || true
+
+      - name: Configure (CMake ${{ matrix.build_type }})
+        run: |
+          mkdir -p build
+          echo "Using CC=$CC CXX=$CXX"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER=$CC \
+            -DCMAKE_CXX_COMPILER=$CXX \
+            -DHALO_LLD_EXECUTABLE=$HALO_LLD \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build
+        env:
+          CCACHE_DIR: ~/.ccache
+        run: |
+          ccache -z || true
+          ninja -C build -j$(nproc) -v
+          ccache -s || true
+
+      - name: Run tests
+        run: ctest --test-dir build -j12 --output-on-failure
+
+      - name: Run halo executable (smoke test, Release only)
+        if: ${{ matrix.run_halo == true }}
+        run: ./build/halo || (echo "halo run failed" && exit 1)
+
+      - name: Collect build logs on failure
+        if: failure()
+        run: |
+          echo 'Listing build directory:'
+          ls -R build | head -100
+          echo 'CMake cache:'
+          sed -n '1,200p' build/CMakeCache.txt || true
+
+      - name: Upload build directory (failure artifact)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.os }}-${{ matrix.build_type }}
+          path: build
+          if-no-files-found: ignore
+
+  lint-format:
+    name: Lint / Format
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update -y
+          # Install LLVM 20 clang-format to match local version
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+          sudo apt-get install -y clang-format-20
+          # Create symlink for consistent access
+          sudo ln -sf /usr/bin/clang-format-20 /usr/local/bin/clang-format
+          which clang-format || true
+          clang-format --version || true
+
+      - name: Detect .clang-format
+        id: has_cfg
+        run: |
+          if [ -f .clang-format ]; then echo "found=true" >> $GITHUB_OUTPUT; else echo "found=false" >> $GITHUB_OUTPUT; fi
+
+      - name: Run clang-format diff (dry-run)
+        if: steps.has_cfg.outputs.found == 'true'
+        run: |
+          echo "Checking formatting..."
+          # Gather C/C++ sources
+          FILES=$(git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx')
+          if [ -z "$FILES" ]; then echo "No C/C++ files"; exit 0; fi
+          set +e
+          FAIL=0
+          for f in $FILES; do
+            diff_output=$(clang-format -style=file $f | diff -u $f -)
+            if [ "$diff_output" != "" ]; then
+              echo "Needs formatting: $f"
+              echo "$diff_output" | sed 's/^/  /'
+              FAIL=1
+            fi
+          done
+          if [ $FAIL -eq 1 ]; then
+            echo "Formatting issues detected. Run: clang-format -i <files>" >&2
+            exit 1
+          else
+            echo "Formatting OK"
+          fi
+
+      - name: Skip notice (no .clang-format)
+        if: steps.has_cfg.outputs.found != 'true'
+        run: echo "No .clang-format found; skipping format check."
+
+  clang-tidy:
+    name: Clang-Tidy Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: lint-format
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain (LLVM 20 + deps)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release software-properties-common ninja-build cmake
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 20
+          sudo apt-get install -y clang-tidy-20 autoconf automake libtool gettext gettext-base autopoint
+          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
+          echo "CC=clang-20" >> $GITHUB_ENV
+          echo "CXX=clang++-20" >> $GITHUB_ENV
+          clang-20 --version
+          clang-tidy-20 --version
+          which autopoint || true
+
+      - name: Configure (generate compile_commands.json)
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER=clang-20 \
+            -DCMAKE_CXX_COMPILER=clang++-20 \
+            -DHALO_LLD_EXECUTABLE=/usr/lib/llvm-20/bin/ld.lld \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          ln -sf build/compile_commands.json .
+
+      - name: Determine changed C/C++ files
+        id: diff
+        run: |
+          base_ref="${GITHUB_BASE_REF}"
+          if [ -z "$base_ref" ]; then
+            # Not a PR: analyze all tracked sources
+            git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
+          else
+            git fetch origin "$base_ref" --depth=1 || true
+            git diff --name-only "origin/$base_ref" HEAD | grep -E '\\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+            if [ ! -s changed_files.txt ]; then
+              echo "No changed C/C++ files; falling back to all.";
+              git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
+            fi
+          fi
+          echo "Files to analyze:";
+          cat changed_files.txt
+          COUNT=$(wc -l < changed_files.txt | tr -d ' ')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Run clang-tidy (batch)
+        if: steps.diff.outputs.count != '0'
+        run: |
+          set -e
+          python3 - <<'PY'
+          import os
+          import subprocess
+          
+          files = [l.strip() for l in open('changed_files.txt') if l.strip()]
+          if not files:
+            print('No files to analyze.')
+            raise SystemExit(0)
+          
+          BATCH_SIZE = 80
+          had_issue = False
+          
+          for i in range(0, len(files), BATCH_SIZE):
+            chunk = files[i:i+BATCH_SIZE]
+            print(f"Analyzing batch {i//BATCH_SIZE+1}: {len(chunk)} files")
+            cmd = ["clang-tidy-20", "-p", "build"] + chunk
+            res = subprocess.run(
+              cmd,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.STDOUT,
+              text=True,
+            )
+            print(res.stdout)
+            if res.returncode != 0:
+              had_issue = True
+          
+          if had_issue:
+            raise SystemExit(1)
+          else:
+            print("clang-tidy passed")
+          PY
+
+      - name: No C/C++ sources
+        if: steps.diff.outputs.count == '0'
+        run: echo "No C/C++ files to analyze."

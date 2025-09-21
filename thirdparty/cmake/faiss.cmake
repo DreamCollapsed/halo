@@ -6,6 +6,28 @@ thirdparty_setup_directories("faiss")
 # Get OpenMP path from llvm-project dependency
 set(_openmp_dir "${THIRDPARTY_INSTALL_DIR}/llvm-project")
 
+###############################################################################
+# Auto-select FAISS_OPT_LEVEL for the limited set of platforms we care about.
+# Scope (only these three cases):
+#   1. Apple Silicon (arm64) -> arm64
+#   2. Linux x86_64          -> avx2
+#   3. Linux arm64/aarch64   -> arm64
+# Anything else -> generic
+# No manual override variable to keep it simple.
+###############################################################################
+if(APPLE AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+    set(_faiss_opt_level "arm64")
+elseif(UNIX AND CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    set(_faiss_opt_level "avx2")
+elseif(UNIX AND CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|ARM64")
+    set(_faiss_opt_level "arm64")
+else()
+    set(_faiss_opt_level "generic")
+endif()
+message(DEBUG "[faiss] Auto FAISS_OPT_LEVEL='${_faiss_opt_level}' (Apple arm64 -> arm64; Linux x86_64 -> avx2; Linux arm64 -> arm64; other -> generic)")
+
+thirdparty_combine_flags(_faiss_cxx_flags FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "-I${_openmp_dir}/include")
+
 thirdparty_build_cmake_library(faiss
     CMAKE_CACHE_ARGS
         # Pass OpenMP configuration explicitly to child CMake process
@@ -27,13 +49,13 @@ thirdparty_build_cmake_library(faiss
         -DFAISS_ENABLE_CUVS=OFF
         -DFAISS_ENABLE_C_API=ON
         -DCMAKE_BUILD_TYPE=Release
-        -DFAISS_OPT_LEVEL=sve
+        -DFAISS_OPT_LEVEL=${_faiss_opt_level}
         -DFAISS_USE_LTO=ON
         # Point to our OpenMP installation - these are checked by FindOpenMP
         -DOpenMP_ROOT=${_openmp_dir}
         -DOpenMP_CXX_INCLUDE_DIRS=${_openmp_dir}/include
-        # Add OpenMP include directory to compiler flags
-        -DCMAKE_CXX_FLAGS=-I${_openmp_dir}/include
+        # Use safely combined CMAKE_CXX_FLAGS
+        -DCMAKE_CXX_FLAGS=${_faiss_cxx_flags}
     VALIDATION_FILES
         "${FAISS_INSTALL_DIR}/lib/libfaiss.a"
 )

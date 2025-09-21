@@ -9,6 +9,7 @@ set(_validation_files
     "${LIBSTEMMER_INSTALL_DIR}/include/libstemmer.h"
 )
 
+# Enhanced skip logic with better validation
 set(_need_build TRUE)
 set(_all_files_exist TRUE)
 foreach(_file ${_validation_files})
@@ -38,18 +39,48 @@ if(_need_build)
     thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _make_jobs)
     set(PARALLEL_JOBS "-j${_make_jobs}")
     
-    execute_process(
-        COMMAND make ${PARALLEL_JOBS} CFLAGS=-fPIC
-        WORKING_DIRECTORY "${LIBSTEMMER_BUILD_DIR}"
-        RESULT_VARIABLE _build_result
-    )
+    # Get optimization flags including linker settings
+    thirdparty_get_optimization_flags(LIBSTEMMER_MAKE_FLAGS COMPONENT "libstemmer")
+    
+    # Setup linker environment for make
+    set(_make_env)
+    if(HALO_LINKER)
+        list(APPEND _make_env "CC=${CMAKE_C_COMPILER}")
+        if(CMAKE_EXE_LINKER_FLAGS)
+            list(APPEND _make_env "LDFLAGS=${CMAKE_EXE_LINKER_FLAGS}")
+        endif()
+        message(STATUS "[libstemmer] Using linker: ${HALO_LINKER}")
+        
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E env ${_make_env} make ${PARALLEL_JOBS} CFLAGS=-fPIC
+            WORKING_DIRECTORY "${LIBSTEMMER_BUILD_DIR}"
+            RESULT_VARIABLE _build_result
+        )
+    else()
+        execute_process(
+            COMMAND make ${PARALLEL_JOBS} CFLAGS=-fPIC
+            WORKING_DIRECTORY "${LIBSTEMMER_BUILD_DIR}"
+            RESULT_VARIABLE _build_result
+        )
+    endif()
+    
     if(NOT _build_result EQUAL 0)
         message(FATAL_ERROR "Failed to build libstemmer")
     endif()
     
+    # Create installation directories
     file(MAKE_DIRECTORY "${LIBSTEMMER_INSTALL_DIR}/lib")
     file(MAKE_DIRECTORY "${LIBSTEMMER_INSTALL_DIR}/include")
     
+    # Verify build artifacts exist before copying
+    if(NOT EXISTS "${LIBSTEMMER_BUILD_DIR}/libstemmer.a")
+        message(FATAL_ERROR "[libstemmer] Build artifact libstemmer.a not found in ${LIBSTEMMER_BUILD_DIR}")
+    endif()
+    if(NOT EXISTS "${LIBSTEMMER_BUILD_DIR}/include/libstemmer.h")
+        message(FATAL_ERROR "[libstemmer] Header file libstemmer.h not found in ${LIBSTEMMER_BUILD_DIR}/include")
+    endif()
+    
+    # Install library and headers
     file(COPY "${LIBSTEMMER_BUILD_DIR}/libstemmer.a" 
          DESTINATION "${LIBSTEMMER_INSTALL_DIR}/lib/")
     

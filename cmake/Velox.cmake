@@ -275,10 +275,13 @@ find_package(OpenMP    REQUIRED)
 
 if(DEFINED THIRDPARTY_INSTALL_DIR AND EXISTS "${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc/jemalloc.h")
   add_compile_definitions(FOLLY_HAVE_LIBJEMALLOC=1)
-  include_directories(BEFORE "${THIRDPARTY_INSTALL_DIR}/jemalloc/include")
-  # Force include jemalloc headers using a different approach
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc/jemalloc.h")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
+  # On macOS we force-include the prefix compat header to map non-je_ symbols.
+  # On Linux this can trigger posix_memalign exception spec conflicts, so skip include directory entirely.
+  if(APPLE)
+    include_directories(BEFORE "${THIRDPARTY_INSTALL_DIR}/jemalloc/include")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc/jemalloc.h")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
+  endif()
 endif()
 
 # Create a unified Velox target for easier consumption in main project

@@ -1,9 +1,13 @@
 # snappy third-party integration
 # Reference: https://github.com/google/snappy
 
+# Combine CMAKE_CXX_FLAGS safely for Snappy
+thirdparty_get_optimization_flags(_snappy_base_flags COMPONENT "snappy")
+thirdparty_combine_flags(_snappy_cxx_flags FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "-fvisibility=default")
+
 thirdparty_build_cmake_library("snappy"
     CMAKE_ARGS
-        "-DCMAKE_CXX_FLAGS=-fvisibility=default"
+        "-DCMAKE_CXX_FLAGS=${_snappy_cxx_flags}"
         -DSNAPPY_BUILD_TESTS=OFF
         -DSNAPPY_BUILD_BENCHMARKS=OFF
         -DSNAPPY_INSTALL=ON

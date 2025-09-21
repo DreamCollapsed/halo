@@ -1,3 +1,0 @@
-thirdparty/builds.zip filter=lfs diff=lfs merge=lfs -text
-thirdparty/src.zip filter=lfs diff=lfs merge=lfs -text
-thirdparty/installed.zip filter=lfs diff=lfs merge=lfs -text

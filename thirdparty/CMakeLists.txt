@@ -51,6 +51,7 @@ endif()
 add_library(halo_thirdparty_core INTERFACE)
 target_link_libraries(halo_thirdparty_core
     INTERFACE
+    jemalloc::jemalloc_pic
     absl::strings
     absl::str_format
     absl::flat_hash_map
@@ -88,7 +89,6 @@ target_link_libraries(halo_thirdparty_core
     double-conversion::double-conversion
     FastFloat::fast_float
     fmt::fmt
-    jemalloc::jemalloc_pic
     zstd::libzstd_static
     LZ4::lz4_static
     liblzma::liblzma

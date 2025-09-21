@@ -3,6 +3,8 @@
 
 thirdparty_setup_directories("llvm-project")
 
+thirdparty_combine_flags(_llvm_cxx_flags FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "-I${THIRDPARTY_BUILD_DIR}/llvm-project/bin/20/include")
+
 thirdparty_build_cmake_library(llvm-project
     SOURCE_SUBDIR "runtimes"
     CMAKE_CACHE_ARGS
@@ -10,7 +12,7 @@ thirdparty_build_cmake_library(llvm-project
         "CLANG_VERSION_MAJOR=20"
         "PACKAGE_VERSION=20.1.8"
         "CLANG_RESOURCE_DIR=20"
-        "CMAKE_CXX_FLAGS=-I${THIRDPARTY_BUILD_DIR}/llvm-project/bin/20/include"
+        "CMAKE_CXX_FLAGS=${_llvm_cxx_flags}"
         "OPENMP_FILECHECK_EXECUTABLE=/usr/bin/true"
         "OPENMP_LLVM_LIT_EXECUTABLE=/usr/bin/true"
         "OPENMP_NOT_EXECUTABLE=/usr/bin/true"
@@ -70,6 +72,20 @@ set_target_properties(unwind::unwind PROPERTIES
   IMPORTED_LOCATION "${LLVM_PROJECT_INSTALL_DIR}/lib/libunwind.a"
   INTERFACE_INCLUDE_DIRECTORIES "${LLVM_PROJECT_INSTALL_DIR}/include"
 )
+
+# Fix for libunwind symbol drop on macOS (observed even when LTO not explicitly enabled)
+# Force the symbol ___unw_get_proc_name to be retained by the linker.
+if(APPLE)
+  # Append (do not overwrite) any existing interface link options.
+  get_target_property(_unwind_link_opts unwind::unwind INTERFACE_LINK_OPTIONS)
+  if(NOT _unwind_link_opts)
+    set(_unwind_link_opts "")
+  endif()
+  list(APPEND _unwind_link_opts "-Wl,-u,___unw_get_proc_name")
+  set_target_properties(unwind::unwind PROPERTIES INTERFACE_LINK_OPTIONS "${_unwind_link_opts}")
+  message(DEBUG "[libunwind] Ensured preservation of ___unw_get_proc_name on macOS")
+endif()
+
 if(NOT TARGET omp)
   add_library(omp ALIAS OpenMP::OpenMP_CXX)
 endif()

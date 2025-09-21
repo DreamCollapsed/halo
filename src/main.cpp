@@ -11,7 +11,7 @@ int main() {
 
   // Simple jemalloc verification
   void* ptr = malloc(1000);
-  if (ptr && je_malloc_usable_size(ptr) < 0) {
+  if (ptr && malloc_usable_size(ptr) < 0) {
     std::cout << "jemalloc drop-in mode: INACTIVE" << std::endl;
   }
   free(ptr);

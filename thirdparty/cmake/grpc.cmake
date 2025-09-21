@@ -30,6 +30,18 @@ thirdparty_build_cmake_library("grpc"
         -Dre2_DIR=${THIRDPARTY_INSTALL_DIR}/re2/lib/cmake/re2
         -DOpenSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
         -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
+    FILE_REPLACEMENTS
+        "src/core/credentials/transport/tls/tls_security_connector.cc"
+        "absl::bind_front(&ChannelPendingVerifierRequest::OnVerifyDone, this,
+                        true),"
+        "[this](absl::Status status) {
+          this->OnVerifyDone(true, std::move(status));
+        },"
+        "src/core/credentials/transport/tls/tls_security_connector.cc"
+        "absl::bind_front(&ServerPendingVerifierRequest::OnVerifyDone, this, true),"
+        "[this](absl::Status status) {
+          this->OnVerifyDone(true, std::move(status));
+        },"
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/grpc/lib/libgrpc.a"
         "${THIRDPARTY_INSTALL_DIR}/grpc/lib/libgrpc++.a"

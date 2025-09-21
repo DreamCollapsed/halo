@@ -4,6 +4,17 @@
 thirdparty_setup_directories("mvfst")
 
 thirdparty_get_optimization_flags(_opt_flags COMPONENT mvfst)
+
+# jemalloc CXX flags: only set on Apple platforms to avoid header conflicts on Linux
+if(APPLE)
+    # On macOS map allocator symbols via jemalloc prefix compat header.
+    # Include both the directory and the compatibility header.
+    set(_MVFST_CXX_FLAGS "-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
+else()
+    # On Linux, avoid jemalloc include directory to prevent posix_memalign exception spec conflicts.
+    set(_MVFST_CXX_FLAGS "")
+endif()
+
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${MVFST_INSTALL_DIR}
 
@@ -22,7 +33,7 @@ list(APPEND _opt_flags
     -Dsodium_USE_STATIC_LIBS=ON
 
     # jemalloc
-    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
+    -DCMAKE_CXX_FLAGS=${_MVFST_CXX_FLAGS}
 )
 
 # Acquire mvfst source first so we can patch files deterministically.

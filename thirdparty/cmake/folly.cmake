@@ -1,9 +1,31 @@
 # Folly third-party integration
 # Reference: https://github.com/facebook/folly/blob/main/README.md
 
+# jemalloc configuration: platform-specific approach
+if(APPLE)
+    # On macOS we need to remap expected (non-je_) allocator symbols to jemalloc's je_ prefixed ones.
+    # Include both the directory and the compatibility header for symbol remapping.
+    set(_FOLLY_JEMALLOC_CXX_FLAGS "-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
+    set(_FOLLY_USE_JEMALLOC ON)
+    set(_FOLLY_EXTRA_C_FLAGS "")
+    set(_FOLLY_EXTRA_CXX_FLAGS "")
+else()
+    # On Linux, avoid including jemalloc headers during compilation to prevent posix_memalign exception spec conflicts
+    # Disable folly's jemalloc integration - jemalloc will work as runtime replacement via linker flags
+    set(_FOLLY_JEMALLOC_CXX_FLAGS "")
+    set(_FOLLY_USE_JEMALLOC OFF)
+    # Use lld on Linux to fix library format compatibility issues
+    set(_FOLLY_EXTRA_C_FLAGS "-fuse-ld=lld")
+    set(_FOLLY_EXTRA_CXX_FLAGS "-fuse-ld=lld")
+endif()
+
 thirdparty_build_cmake_library("folly"
     CMAKE_ARGS
         -DCMAKE_POLICY_DEFAULT_CMP0167=OLD
+        
+        # Platform-specific compiler and linker settings
+        -DCMAKE_CXX_FLAGS=${_FOLLY_JEMALLOC_CXX_FLAGS}\ ${_FOLLY_EXTRA_CXX_FLAGS}
+        -DCMAKE_C_FLAGS=${_FOLLY_EXTRA_C_FLAGS}
 
         # GLOG
         -DGLOG_LIBRARYDIR=${THIRDPARTY_INSTALL_DIR}/glog/lib
@@ -39,7 +61,7 @@ thirdparty_build_cmake_library("folly"
         -DJEMALLOC_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/lib/libjemalloc_pic.a
         -DCMAKE_SHARED_LINKER_FLAGS=-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib\ -ljemalloc_pic
         -DCMAKE_EXE_LINKER_FLAGS=-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib\ -ljemalloc_pic
-        -DFOLLY_USE_JEMALLOC:BOOL=ON
+        -DFOLLY_USE_JEMALLOC:BOOL=${_FOLLY_USE_JEMALLOC}
 
         # ZLIB
         -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
@@ -79,13 +101,17 @@ thirdparty_build_cmake_library("folly"
         -DSNAPPY_LIBRARY=${THIRDPARTY_INSTALL_DIR}/snappy/lib/libsnappy.a
         -DSNAPPY_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/snappy/include
 
-        # JEMALLOC
-        -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
-
         # --- Folly Specifics ---
         -DFOLLY_HAVE_UNALIGNED_ACCESS:BOOL=ON
         -DFOLLY_USE_SYMBOLIZER:BOOL=ON
         -DFOLLY_HAVE_BACKTRACE:BOOL=ON
+    FILE_REPLACEMENTS
+        "folly/hash/Checksum.cpp"
+        "#include <folly/hash/Checksum.h>"
+        "#include <folly/hash/Checksum.h>\n#include <stdexcept>"
+        "folly/lang/Exception.cpp"
+        "std::unexpected_handler unexpectedHandler;"
+        "// std::unexpected_handler removed in C++17, use terminate_handler instead\nstd::terminate_handler unexpectedHandler;"
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/folly/lib/libfolly.a"
         "${THIRDPARTY_INSTALL_DIR}/folly/include/folly/folly-config.h"

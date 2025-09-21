@@ -1,0 +1,418 @@
+name: CI (macOS + Linux)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  lint-format:
+    name: Lint / Format
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect .clang-format
+        id: has_cfg
+        run: |
+          if [ -f .clang-format ]; then echo "found=true" >> $GITHUB_OUTPUT; else echo "found=false" >> $GITHUB_OUTPUT; fi
+
+      - name: Install clang-format (macOS)
+        run: |
+          set -euxo pipefail
+          brew update
+          brew install llvm@20
+          LLVM_PREFIX=$(brew --prefix)/opt/llvm@20
+          ln -sf $LLVM_PREFIX/bin/clang-format /usr/local/bin/clang-format || true
+          clang-format --version
+
+      - name: Run clang-format diff (dry-run)
+        if: steps.has_cfg.outputs.found == 'true'
+        run: |
+          echo "Checking formatting..."
+          # Gather C/C++ sources
+          FILES=$(git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx')
+          if [ -z "$FILES" ]; then echo "No C/C++ files"; exit 0; fi
+          set +e
+          FAIL=0
+          for f in $FILES; do
+            diff_output=$(clang-format -style=file $f | diff -u $f -)
+            if [ "$diff_output" != "" ]; then
+              echo "Needs formatting: $f"
+              echo "$diff_output" | sed 's/^/  /'
+              FAIL=1
+            fi
+          done
+          if [ $FAIL -eq 1 ]; then
+            echo "Formatting issues detected. Run: clang-format -i <files>" >&2
+            exit 1
+          else
+            echo "Formatting OK"
+          fi
+
+      - name: Skip notice (no .clang-format)
+        if: steps.has_cfg.outputs.found != 'true'
+        run: echo "No .clang-format found; skipping format check."
+
+  build-test:
+    name: ${{ matrix.os }}-${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 240
+    needs: lint-format  # 依赖 lint-format 成功
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        build_type: [Release, RelWithDebInfo, Debug]
+        include:
+          - os: macos-latest
+            build_type: Release
+            run_halo: true
+          - os: macos-latest
+            build_type: RelWithDebInfo
+            run_halo: false
+          - os: macos-latest
+            build_type: Debug
+            run_halo: false
+          - os: ubuntu-latest
+            build_type: Release
+            run_halo: true
+          - os: ubuntu-latest
+            build_type: RelWithDebInfo
+            run_halo: false
+          - os: ubuntu-latest
+            build_type: Debug
+            run_halo: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Homebrew cache (optional)
+        if: startsWith(matrix.os, 'macos')
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            /usr/local/Homebrew/Library/Taps
+          key: brew-${{ runner.os }}-${{ matrix.build_type }}-llvm20-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            brew-${{ runner.os }}-${{ matrix.build_type }}-llvm20-
+            brew-${{ runner.os }}-llvm20-
+
+      - name: Install dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          set -euxo pipefail
+          echo "brew --version:" && brew --version
+          brew update
+          # Hard fail if any of these cannot be installed (no fallbacks)
+          brew install llvm@20 lld@20 cmake ninja ccache autoconf automake libtool
+          brew list --versions llvm@20
+          brew list --versions lld@20
+          brew list --versions cmake
+          brew list --versions ninja
+          brew list --versions ccache
+
+      - name: Verify toolchain integrity (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          set -euxo pipefail
+          HOMEBREW_PREFIX=$(brew --prefix)
+          LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm@20"
+          LLD_PREFIX="$HOMEBREW_PREFIX/opt/lld@20"
+          
+          # Verify LLVM installation integrity
+          echo "=== Verifying LLVM 20 installation ==="
+          if [ ! -d "$LLVM_PREFIX" ]; then
+            echo "ERROR: LLVM@20 directory not found at $LLVM_PREFIX"
+            echo "Reinstalling llvm@20..."
+            brew uninstall --ignore-dependencies llvm@20 || true
+            brew install llvm@20
+          fi
+          
+          # Test compiler functionality
+          CLANG_BIN="$LLVM_PREFIX/bin/clang"
+          CLANGXX_BIN="$LLVM_PREFIX/bin/clang++"
+          
+          echo "Testing C compiler..."
+          echo 'int main(){return 0;}' | "$CLANG_BIN" -x c - -o /tmp/test_c || {
+            echo "ERROR: C compiler test failed"
+            brew reinstall llvm@20
+            echo 'int main(){return 0;}' | "$CLANG_BIN" -x c - -o /tmp/test_c
+          }
+          
+          echo "Testing C++ compiler..."
+          echo 'int main(){return 0;}' | "$CLANGXX_BIN" -x c++ - -o /tmp/test_cxx || {
+            echo "ERROR: C++ compiler test failed"
+            brew reinstall llvm@20
+            echo 'int main(){return 0;}' | "$CLANGXX_BIN" -x c++ - -o /tmp/test_cxx
+          }
+          
+          echo "Toolchain verification successful!"
+
+      - name: Set compiler environment (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          set -euo pipefail
+          HOMEBREW_PREFIX=$(brew --prefix)
+          LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm@20"
+          LLD_PREFIX="$HOMEBREW_PREFIX/opt/lld@20"
+          CCBIN="$LLVM_PREFIX/bin/clang"
+            
+          CXXBIN="$LLVM_PREFIX/bin/clang++"
+          LLD_BIN="$LLD_PREFIX/bin/ld.lld"
+          # Enforce presence (no fallbacks allowed)
+          test -x "$CCBIN" || { echo "Missing clang at $CCBIN" >&2; exit 1; }
+          test -x "$CXXBIN" || { echo "Missing clang++ at $CXXBIN" >&2; exit 1; }
+          test -x "$LLD_BIN" || { echo "Missing ld.lld at $LLD_BIN" >&2; exit 1; }
+          echo "CC=$CCBIN" >> $GITHUB_ENV
+          echo "CXX=$CXXBIN" >> $GITHUB_ENV
+          echo "HALO_LLD=$LLD_BIN" >> $GITHUB_ENV
+          echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
+          echo "Configured macOS toolchain:";
+          "$CCBIN" --version
+          "$LLD_BIN" --version || true
+
+      - name: Setup ccache
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            # macOS: ccache installed via Homebrew, use default cache location
+            CCACHE_DIR="$HOME/Library/Caches/ccache"
+          else
+            # Linux: use XDG cache location
+            CCACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ccache"
+          fi
+          mkdir -p "$CCACHE_DIR"
+          echo "CCACHE_DIR=$CCACHE_DIR" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=2G" >> $GITHUB_ENV
+          echo "CCACHE_COMPRESS=true" >> $GITHUB_ENV
+
+      - name: ccache cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.build_type }}-
+            ccache-${{ runner.os }}-
+
+      - name: Install dependencies (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release software-properties-common
+          
+          # Install LLVM 20 with proper GPG key handling (modern method)
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get update
+          
+          # Install LLVM toolchain
+          sudo apt-get install -y clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 lld-20 libc++-20-dev libc++abi-20-dev ninja-build ccache cmake autoconf automake libtool gettext gettext-base autopoint
+          # Install development tools and math libraries
+          sudo apt-get install -y build-essential gfortran pkg-config libopenblas-dev liblapack-dev libblas-dev
+
+      - name: Set compiler environment (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          echo "CC=clang-20" >> $GITHUB_ENV
+          echo "CXX=clang++-20" >> $GITHUB_ENV
+          LLD_PATH=$(command -v ld.lld-20 || echo /usr/lib/llvm-20/bin/ld.lld)
+          echo "HALO_LLD=$LLD_PATH" >> $GITHUB_ENV
+          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
+          echo "PATH=/usr/lib/llvm-20/bin:$PATH" >> $GITHUB_ENV
+          # Verify compiler and standard library setup
+          clang-20 --version
+          ld.lld-20 --version || true
+          echo '#include <version>' > /tmp/test_libcpp.cpp
+          echo 'int main() { return 0; }' >> /tmp/test_libcpp.cpp
+          clang++-20 -stdlib=libc++ -std=c++23 /tmp/test_libcpp.cpp -o /tmp/test_libcpp && echo "libc++ available" || echo "libc++ not available"
+
+      - name: Configure (CMake ${{ matrix.build_type }})
+        run: |
+          mkdir -p build
+          EXTRA_FLAGS=""
+          # Enable IPO/LTO for optimized builds
+          if [ "${{ matrix.build_type }}" = "Release" ] || [ "${{ matrix.build_type }}" = "RelWithDebInfo" ]; then
+            EXTRA_FLAGS="$EXTRA_FLAGS -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON"
+          fi
+          echo "Configuring with EXTRA_FLAGS=$EXTRA_FLAGS"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER=$CC \
+            -DCMAKE_CXX_COMPILER=$CXX \
+            -DHALO_LLD_EXECUTABLE="$HALO_LLD" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            $EXTRA_FLAGS
+
+      - name: Build
+        env:
+          CCACHE_DIR: ${{ env.CCACHE_DIR }}
+        run: |
+          if command -v nproc >/dev/null 2>&1; then
+            CORES=$(nproc)
+          else
+            CORES=$(sysctl -n hw.ncpu)
+          fi
+          echo "Building with $CORES parallel jobs"
+          ninja -C build -j$CORES
+
+      - name: Run tests
+        run: |
+          if command -v nproc >/dev/null 2>&1; then
+            CORES=$(nproc)
+          else
+            CORES=$(sysctl -n hw.ncpu)
+          fi
+          echo "Running tests with $CORES parallel jobs"
+          ctest --test-dir build -j$CORES --output-on-failure
+
+      - name: Run halo executable (smoke test, Release only)
+        if: ${{ matrix.run_halo == true }}
+        run: ./build/halo || (echo "halo run failed" && exit 1)
+
+      - name: Upload build directory (failure artifact)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ matrix.os }}-${{ matrix.build_type }}
+          path: build
+          if-no-files-found: ignore
+
+  clang-tidy:
+    name: Clang-Tidy Analysis
+    runs-on: macos-latest
+    timeout-minutes: 240
+    needs: build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toolchain (LLVM 20 + deps, macOS)
+        run: |
+          set -euxo pipefail
+          brew update
+          brew install llvm@20 lld@20 cmake ninja autoconf automake libtool ccache
+          LLVM_PREFIX=$(brew --prefix)/opt/llvm@20
+          LLD_PREFIX=$(brew --prefix)/opt/lld@20
+          echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
+          echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
+          echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
+          echo "HALO_LLD=$LLD_PREFIX/bin/ld.lld" >> $GITHUB_ENV
+          "$LLVM_PREFIX/bin/clang" --version
+          "$LLVM_PREFIX/bin/clang-tidy" --version
+
+      - name: Setup ccache (clang-tidy)
+        run: |
+          # macOS: use standard cache location
+          CCACHE_DIR="$HOME/Library/Caches/ccache"
+          mkdir -p "$CCACHE_DIR"
+          echo "CCACHE_DIR=$CCACHE_DIR" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=2G" >> $GITHUB_ENV
+          echo "CCACHE_COMPRESS=true" >> $GITHUB_ENV
+
+      - name: ccache cache (clang-tidy)
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-tidy-macos-${{ hashFiles('**/CMakeLists.txt') }}
+          restore-keys: |
+            ccache-tidy-macos-
+            ccache-macos-
+
+      - name: Configure (generate compile_commands.json)
+        run: |
+          echo "HALO_LLD environment variable: '$HALO_LLD'"
+          LLD_ARG=""
+          if [ -n "$HALO_LLD" ] && [ -f "$HALO_LLD" ]; then
+            LLD_ARG="-DHALO_LLD_EXECUTABLE=$HALO_LLD -DHALO_LINKER_EXECUTABLE=$HALO_LLD"
+          else
+            echo "[clang-tidy] Skipping linker args; HALO_LLD missing or invalid: '$HALO_LLD'"
+          fi
+          echo "[clang-tidy] LLD_ARG='$LLD_ARG'"
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_C_COMPILER=$CC \
+            -DCMAKE_CXX_COMPILER=$CXX \
+            -DHALO_LLD_EXECUTABLE="$HALO_LLD" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          ln -sf build/compile_commands.json .
+
+      - name: Determine changed C/C++ files
+        id: diff
+        run: |
+          base_ref="${GITHUB_BASE_REF}"
+          if [ -z "$base_ref" ]; then
+            # Not a PR: analyze all tracked sources
+            git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
+          else
+            git fetch origin "$base_ref" --depth=1 || true
+            git diff --name-only "origin/$base_ref" HEAD | grep -E '\\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+            if [ ! -s changed_files.txt ]; then
+              echo "No changed C/C++ files; falling back to all.";
+              git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
+            fi
+          fi
+          echo "Files to analyze:";
+          cat changed_files.txt
+          COUNT=$(wc -l < changed_files.txt | tr -d ' ')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Run clang-tidy (batch)
+        if: steps.diff.outputs.count != '0'
+        run: |
+          set -e
+          python3 - <<'PY'
+          import os
+          import subprocess
+          
+          files = [l.strip() for l in open('changed_files.txt') if l.strip()]
+          if not files:
+            print('No files to analyze.')
+            raise SystemExit(0)
+          
+          BATCH_SIZE = 80
+          had_issue = False
+          
+          for i in range(0, len(files), BATCH_SIZE):
+            chunk = files[i:i+BATCH_SIZE]
+            print(f"Analyzing batch {i//BATCH_SIZE+1}: {len(chunk)} files")
+            # Use versioned clang-tidy if available, else fallback to clang-tidy in PATH
+            tidy = None
+            for name in ("clang-tidy-20", "clang-tidy"):
+              if subprocess.run(["bash","-c",f"command -v {name}"], stdout=subprocess.DEVNULL).returncode == 0:
+                tidy = name
+                break
+            if tidy is None:
+              print("clang-tidy not found", flush=True)
+              had_issue = True
+              break
+            cmd = [tidy, "-p", "build"] + chunk
+            res = subprocess.run(
+              cmd,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.STDOUT,
+              text=True,
+            )
+            print(res.stdout)
+            if res.returncode != 0:
+              had_issue = True
+          
+          if had_issue:
+            raise SystemExit(1)
+          else:
+            print("clang-tidy passed")
+          PY
+
+      - name: No C/C++ sources
+        if: steps.diff.outputs.count == '0'
+        run: echo "No C/C++ files to analyze."

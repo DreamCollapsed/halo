@@ -4,6 +4,17 @@
 thirdparty_setup_directories("wangle")
 
 thirdparty_get_optimization_flags(_opt_flags COMPONENT wangle)
+
+# jemalloc flags: only set on Apple platforms to avoid header conflicts on Linux
+if(APPLE)
+    # On macOS force include the prefix compat header for symbol remapping.
+    # Include both the directory and the compatibility header.
+    set(_WANGLE_CXX_FLAGS "-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
+else()
+    # On Linux, avoid jemalloc include directory to prevent posix_memalign exception spec conflicts.
+    set(_WANGLE_CXX_FLAGS "")
+endif()
+
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${WANGLE_INSTALL_DIR}
 
@@ -22,7 +33,7 @@ list(APPEND _opt_flags
     -DLIBEVENT_LIB:FILEPATH=${THIRDPARTY_INSTALL_DIR}/libevent/lib/libevent.a
 
     # JEMALLOC
-    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
+    -DCMAKE_CXX_FLAGS=${_WANGLE_CXX_FLAGS}
 )
 
 thirdparty_build_cmake_library("wangle"

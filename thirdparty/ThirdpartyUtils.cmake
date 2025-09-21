@@ -1075,8 +1075,17 @@ function(thirdparty_get_optimization_flags output_var)
     endif()
     
     # Add Link Time Optimization (LTO) if supported
-    if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE)
-        list(APPEND _opt_flags -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON)
+    list(APPEND _opt_flags -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON)
+
+    # Propagate explicit LTO mode if requested (clang/LLVM). We only add flags
+    # here; root project already set IPO globally.
+    if(HALO_LTO_MODE AND NOT HALO_LTO_MODE STREQUAL "off")
+        if(HALO_LTO_MODE STREQUAL "thin")
+            list(APPEND _opt_flags -DCMAKE_C_FLAGS=-flto=thin -DCMAKE_CXX_FLAGS=-flto=thin -DCMAKE_EXE_LINKER_FLAGS=-flto=thin -DCMAKE_SHARED_LINKER_FLAGS=-flto=thin -DCMAKE_MODULE_LINKER_FLAGS=-flto=thin)
+        elseif(HALO_LTO_MODE STREQUAL "full")
+            # Use plain -flto which implies full LTO.
+            list(APPEND _opt_flags -DCMAKE_C_FLAGS=-flto -DCMAKE_CXX_FLAGS=-flto -DCMAKE_EXE_LINKER_FLAGS=-flto -DCMAKE_SHARED_LINKER_FLAGS=-flto -DCMAKE_MODULE_LINKER_FLAGS=-flto)
+        endif()
     endif()
     
     if(APPLE)

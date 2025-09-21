@@ -4,6 +4,17 @@
 thirdparty_setup_directories("fizz")
 
 thirdparty_get_optimization_flags(_opt_flags COMPONENT fizz)
+
+# jemalloc CXX flags: only set on Apple platforms to avoid header conflicts on Linux
+if(APPLE)
+  # On macOS map allocator symbols via jemalloc prefix compat header.
+  # Include both the directory and the compatibility header.
+  set(_FIZZ_CXX_FLAGS "-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
+else()
+  # On Linux, avoid jemalloc include directory to prevent posix_memalign exception spec conflicts.
+  set(_FIZZ_CXX_FLAGS "")
+endif()
+
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${FIZZ_INSTALL_DIR}
 
@@ -26,7 +37,7 @@ list(APPEND _opt_flags
     -DOPENSSL_CRYPTO_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
 
     # JEMALLOC
-    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
+    -DCMAKE_CXX_FLAGS=${_FIZZ_CXX_FLAGS}
 )
 
 thirdparty_build_cmake_library("fizz"

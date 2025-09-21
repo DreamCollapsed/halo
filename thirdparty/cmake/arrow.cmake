@@ -3,6 +3,13 @@
 
 thirdparty_setup_directories("arrow")
 
+set(_ARROW_EXTRA_C_AND_CXX_FLAGS "-I${THIRDPARTY_INSTALL_DIR}/boost/include -I${THIRDPARTY_INSTALL_DIR}/abseil/include")
+if(APPLE)
+    # On macOS we need jemalloc prefix compatibility header to map expected symbols.
+    # Include both the directory and the compatibility header for symbol remapping.
+    set(_ARROW_EXTRA_C_AND_CXX_FLAGS "${_ARROW_EXTRA_C_AND_CXX_FLAGS} -I${THIRDPARTY_INSTALL_DIR}/jemalloc/include -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
+endif()
+
 list(APPEND _opt_flags
     -DCMAKE_INSTALL_PREFIX=${ARROW_INSTALL_DIR}
 
@@ -21,9 +28,9 @@ list(APPEND _opt_flags
     -DARROW_DEPENDENCY_SOURCE=SYSTEM
     -DARROW_DEPENDENCY_USE_SHARED=OFF
 
-    # Import Include files: boost abseil + jemalloc compatibility
-    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/boost/include\ -I${THIRDPARTY_INSTALL_DIR}/abseil/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
-    -DCMAKE_C_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/boost/include\ -I${THIRDPARTY_INSTALL_DIR}/abseil/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
+    # Import include paths (boost, abseil) and macOS-only jemalloc compatibility header
+    -DCMAKE_CXX_FLAGS=${_ARROW_EXTRA_C_AND_CXX_FLAGS}
+    -DCMAKE_C_FLAGS=${_ARROW_EXTRA_C_AND_CXX_FLAGS}
 
     # Boost
     -DBoost_SOURCE=SYSTEM
@@ -114,12 +121,12 @@ thirdparty_build_cmake_library("arrow"
     SOURCE_SUBDIR "cpp"
     CMAKE_ARGS ${_opt_flags}
     FILE_REPLACEMENTS
-    # Fix C++23 derived-to-base pointer conversion at BackpressureController creation
-    # (AsofJoinNode* to ExecNode*). Use an explicit cast on the call site to avoid
-    # incomplete-type conversion errors when AsofJoinNode is forward-declared.
-    "cpp/src/arrow/acero/asof_join_node.cc"
-    "/*output=*/asof_node"
-    "/*output=*/(ExecNode*)asof_node"
+      # Fix C++23 derived-to-base pointer conversion at BackpressureController creation
+      # (AsofJoinNode* to ExecNode*). Use an explicit cast on the call site to avoid
+      # incomplete-type conversion errors when AsofJoinNode is forward-declared.
+      "cpp/src/arrow/acero/asof_join_node.cc"
+      "/*output=*/asof_node"
+      "/*output=*/(ExecNode*)asof_node"
     VALIDATION_FILES
         "${ARROW_INSTALL_DIR}/lib/libarrow.a"
         "${ARROW_INSTALL_DIR}/lib/cmake/Arrow/ArrowConfig.cmake"

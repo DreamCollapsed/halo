@@ -10,6 +10,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Compiler requirements and standard library configuration
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # Force use of libc++ (LLVM standard library) for consistency across platforms
+    message(STATUS "Configuring for Clang with libc++")
+    add_compile_options(-stdlib=libc++)
+    add_link_options(-stdlib=libc++)
+else()
+    message(FATAL_ERROR "This project requires Clang compiler. Current compiler: ${CMAKE_CXX_COMPILER_ID}")
+endif()
+
+
 if(APPLE)
     # Auto-detect macOS deployment target with multiple fallback strategies
     set(_macos_target "")
@@ -107,6 +118,44 @@ include(cmake/modules/FindLinker.cmake)
 linker_configure()
 linker_add_selfcheck()
 
+###############################################################################
+# LTO mode selection
+# HALO_LTO_MODE: full | thin | off  (default full for optimized builds)
+# Applies to root targets; third-party propagation handled in ThirdpartyUtils.
+###############################################################################
+set(HALO_LTO_MODE "full" CACHE STRING "LTO mode (full|thin|off)")
+set_property(CACHE HALO_LTO_MODE PROPERTY STRINGS full thin off)
+
+if(CMAKE_BUILD_TYPE MATCHES "^Release$" OR CMAKE_BUILD_TYPE MATCHES "^RelWithDebInfo$")
+    if(NOT HALO_LTO_MODE STREQUAL "off")
+        include(CheckIPOSupported)
+        check_ipo_supported(RESULT _ipo_supported OUTPUT _ipo_msg)
+        if(_ipo_supported)
+            set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
+            if(HALO_LTO_MODE STREQUAL "thin")
+                add_compile_options(-flto=thin)
+                add_link_options(-flto=thin)
+                message(STATUS "[LTO] ThinLTO enabled for ${CMAKE_BUILD_TYPE}")
+            elseif(HALO_LTO_MODE STREQUAL "full")
+                # Explicit full to override any inherited thin flags
+                add_compile_options(-flto)
+                add_link_options(-flto)
+                message(STATUS "[LTO] Full LTO enabled for ${CMAKE_BUILD_TYPE}")
+            else()
+                message(WARNING "[LTO] Unknown HALO_LTO_MODE='${HALO_LTO_MODE}', falling back to full")
+                add_compile_options(-flto)
+                add_link_options(-flto)
+            endif()
+        else()
+            message(STATUS "[LTO] Not supported by toolchain: ${_ipo_msg}")
+        endif()
+    else()
+        message(STATUS "[LTO] Disabled via HALO_LTO_MODE=off")
+    endif()
+else()
+    message(STATUS "[LTO] Skipped for non-optimized build type ${CMAKE_BUILD_TYPE}")
+endif()
+
 option(HALO_FORCE_THIRDPARTY_REINSTALL "Force rebuilding and reinstalling all third-party CMake projects (disables install stamp skipping)" OFF)
 option(HALO_THIRDPARTY_VERBOSE_SUPPRESS "Print STATUS messages (instead of DEBUG) when third-party configure/install steps are skipped" ON)
 
@@ -148,31 +197,31 @@ endif()
 
 # Add debug-specific compiler flags for better debugging experience
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    # Add extra debug flags for better debugging experience
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        add_compile_options(
-            -Wall                    # Enable most warnings
-            -Wextra                  # Enable extra warnings
-            -Wpedantic               # Enable pedantic warnings
-            -Wno-unused-parameter    # Suppress unused parameter warnings
-            -fno-omit-frame-pointer  # Keep frame pointers for better stack traces
-            -fno-optimize-sibling-calls  # Better debugging experience
-        )
-    endif()
-    
-    # Enable runtime checks in debug mode
-    add_compile_definitions(
-        _GLIBCXX_DEBUG          # Enable libstdc++ debug mode
-        _GLIBCXX_DEBUG_PEDANTIC # Enable pedantic debug checks
+    # Add extra debug flags for better debugging experience (Clang only)
+    add_compile_options(
+        -Wall                    # Enable most warnings
+        -Wextra                  # Enable extra warnings
+        -Wpedantic               # Enable pedantic warnings
+        -Wno-unused-parameter    # Suppress unused parameter warnings
+        -fno-omit-frame-pointer  # Keep frame pointers for better stack traces
+        -fno-optimize-sibling-calls  # Better debugging experience
     )
-elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
-    # RelWithDebInfo: Optimized with debug symbols for profiling
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        add_compile_options(
-            -fno-omit-frame-pointer  # Keep frame pointers for profiling
-            -fno-inline-small-functions  # Better profiling granularity
+    
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        # Enable libc++ debug mode (instead of libstdc++)
+        add_compile_definitions(
+            _LIBCPP_DEBUG=1          # Enable libc++ debug mode
+            _LIBCPP_DEBUG_USE_EXCEPTIONS=1  # Enable debug exceptions
         )
+    else()
+        message(FATAL_ERROR "This project requires Clang compiler. Current compiler: ${CMAKE_CXX_COMPILER_ID}")
     endif()
+elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    # RelWithDebInfo: Optimized with debug symbols for profiling (Clang only)
+    add_compile_options(
+        -fno-omit-frame-pointer  # Keep frame pointers for profiling
+        -fno-inline-small-functions  # Better profiling granularity
+    )
     
     # Enable some debug definitions but not heavy runtime checks
     add_compile_definitions(
@@ -180,18 +229,16 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
         DEBUG_SYMBOLS_ENABLED    # Indicate debug symbols are available
     )
 elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
-    # MinSizeRel: Focus on minimal binary size
-    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        add_compile_options(
-            -ffunction-sections     # Place functions in separate sections
-            -fdata-sections         # Place data in separate sections
-        )
-        # Platform-specific linker flags for dead code removal
-        if(APPLE)
-            add_link_options(-Wl,-dead_strip)  # Remove unused sections (macOS)
-        else()
-            add_link_options(-Wl,--gc-sections)  # Remove unused sections (Linux/GNU)
-        endif()
+    # MinSizeRel: Focus on minimal binary size (Clang only)
+    add_compile_options(
+        -ffunction-sections     # Place functions in separate sections
+        -fdata-sections         # Place data in separate sections
+    )
+    # Platform-specific linker flags for dead code removal
+    if(APPLE)
+        add_link_options(-Wl,-dead_strip)  # Remove unused sections (macOS)
+    else()
+        add_link_options(-Wl,--gc-sections)  # Remove unused sections (Linux/GNU)
     endif()
     
     # Size optimization definitions

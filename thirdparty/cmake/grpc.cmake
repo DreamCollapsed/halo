@@ -2,6 +2,15 @@
 # Reference: https://github.com/grpc/grpc
 # We build static libraries only; disable tests, benchmarks and examples.
 
+# On Linux, force libc++ for consistency with main project
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(_GRPC_CXX_FLAGS "-stdlib=libc++")
+    set(_GRPC_LINKER_FLAGS "-stdlib=libc++")
+else()
+    set(_GRPC_CXX_FLAGS "")
+    set(_GRPC_LINKER_FLAGS "")
+endif()
+
 thirdparty_build_cmake_library("grpc"
     EXTRACT_PATTERN "${THIRDPARTY_SRC_DIR}/grpc-*"
     CMAKE_ARGS
@@ -30,6 +39,10 @@ thirdparty_build_cmake_library("grpc"
         -Dre2_DIR=${THIRDPARTY_INSTALL_DIR}/re2/lib/cmake/re2
         -DOpenSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
         -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
+        # Platform-specific standard library configuration
+        -DCMAKE_CXX_FLAGS=${_GRPC_CXX_FLAGS}
+        -DCMAKE_EXE_LINKER_FLAGS=${_GRPC_LINKER_FLAGS}
+        -DCMAKE_SHARED_LINKER_FLAGS=${_GRPC_LINKER_FLAGS}
     FILE_REPLACEMENTS
         "src/core/credentials/transport/tls/tls_security_connector.cc"
         "absl::bind_front(&ChannelPendingVerifierRequest::OnVerifyDone, this,

@@ -7,7 +7,7 @@ set(ARROW_URL "https://github.com/apache/arrow/releases/download/apache-arrow-${
 set(ARROW_SHA256 "5d3f8db7e72fb9f65f4785b7a1634522e8d8e9657a445af53d4a34a3849857b5")
 
 set(BISON_VERSION "3.8.2")
-set(BISON_URL "http://ftp.gnu.org/gnu/bison/bison-${BISON_VERSION}.tar.gz")
+set(BISON_URL "https://mirrors.tuna.tsinghua.edu.cn/gnu/bison/bison-${BISON_VERSION}.tar.gz")
 set(BISON_SHA256 "06c9e13bdf7eb24d4ceb6b59205a4f67c2c7e7213119644430fe82fbd14a0abb")
 
 set(BOOST_VERSION "1.88.0")

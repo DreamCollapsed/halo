@@ -8,23 +8,31 @@ if(APPLE)
     set(_FOLLY_JEMALLOC_CXX_FLAGS "-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
     set(_FOLLY_USE_JEMALLOC ON)
     set(_FOLLY_EXTRA_C_FLAGS "")
-    set(_FOLLY_EXTRA_CXX_FLAGS "")
+    # Use safe flag combination utility to avoid truncation issues
+    thirdparty_combine_flags(_FOLLY_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_FOLLY_JEMALLOC_CXX_FLAGS}")
+    thirdparty_combine_flags(_FOLLY_EXE_LINKER_FLAGS FRAGMENTS "${HALO_CMAKE_EXE_LINKER_FLAGS_BASE}" "-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib" "-ljemalloc_pic")
+    thirdparty_combine_flags(_FOLLY_SHARED_LINKER_FLAGS FRAGMENTS "${HALO_CMAKE_SHARED_LINKER_FLAGS_BASE}" "-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib" "-ljemalloc_pic")
 else()
     # On Linux, avoid including jemalloc headers during compilation to prevent posix_memalign exception spec conflicts
     # Disable folly's jemalloc integration - jemalloc will work as runtime replacement via linker flags
     set(_FOLLY_JEMALLOC_CXX_FLAGS "")
     set(_FOLLY_USE_JEMALLOC OFF)
     # Use lld on Linux to fix library format compatibility issues
-    set(_FOLLY_EXTRA_C_FLAGS "-fuse-ld=lld")
-    set(_FOLLY_EXTRA_CXX_FLAGS "-fuse-ld=lld")
+    set(_FOLLY_EXTRA_C_FLAGS "")
+    # Use safe flag combination utility
+    thirdparty_combine_flags(_FOLLY_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "")
+    thirdparty_combine_flags(_FOLLY_EXE_LINKER_FLAGS FRAGMENTS "${HALO_CMAKE_EXE_LINKER_FLAGS_BASE}")
+    thirdparty_combine_flags(_FOLLY_SHARED_LINKER_FLAGS FRAGMENTS "${HALO_CMAKE_SHARED_LINKER_FLAGS_BASE}")
 endif()
 
 thirdparty_build_cmake_library("folly"
     CMAKE_ARGS
         -DCMAKE_POLICY_DEFAULT_CMP0167=OLD
-        
-        # Platform-specific compiler and linker settings
-        -DCMAKE_CXX_FLAGS=${_FOLLY_JEMALLOC_CXX_FLAGS}\ ${_FOLLY_EXTRA_CXX_FLAGS}
+
+        # Platform-specific compiler and linker settings using base + folly-specific flags
+        -DCMAKE_CXX_FLAGS=${_FOLLY_CXX_FLAGS}
+        -DCMAKE_EXE_LINKER_FLAGS=${_FOLLY_EXE_LINKER_FLAGS}
+        -DCMAKE_SHARED_LINKER_FLAGS=${_FOLLY_SHARED_LINKER_FLAGS}
         -DCMAKE_C_FLAGS=${_FOLLY_EXTRA_C_FLAGS}
 
         # GLOG
@@ -59,8 +67,6 @@ thirdparty_build_cmake_library("folly"
         # Jemalloc
         -DJEMALLOC_INCLUDE_DIR:PATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/include
         -DJEMALLOC_LIBRARY:FILEPATH=${THIRDPARTY_INSTALL_DIR}/jemalloc/lib/libjemalloc_pic.a
-        -DCMAKE_SHARED_LINKER_FLAGS=-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib\ -ljemalloc_pic
-        -DCMAKE_EXE_LINKER_FLAGS=-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib\ -ljemalloc_pic
         -DFOLLY_USE_JEMALLOC:BOOL=${_FOLLY_USE_JEMALLOC}
 
         # ZLIB
@@ -117,12 +123,12 @@ thirdparty_build_cmake_library("folly"
         "${THIRDPARTY_INSTALL_DIR}/folly/include/folly/folly-config.h"
 )
 
-if(EXISTS "${FOLLY_INSTALL_DIR}/lib/cmake/folly/folly-config.cmake")
+if(EXISTS "${THIRDPARTY_INSTALL_DIR}/folly/lib/cmake/folly/folly-config.cmake")
     halo_find_package(Folly CONFIG QUIET REQUIRED)
     
     # Some dependents (fizz/wangle) ask for "folly" in lowercase via find_dependency
     # Populate lowercase cache too to avoid re-search and negative cache writes
     halo_find_package(folly CONFIG QUIET REQUIRED)
 else()
-    message(FATAL_ERROR "Folly cmake config not found at ${FOLLY_INSTALL_DIR}")
+    message(FATAL_ERROR "Folly cmake config not found at ${THIRDPARTY_INSTALL_DIR}/folly")
 endif()

@@ -3,6 +3,8 @@
 
 thirdparty_setup_directories("llvm-project")
 
+thirdparty_combine_flags(_llvm_cxx_flags FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "-I${THIRDPARTY_BUILD_DIR}/llvm-project/bin/20/include")
+
 thirdparty_build_cmake_library(llvm-project
     SOURCE_SUBDIR "runtimes"
     CMAKE_CACHE_ARGS
@@ -10,7 +12,7 @@ thirdparty_build_cmake_library(llvm-project
         "CLANG_VERSION_MAJOR=20"
         "PACKAGE_VERSION=20.1.8"
         "CLANG_RESOURCE_DIR=20"
-        "CMAKE_CXX_FLAGS=-I${THIRDPARTY_BUILD_DIR}/llvm-project/bin/20/include"
+        "CMAKE_CXX_FLAGS=${_llvm_cxx_flags}"
         "OPENMP_FILECHECK_EXECUTABLE=/usr/bin/true"
         "OPENMP_LLVM_LIT_EXECUTABLE=/usr/bin/true"
         "OPENMP_NOT_EXECUTABLE=/usr/bin/true"

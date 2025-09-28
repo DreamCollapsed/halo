@@ -26,6 +26,8 @@ else()
 endif()
 message(DEBUG "[faiss] Auto FAISS_OPT_LEVEL='${_faiss_opt_level}' (Apple arm64 -> arm64; Linux x86_64 -> avx2; Linux arm64 -> arm64; other -> generic)")
 
+thirdparty_combine_flags(_faiss_cxx_flags FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "-I${_openmp_dir}/include")
+
 thirdparty_build_cmake_library(faiss
     CMAKE_CACHE_ARGS
         # Pass OpenMP configuration explicitly to child CMake process
@@ -52,8 +54,8 @@ thirdparty_build_cmake_library(faiss
         # Point to our OpenMP installation - these are checked by FindOpenMP
         -DOpenMP_ROOT=${_openmp_dir}
         -DOpenMP_CXX_INCLUDE_DIRS=${_openmp_dir}/include
-        # Add OpenMP include directory to compiler flags
-        -DCMAKE_CXX_FLAGS=-I${_openmp_dir}/include
+        # Use safely combined CMAKE_CXX_FLAGS
+        -DCMAKE_CXX_FLAGS=${_faiss_cxx_flags}
     VALIDATION_FILES
         "${FAISS_INSTALL_DIR}/lib/libfaiss.a"
 )

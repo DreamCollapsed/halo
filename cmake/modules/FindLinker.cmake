@@ -1,116 +1,108 @@
-# FindLinker.cmake
-# Unified accelerated linker configuration (lld / mold) without legacy wrappers.
-# Public functions:
+## FindLinker.cmake
+# Purpose:
+#   Provide a single entry point to configure which ELF/Mach-O linker the build uses.
+#   Supports (a) fully custom user supplied linker path + args, or (b) intelligent
+#   auto selection on Linux (mold -> lld) with graceful fallback to system linker.
+#
+# Requirements (as per latest spec):
+#   * Supports external override only via HALO_CUSTOM_LINKER (path). HALO_LINKER itself is INTERNAL.
+#       - User supplies: -DHALO_CUSTOM_LINKER=/abs/path/to/ld
+#       - We validate existence and then collapse to internal HALO_LINKER.
+#       - Direct attempts to set HALO_LINKER are ignored (we always reset it first).
+#   * macOS: Do NOT attempt automatic alternative linker selection. Only honor custom.
+#   * Linux: If no custom linker:
+#       - Try to find mold first; if found use it.
+#       - Else try lld (prefer ld.lld over bare lld); if found use it.
+#       - Else emit WARNING and use default system linker (do not set HALO_LINKER).
+#   * Export variable (CACHE for external visibility):
+#       HALO_LINKER : full path to selected linker (may be empty for default)
+#
+#   Third-party flag propagation should now consult HALO_LINKER only.
+#
+# Public function:
 #   linker_configure()
+# Optional diagnostic helper (still kept):
 #   linker_add_selfcheck()
-# Exported (CACHE/INTERNAL) vars: HALO_LINKER_KIND, HALO_LINKER_EXECUTABLE,
-#   HALO_LLD_ENABLED, HALO_MOLD_ENABLED, HALO_LLD_LINKER_FLAG, HALO_MOLD_LINKER_FLAG.
 
 include_guard(GLOBAL)
 
-function(_findlinker_try_flag _lang _flag _result_var)
-    include(CheckLinkerFlag)
-    check_linker_flag(${_lang} "${_flag}" ${_result_var})
+function(_halo_find_program _out_var)
+    # Wrapper with consistent hints; caller provides candidate list via ARGN
+    find_program(_cand NAMES ${ARGN}
+        HINTS /usr/bin /usr/local/bin /usr/local/opt/llvm/bin)
+    set(${_out_var} "${_cand}" PARENT_SCOPE)
 endfunction()
 
 function(linker_configure)
-    # Initialize / reset state each configure (idempotent)
-    set(HALO_LLD_ENABLED FALSE CACHE INTERNAL "lld acceleration enabled")
-    set(HALO_MOLD_ENABLED FALSE CACHE INTERNAL "mold acceleration enabled")
-    set(HALO_LLD_LINKER_FLAG "" CACHE INTERNAL "lld driver flag")
-    set(HALO_MOLD_LINKER_FLAG "" CACHE INTERNAL "mold driver flag")
-    set(HALO_LINKER_KIND "none" CACHE INTERNAL "Selected accelerated linker kind")
-    set(HALO_LINKER_EXECUTABLE "" CACHE FILEPATH "Selected accelerated linker executable")
-
-    option(HALO_DISABLE_LLD "Disable automatic lld usage" OFF)
-    option(HALO_DISABLE_MOLD "Disable automatic mold usage" OFF)
-    set(HALO_LLD_EXECUTABLE "${HALO_LLD_EXECUTABLE}" CACHE FILEPATH "Explicit lld executable override")
-    set(HALO_MOLD_EXECUTABLE "${HALO_MOLD_EXECUTABLE}" CACHE FILEPATH "Explicit mold executable override")
-    set(HALO_FORCE_LINKER "${HALO_FORCE_LINKER}" CACHE STRING "Force linker preference (mold|lld)")
-    set_property(CACHE HALO_FORCE_LINKER PROPERTY STRINGS mold lld "")
-
-    set(_found FALSE)
-    set(_fuse_status n/a)
-    set(_status system-linker)
-
-    if(APPLE OR UNIX)
-        # Build priority list
-        set(_priority)
-        if(HALO_FORCE_LINKER STREQUAL "mold")
-            list(APPEND _priority mold lld)
-        elseif(HALO_FORCE_LINKER STREQUAL "lld")
-            list(APPEND _priority lld mold)
+    # Reset internal storage (ignore any externally provided HALO_LINKER attempts)
+    set(HALO_LINKER "" CACHE INTERNAL "(internal) selected linker executable (empty => use default)" FORCE)
+    # Accept external custom linker request
+    set(HALO_CUSTOM_LINKER "${HALO_CUSTOM_LINKER}" CACHE FILEPATH "User provided custom linker path (validated then copied into internal HALO_LINKER)")
+    if(HALO_CUSTOM_LINKER)
+        if(NOT IS_ABSOLUTE "${HALO_CUSTOM_LINKER}")
+            get_filename_component(_abs_custom "${HALO_CUSTOM_LINKER}" ABSOLUTE)
         else()
-            if(APPLE)
-                list(APPEND _priority lld)
-            else()
-                list(APPEND _priority mold lld)
-            endif()
+            set(_abs_custom "${HALO_CUSTOM_LINKER}")
         endif()
-
-        foreach(_kind IN LISTS _priority)
-            if(_found)
-                break()
-            endif()
-            if(_kind STREQUAL "mold")
-                if(APPLE OR HALO_DISABLE_MOLD)
-                    continue()
-                endif()
-                set(_cand "")
-                if(HALO_MOLD_EXECUTABLE AND EXISTS "${HALO_MOLD_EXECUTABLE}")
-                    set(_cand "${HALO_MOLD_EXECUTABLE}")
-                else()
-                    find_program(_cand NAMES mold
-                        HINTS /usr/bin /usr/local/bin /opt/homebrew/bin /opt/homebrew/opt/mold/bin)
-                endif()
-                if(_cand)
-                    set(CMAKE_LINKER "${_cand}" CACHE FILEPATH "Selected linker executable" FORCE)
-                    _findlinker_try_flag(CXX "-fuse-ld=mold" HAS_FUSE_MOLD)
-                    if(HAS_FUSE_MOLD)
-                        add_link_options(-fuse-ld=mold)
-                        set(HALO_MOLD_LINKER_FLAG "-fuse-ld=mold" CACHE INTERNAL "mold driver flag" FORCE)
-                        set(_fuse_status on)
-                    else()
-                        set(_fuse_status unsupported)
-                    endif()
-                    set(HALO_MOLD_ENABLED TRUE CACHE INTERNAL "mold acceleration enabled" FORCE)
-                    set(HALO_LINKER_KIND mold CACHE INTERNAL "Selected accelerated linker kind" FORCE)
-                    set(HALO_LINKER_EXECUTABLE "${_cand}" CACHE FILEPATH "Selected accelerated linker executable" FORCE)
-                    set(_status enabled-mold)
-                    set(_found TRUE)
-                endif()
-            elseif(_kind STREQUAL "lld")
-                if(HALO_DISABLE_LLD)
-                    continue()
-                endif()
-                set(_cand "")
-                if(HALO_LLD_EXECUTABLE AND EXISTS "${HALO_LLD_EXECUTABLE}")
-                    set(_cand "${HALO_LLD_EXECUTABLE}")
-                else()
-                    find_program(_cand NAMES ld.lld lld
-                        HINTS /opt/homebrew/opt/lld/bin /opt/homebrew/opt/llvm/bin /opt/homebrew/bin /usr/local/opt/llvm/bin /usr/local/bin /usr/bin)
-                endif()
-                if(_cand)
-                    set(CMAKE_LINKER "${_cand}" CACHE FILEPATH "Selected linker executable" FORCE)
-                    _findlinker_try_flag(CXX "-fuse-ld=lld" HAS_FUSE_LLD)
-                    if(HAS_FUSE_LLD)
-                        add_link_options(-fuse-ld=lld)
-                        set(HALO_LLD_LINKER_FLAG "-fuse-ld=lld" CACHE INTERNAL "lld driver flag" FORCE)
-                        set(_fuse_status on)
-                    else()
-                        set(_fuse_status unsupported)
-                    endif()
-                    set(HALO_LLD_ENABLED TRUE CACHE INTERNAL "lld acceleration enabled" FORCE)
-                    set(HALO_LINKER_KIND lld CACHE INTERNAL "Selected accelerated linker kind" FORCE)
-                    set(HALO_LINKER_EXECUTABLE "${_cand}" CACHE FILEPATH "Selected accelerated linker executable" FORCE)
-                    set(_status enabled-lld)
-                    set(_found TRUE)
-                endif()
-            endif()
-        endforeach()
+        if(NOT EXISTS "${_abs_custom}")
+            message(FATAL_ERROR "HALO_CUSTOM_LINKER path does not exist: ${_abs_custom}")
+        endif()
+        set(HALO_LINKER "${_abs_custom}" CACHE INTERNAL "(internal) selected linker executable (empty => use default)" FORCE)
+        set(CMAKE_LINKER "${_abs_custom}" CACHE FILEPATH "Explicit custom linker" FORCE)
+        message(STATUS "linker: using user custom linker '${_abs_custom}'")
+        return()
     endif()
 
-    message(STATUS "linker: kind=${HALO_LINKER_KIND}; exec='${HALO_LINKER_EXECUTABLE}'; fuse-flag=${_fuse_status}; status=${_status}")
+    # 2. Platform specific auto detection (no forcing – informational only)
+    if(APPLE)
+        message(STATUS "linker: macOS using system default linker")
+        return()
+    endif()
+
+    if(UNIX)
+        # Linux auto detection: mold -> lld else default
+        # Actually set the linker when found
+        _halo_find_program(_mold mold)
+        if(_mold)
+            set(HALO_LINKER "${_mold}" CACHE INTERNAL "(internal) selected linker executable (empty => use default)" FORCE)
+            set(CMAKE_LINKER "${_mold}" CACHE FILEPATH "Auto-selected mold linker" FORCE)
+            # Set linker flags for compiler invocation (needed for some third-party libraries)
+            # Use both CMAKE_LINKER and -fuse-ld for maximum compatibility
+            # Check and avoid duplicate -fuse-ld flags
+            if(NOT CMAKE_EXE_LINKER_FLAGS MATCHES "-fuse-ld=mold")
+                set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=mold" CACHE STRING "Linker flags" FORCE)
+            endif()
+            if(NOT CMAKE_SHARED_LINKER_FLAGS MATCHES "-fuse-ld=mold")
+                set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=mold" CACHE STRING "Shared linker flags" FORCE)
+            endif()
+            if(NOT CMAKE_MODULE_LINKER_FLAGS MATCHES "-fuse-ld=mold")
+                set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -fuse-ld=mold" CACHE STRING "Module linker flags" FORCE)
+            endif()
+            # Note: CMAKE_STATIC_LINKER_FLAGS is for ar/ranlib, not for linking, so we don't set it
+            message(STATUS "linker: using mold linker '${_mold}' with -fuse-ld=mold flags")
+        else()
+            _halo_find_program(_lld ld.lld lld)
+            if(_lld)
+                set(HALO_LINKER "${_lld}" CACHE INTERNAL "(internal) selected linker executable (empty => use default)" FORCE)
+                set(CMAKE_LINKER "${_lld}" CACHE FILEPATH "Auto-selected lld linker" FORCE)
+                # Set linker flags for compiler invocation
+                # Check and avoid duplicate -fuse-ld flags
+                if(NOT CMAKE_EXE_LINKER_FLAGS MATCHES "-fuse-ld=lld")
+                    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld" CACHE STRING "Linker flags" FORCE)
+                endif()
+                if(NOT CMAKE_SHARED_LINKER_FLAGS MATCHES "-fuse-ld=lld")
+                    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=lld" CACHE STRING "Shared linker flags" FORCE)
+                endif()
+                if(NOT CMAKE_MODULE_LINKER_FLAGS MATCHES "-fuse-ld=lld")
+                    set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -fuse-ld=lld" CACHE STRING "Module linker flags" FORCE)
+                endif()
+                message(STATUS "linker: using lld linker '${_lld}' with -fuse-ld=lld flags")
+            else()
+                message(STATUS "linker: no mold/lld found; using system default")
+            endif()
+        endif()
+        return()
+    endif()
 endfunction()
 
 function(linker_add_selfcheck)
@@ -124,7 +116,7 @@ function(linker_add_selfcheck)
     file(WRITE ${CMAKE_BINARY_DIR}/linker_probe.cpp "int main(){return 0;}")
     add_custom_target(linker-selfcheck
         COMMAND ${CMAKE_CXX_COMPILER} ${CMAKE_CXX_FLAGS} -c ${CMAKE_BINARY_DIR}/linker_probe.cpp -o ${CMAKE_BINARY_DIR}/linker_probe.o
-        COMMAND ${CMAKE_CXX_COMPILER} ${CMAKE_CXX_FLAGS} ${CMAKE_BINARY_DIR}/linker_probe.o -o ${CMAKE_BINARY_DIR}/linker_probe $<$<BOOL:${HALO_LLD_LINKER_FLAG}>:${HALO_LLD_LINKER_FLAG}> $<$<BOOL:${HALO_MOLD_LINKER_FLAG}>:${HALO_MOLD_LINKER_FLAG}> -Wl,-v
+        COMMAND ${CMAKE_CXX_COMPILER} ${CMAKE_CXX_FLAGS} ${CMAKE_BINARY_DIR}/linker_probe.o -o ${CMAKE_BINARY_DIR}/linker_probe -Wl,-v
         COMMENT "[linker] Display linker invocation (-Wl,-v)"
         VERBATIM)
 endfunction()

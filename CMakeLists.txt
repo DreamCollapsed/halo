@@ -11,13 +11,142 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Compiler requirements and standard library configuration
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    # Force use of libc++ (LLVM standard library) for consistency across platforms
-    message(STATUS "Configuring for Clang with libc++")
+if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    message(FATAL_ERROR "This project requires Clang compiler. Current compiler: ${CMAKE_CXX_COMPILER_ID}")
+endif()
+
+# Detect compiler's associated libc++ paths to ensure version consistency
+get_filename_component(COMPILER_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+get_filename_component(COMPILER_ROOT "${COMPILER_BIN_DIR}/.." ABSOLUTE)
+
+#######################################################################
+# libc++ discovery (Linux CI may install clang but not ship headers in expected spots)
+# Priority order:
+#  1. User-provided overrides (LIBCPP_INCLUDE_DIR / LIBCPP_LIB_DIR cache or env)
+#  2. Explicit environment variables LIBCXX_INCLUDE / LIBCXX_LIB
+#  3. Compiler resource dir probing: clang -print-resource-dir + ../../../include/c++/v1
+#  4. Relative to compiler root (legacy layout)
+#  5. llvm-config (if available) parent paths
+#######################################################################
+set(LIBCPP_INCLUDE_DIR "${LIBCPP_INCLUDE_DIR}")
+set(LIBCPP_LIB_DIR "${LIBCPP_LIB_DIR}")
+
+# Environment override
+if(NOT LIBCPP_INCLUDE_DIR AND DEFINED ENV{LIBCXX_INCLUDE})
+    set(LIBCPP_INCLUDE_DIR "$ENV{LIBCXX_INCLUDE}")
+endif()
+if(NOT LIBCPP_LIB_DIR AND DEFINED ENV{LIBCXX_LIB})
+    set(LIBCPP_LIB_DIR "$ENV{LIBCXX_LIB}")
+endif()
+
+# Normalize empties to blank
+if(LIBCPP_INCLUDE_DIR AND NOT EXISTS "${LIBCPP_INCLUDE_DIR}")
+    message(WARNING "Provided LIBCPP_INCLUDE_DIR='${LIBCPP_INCLUDE_DIR}' does not exist; ignoring")
+    set(LIBCPP_INCLUDE_DIR "")
+endif()
+if(LIBCPP_LIB_DIR AND NOT EXISTS "${LIBCPP_LIB_DIR}")
+    message(WARNING "Provided LIBCPP_LIB_DIR='${LIBCPP_LIB_DIR}' does not exist; ignoring")
+    set(LIBCPP_LIB_DIR "")
+endif()
+
+# 3. Resource dir probing
+if(NOT LIBCPP_INCLUDE_DIR)
+    execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-resource-dir
+                    OUTPUT_VARIABLE _clang_resdir OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(_clang_resdir AND EXISTS "${_clang_resdir}")
+        # Typical: <resdir>/../../include/c++/v1
+        get_filename_component(_rd_parent "${_clang_resdir}/../.." ABSOLUTE)
+        set(_candidate_inc "${_rd_parent}/include/c++/v1")
+        if(EXISTS "${_candidate_inc}" AND IS_DIRECTORY "${_candidate_inc}")
+            set(LIBCPP_INCLUDE_DIR "${_candidate_inc}")
+        endif()
+        # Also consider Debian style: /usr/include/c++/v1 already in system include paths, so no-op
+    endif()
+endif()
+
+# 4. Relative legacy layout
+if(NOT LIBCPP_INCLUDE_DIR)
+    set(_possible_include_dirs
+        "${COMPILER_ROOT}/include/c++/v1"
+        "${COMPILER_ROOT}/lib/clang/*/include/c++/v1"
+    )
+    foreach(_dir ${_possible_include_dirs})
+        file(GLOB _expanded_dirs "${_dir}")
+        foreach(_expanded_dir ${_expanded_dirs})
+            if(EXISTS "${_expanded_dir}" AND IS_DIRECTORY "${_expanded_dir}")
+                set(LIBCPP_INCLUDE_DIR "${_expanded_dir}")
+                break()
+            endif()
+        endforeach()
+        if(LIBCPP_INCLUDE_DIR)
+            break()
+        endif()
+    endforeach()
+endif()
+
+# 5. llvm-config heuristic
+if(NOT LIBCPP_INCLUDE_DIR)
+    find_program(LLVM_CONFIG_EXECUTABLE NAMES llvm-config llvm-config-20 llvm-config-19)
+    if(LLVM_CONFIG_EXECUTABLE)
+        execute_process(COMMAND ${LLVM_CONFIG_EXECUTABLE} --includedir
+                        OUTPUT_VARIABLE _llvm_inc OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if(_llvm_inc)
+            set(_candidate_inc "${_llvm_inc}/c++/v1")
+            if(EXISTS "${_candidate_inc}")
+                set(LIBCPP_INCLUDE_DIR "${_candidate_inc}")
+            endif()
+        endif()
+        execute_process(COMMAND ${LLVM_CONFIG_EXECUTABLE} --libdir
+                        OUTPUT_VARIABLE _llvm_lib OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if(_llvm_lib AND NOT LIBCPP_LIB_DIR)
+            if(EXISTS "${_llvm_lib}/libc++.so" OR EXISTS "${_llvm_lib}/libc++.a" OR EXISTS "${_llvm_lib}/libc++.dylib")
+                set(LIBCPP_LIB_DIR "${_llvm_lib}")
+            endif()
+        endif()
+    endif()
+endif()
+
+# Library dir probing (if not yet found)
+if(NOT LIBCPP_LIB_DIR)
+    set(_possible_lib_dirs
+        "${COMPILER_ROOT}/lib"
+        "${COMPILER_ROOT}/lib/c++"
+        "/usr/lib"
+        "/usr/lib/llvm-20/lib"
+    )
+    foreach(_dir ${_possible_lib_dirs})
+        if(EXISTS "${_dir}" AND IS_DIRECTORY "${_dir}")
+            if(EXISTS "${_dir}/libc++.so" OR EXISTS "${_dir}/libc++.a" OR EXISTS "${_dir}/libc++.dylib")
+                set(LIBCPP_LIB_DIR "${_dir}")
+                break()
+            endif()
+        endif()
+    endforeach()
+endif()
+
+# Configure libc++ usage
+if(LIBCPP_INCLUDE_DIR AND LIBCPP_LIB_DIR)
+    message(STATUS "Using detected libc++:")
+    message(STATUS "  Compiler: ${CMAKE_CXX_COMPILER}")
+    message(STATUS "  Headers: ${LIBCPP_INCLUDE_DIR}")
+    message(STATUS "  Libraries: ${LIBCPP_LIB_DIR}")
+    add_compile_options(-stdlib=libc++ -isystem "${LIBCPP_INCLUDE_DIR}")
+    add_link_options(-stdlib=libc++ -L"${LIBCPP_LIB_DIR}" -rpath "${LIBCPP_LIB_DIR}")
+    set(HALO_LIBCPP_CXXFLAGS "-stdlib=libc++ -isystem ${LIBCPP_INCLUDE_DIR}" CACHE INTERNAL "libc++ compile flags")
+    set(HALO_LIBCPP_LINKFLAGS "-stdlib=libc++ -L${LIBCPP_LIB_DIR} -rpath ${LIBCPP_LIB_DIR}" CACHE INTERNAL "libc++ link flags")
+elseif(LIBCPP_LIB_DIR AND NOT LIBCPP_INCLUDE_DIR)
+    # Library found but headers path missing – rely on system include search, just enforce stdlib switch
+    message(WARNING "libc++ library found at ${LIBCPP_LIB_DIR} but headers path not found; proceeding with -stdlib=libc++ without explicit -isystem")
+    add_compile_options(-stdlib=libc++)
+    add_link_options(-stdlib=libc++ -L"${LIBCPP_LIB_DIR}" -rpath "${LIBCPP_LIB_DIR}")
+    set(HALO_LIBCPP_CXXFLAGS "-stdlib=libc++" CACHE INTERNAL "libc++ compile flags")
+    set(HALO_LIBCPP_LINKFLAGS "-stdlib=libc++ -L${LIBCPP_LIB_DIR} -rpath ${LIBCPP_LIB_DIR}" CACHE INTERNAL "libc++ link flags")
+else()
+    message(STATUS "libc++ not explicitly located (headers/lib); enforcing -stdlib=libc++ via system search paths")
     add_compile_options(-stdlib=libc++)
     add_link_options(-stdlib=libc++)
-else()
-    message(FATAL_ERROR "This project requires Clang compiler. Current compiler: ${CMAKE_CXX_COMPILER_ID}")
+    set(HALO_LIBCPP_CXXFLAGS "-stdlib=libc++" CACHE INTERNAL "libc++ compile flags")
+    set(HALO_LIBCPP_LINKFLAGS "-stdlib=libc++" CACHE INTERNAL "libc++ link flags")
 endif()
 
 

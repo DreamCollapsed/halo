@@ -29,8 +29,8 @@ jobs:
           brew update
           brew install llvm@20
           LLVM_PREFIX=$(brew --prefix)/opt/llvm@20
-          ln -sf $LLVM_PREFIX/bin/clang-format /usr/local/bin/clang-format || true
-          clang-format --version
+          echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
+          "$LLVM_PREFIX/bin/clang-format" --version
 
       - name: Run clang-format diff (dry-run)
         if: steps.has_cfg.outputs.found == 'true'
@@ -39,16 +39,16 @@ jobs:
           # Gather C/C++ sources
           FILES=$(git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx')
           if [ -z "$FILES" ]; then echo "No C/C++ files"; exit 0; fi
-          set +e
+          
           FAIL=0
           for f in $FILES; do
-            diff_output=$(clang-format -style=file $f | diff -u $f -)
-            if [ "$diff_output" != "" ]; then
+            if ! clang-format -style=file "$f" | diff -u "$f" - > /dev/null; then
               echo "Needs formatting: $f"
-              echo "$diff_output" | sed 's/^/  /'
+              clang-format -style=file "$f" | diff -u "$f" - || true
               FAIL=1
             fi
           done
+          
           if [ $FAIL -eq 1 ]; then
             echo "Formatting issues detected. Run: clang-format -i <files>" >&2
             exit 1
@@ -63,32 +63,13 @@ jobs:
   build-test:
     name: ${{ matrix.os }}-${{ matrix.build_type }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 240
-    needs: lint-format  # 依赖 lint-format 成功
+    timeout-minutes: 600
+    needs: lint-format
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest]
         build_type: [Release, RelWithDebInfo, Debug]
-        include:
-          - os: macos-latest
-            build_type: Release
-            run_halo: true
-          - os: macos-latest
-            build_type: RelWithDebInfo
-            run_halo: false
-          - os: macos-latest
-            build_type: Debug
-            run_halo: false
-          - os: ubuntu-latest
-            build_type: Release
-            run_halo: true
-          - os: ubuntu-latest
-            build_type: RelWithDebInfo
-            run_halo: false
-          - os: ubuntu-latest
-            build_type: Debug
-            run_halo: false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -173,7 +154,6 @@ jobs:
           test -x "$LLD_BIN" || { echo "Missing ld.lld at $LLD_BIN" >&2; exit 1; }
           echo "CC=$CCBIN" >> $GITHUB_ENV
           echo "CXX=$CXXBIN" >> $GITHUB_ENV
-          echo "HALO_LLD=$LLD_BIN" >> $GITHUB_ENV
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
           echo "Configured macOS toolchain:";
           "$CCBIN" --version
@@ -190,8 +170,13 @@ jobs:
           fi
           mkdir -p "$CCACHE_DIR"
           echo "CCACHE_DIR=$CCACHE_DIR" >> $GITHUB_ENV
-          echo "CCACHE_MAXSIZE=2G" >> $GITHUB_ENV
+          # Increase cache size for large C++ projects with many dependencies
+          echo "CCACHE_MAXSIZE=3G" >> $GITHUB_ENV
           echo "CCACHE_COMPRESS=true" >> $GITHUB_ENV
+          # Additional optimizations for ccache performance
+          echo "CCACHE_COMPRESSLEVEL=1" >> $GITHUB_ENV  # Faster compression
+          echo "CCACHE_SLOPPINESS=pch_defines,time_macros,include_file_mtime,include_file_ctime" >> $GITHUB_ENV
+          echo "CCACHE_NOHASHDIR=true" >> $GITHUB_ENV  # Slight performance improvement
 
       - name: ccache cache
         uses: actions/cache@v4
@@ -201,6 +186,16 @@ jobs:
           restore-keys: |
             ccache-${{ runner.os }}-${{ matrix.build_type }}-
             ccache-${{ runner.os }}-
+
+      - name: apt cache (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-cache-${{ runner.os }}-llvm20-${{ hashFiles('.github/workflows/macos-linux_ci.yml') }}
+          restore-keys: |
+            apt-cache-${{ runner.os }}-llvm20-
+            apt-cache-${{ runner.os }}-
 
       - name: Install dependencies (Linux)
         if: startsWith(matrix.os, 'ubuntu')
@@ -214,69 +209,172 @@ jobs:
           sudo apt-get update
           
           # Install LLVM toolchain
-          sudo apt-get install -y clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 lld-20 libc++-20-dev libc++abi-20-dev ninja-build ccache cmake autoconf automake libtool gettext gettext-base autopoint
+          sudo apt-get install -y clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 libc++-20-dev libc++abi-20-dev ninja-build ccache cmake autoconf automake libtool gettext gettext-base autopoint
           # Install development tools and math libraries
-          sudo apt-get install -y build-essential gfortran pkg-config libopenblas-dev liblapack-dev libblas-dev
+          sudo apt-get install -y build-essential pkg-config libopenblas-dev liblapack-dev libblas-dev
+
+          echo "Installing mold from GitHub releases..."
+          MOLD_VERSION="2.40.4"
+          wget -q "https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
+          sudo tar -C /usr/local --strip-components=1 -xzf "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
+          rm "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
 
       - name: Set compiler environment (Linux)
         if: startsWith(matrix.os, 'ubuntu')
         run: |
-          echo "CC=clang-20" >> $GITHUB_ENV
-          echo "CXX=clang++-20" >> $GITHUB_ENV
-          LLD_PATH=$(command -v ld.lld-20 || echo /usr/lib/llvm-20/bin/ld.lld)
-          echo "HALO_LLD=$LLD_PATH" >> $GITHUB_ENV
+          # Try versioned binaries in /usr/bin first (more reliable), then fall back to LLVM directory
+          if [ -x "/usr/bin/clang-20" ]; then
+            CC_PATH="/usr/bin/clang-20"
+          elif [ -x "/usr/lib/llvm-20/bin/clang" ]; then
+            CC_PATH="/usr/lib/llvm-20/bin/clang"
+          else
+            echo "ERROR: No suitable clang-20 compiler found"
+            exit 1
+          fi
+          
+          if [ -x "/usr/bin/clang++-20" ]; then
+            CXX_PATH="/usr/bin/clang++-20"
+          elif [ -x "/usr/lib/llvm-20/bin/clang++" ]; then
+            CXX_PATH="/usr/lib/llvm-20/bin/clang++"
+          else
+            echo "ERROR: No suitable clang++-20 compiler found"
+            exit 1
+          fi
+          
+          # Verify compilers are functional
+          echo "Testing compiler functionality:"
+          echo "CC: $CC_PATH"
+          echo "CXX: $CXX_PATH"
+          
+          # Test basic compilation
+          echo 'int main(){return 0;}' | "$CC_PATH" -x c - -o /tmp/test_cc_$$ || {
+            echo "ERROR: C compiler test failed"
+            exit 1
+          }
+          echo 'int main(){return 0;}' | "$CXX_PATH" -x c++ - -o /tmp/test_cxx_$$ || {
+            echo "ERROR: C++ compiler test failed"  
+            exit 1
+          }
+          rm -f /tmp/test_*_$$
+          
+          echo "CC=$CC_PATH" >> $GITHUB_ENV
+          echo "CXX=$CXX_PATH" >> $GITHUB_ENV
+          
+          # Configure mold linker (fastest available)
+          MOLD_PATH=$(command -v mold || echo /usr/local/bin/mold)
+          if [ -x "$MOLD_PATH" ]; then
+            echo "Using mold linker for maximum speed: $MOLD_PATH"
+            "$MOLD_PATH" --version
+            echo "LDFLAGS=-fuse-ld=mold" >> $GITHUB_ENV
+          fi
+          
+          # Add LLVM tools to PATH
           echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
           echo "PATH=/usr/lib/llvm-20/bin:$PATH" >> $GITHUB_ENV
-          # Verify compiler and standard library setup
-          clang-20 --version
-          ld.lld-20 --version || true
-          echo '#include <version>' > /tmp/test_libcpp.cpp
-          echo 'int main() { return 0; }' >> /tmp/test_libcpp.cpp
-          clang++-20 -stdlib=libc++ -std=c++23 /tmp/test_libcpp.cpp -o /tmp/test_libcpp && echo "libc++ available" || echo "libc++ not available"
+          
+          # Verify final setup
+          "$CC_PATH" --version
+          "$CXX_PATH" --version
+          # Export libc++ paths explicitly for deterministic detection
+          if [ -d /usr/include/c++/v1 ]; then
+            echo "LIBCXX_INCLUDE=/usr/include/c++/v1" >> $GITHUB_ENV
+          fi
+          if [ -f /usr/lib/llvm-20/lib/libc++.so ]; then
+            echo "LIBCXX_LIB=/usr/lib/llvm-20/lib" >> $GITHUB_ENV
+          elif [ -f /usr/lib/x86_64-linux-gnu/libc++.so ]; then
+            echo "LIBCXX_LIB=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
+          fi
+
+      - name: Restore thirdparty downloads cache
+        id: downloads-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: thirdparty/downloads
+          key: downloads-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+          restore-keys: |
+            downloads-
 
       - name: Configure (CMake ${{ matrix.build_type }})
         run: |
+          # Verify environment variables before CMake
+          echo "Environment check before CMake:"
+          echo "CC=$CC"
+          echo "CXX=$CXX"
+          echo "LDFLAGS=$LDFLAGS"
+          
+          # Test compiler functionality
+          echo "Testing compilers:"
+          echo 'int main(){return 0;}' | $CC -x c - -o /tmp/test_cc_$$ || echo "CC test failed"
+          echo 'int main(){return 0;}' | $CXX -x c++ - -o /tmp/test_cxx_$$ || echo "CXX test failed"
+          rm -f /tmp/test_*_$$
+          
           mkdir -p build
-          EXTRA_FLAGS=""
-          # Enable IPO/LTO for optimized builds
-          if [ "${{ matrix.build_type }}" = "Release" ] || [ "${{ matrix.build_type }}" = "RelWithDebInfo" ]; then
-            EXTRA_FLAGS="$EXTRA_FLAGS -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON"
-          fi
-          echo "Configuring with EXTRA_FLAGS=$EXTRA_FLAGS"
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_C_COMPILER=$CC \
             -DCMAKE_CXX_COMPILER=$CXX \
-            -DHALO_LLD_EXECUTABLE="$HALO_LLD" \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            $EXTRA_FLAGS
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         env:
           CCACHE_DIR: ${{ env.CCACHE_DIR }}
+          NINJA_STATUS: "[%f/%t] %es "  # Show build progress
         run: |
-          if command -v nproc >/dev/null 2>&1; then
-            CORES=$(nproc)
-          else
-            CORES=$(sysctl -n hw.ncpu)
-          fi
-          echo "Building with $CORES parallel jobs"
-          ninja -C build -j$CORES
+          # Detect CPU cores
+          CORES=$(command -v nproc >/dev/null 2>&1 && nproc || sysctl -n hw.ncpu)
+          MAX_LOAD=$(( CORES + 1 ))
+          
+          echo "Building with $CORES parallel jobs (max load: $MAX_LOAD)"
+          
+          # Show ccache statistics before build
+          command -v ccache >/dev/null 2>&1 && ccache -s
+          
+          # Build with optimized ninja settings
+          ninja -C build -j$CORES -l$MAX_LOAD
+          
+          # Show ccache statistics after build
+          command -v ccache >/dev/null 2>&1 && ccache -s
 
       - name: Run tests
         run: |
-          if command -v nproc >/dev/null 2>&1; then
-            CORES=$(nproc)
-          else
-            CORES=$(sysctl -n hw.ncpu)
-          fi
+          # Detect CPU cores
+          CORES=$(command -v nproc >/dev/null 2>&1 && nproc || sysctl -n hw.ncpu)
           echo "Running tests with $CORES parallel jobs"
           ctest --test-dir build -j$CORES --output-on-failure
 
-      - name: Run halo executable (smoke test, Release only)
-        if: ${{ matrix.run_halo == true }}
+      - name: Run halo executable
         run: ./build/halo || (echo "halo run failed" && exit 1)
+
+      - name: Check thirdparty downloads directory
+        id: downloads-dir
+        run: |
+          if [ -d thirdparty/downloads ] && ls -A thirdparty/downloads >/dev/null 2>&1; then
+            echo "thirdparty_downloads_present=true" >> $GITHUB_OUTPUT
+            echo "thirdparty/downloads exists and is non-empty"
+          else
+            echo "thirdparty_downloads_present=false" >> $GITHUB_OUTPUT
+            echo "thirdparty/downloads missing or empty; skip cache save"
+          fi
+
+      - name: Save thirdparty downloads cache (on success)
+        if: success() && steps.downloads-cache-restore.outputs.cache-hit != 'true' && steps.downloads-dir.outputs.thirdparty_downloads_present == 'true' && matrix.os == 'macos-latest' && matrix.build_type == 'Release'
+        uses: actions/cache/save@v4
+        with:
+            path: thirdparty/downloads
+            key: downloads-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+
+      - name: Upload compile database for clang-tidy (macOS Debug only)
+        if: matrix.os == 'macos-latest' && matrix.build_type == 'Debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-macos-latest-Debug
+          path: |
+            build/compile_commands.json
+            build/CMakeFiles/
+            build/*.cmake
+            build/CMakeCache.txt
+          retention-days: 1
 
       - name: Upload build directory (failure artifact)
         if: failure()
@@ -287,65 +385,47 @@ jobs:
           if-no-files-found: ignore
 
   clang-tidy:
-    name: Clang-Tidy Analysis
+    name: Clang-Tidy Analysis  
     runs-on: macos-latest
-    timeout-minutes: 240
+    timeout-minutes: 15
     needs: build-test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install toolchain (LLVM 20 + deps, macOS)
+      - name: Download and setup build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts-macos-latest-Debug
+          path: build
+
+      - name: Verify compile database and setup
+        run: |
+          # Verify required files exist
+          if [ ! -f "build/compile_commands.json" ]; then
+            echo "ERROR: compile_commands.json not found in build artifacts!"
+            exit 1
+          fi
+          if [ ! -d "build/CMakeFiles" ]; then
+            echo "ERROR: CMakeFiles directory not found in build artifacts!"
+            exit 1
+          fi
+          
+          echo "Build artifacts verified successfully"
+          ls -la build/
+          
+          # Link compile_commands.json to project root  
+          ln -sf build/compile_commands.json .
+          echo "Using compile_commands.json from build directory"
+
+      - name: Install clang-tidy
         run: |
           set -euxo pipefail
           brew update
-          brew install llvm@20 lld@20 cmake ninja autoconf automake libtool ccache
-          LLVM_PREFIX=$(brew --prefix)/opt/llvm@20
-          LLD_PREFIX=$(brew --prefix)/opt/lld@20
+          brew install llvm@20
+          LLVM_PREFIX=$(brew --prefix)/opt/llvm@20  
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
-          echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
-          echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
-          echo "HALO_LLD=$LLD_PREFIX/bin/ld.lld" >> $GITHUB_ENV
-          "$LLVM_PREFIX/bin/clang" --version
           "$LLVM_PREFIX/bin/clang-tidy" --version
-
-      - name: Setup ccache (clang-tidy)
-        run: |
-          # macOS: use standard cache location
-          CCACHE_DIR="$HOME/Library/Caches/ccache"
-          mkdir -p "$CCACHE_DIR"
-          echo "CCACHE_DIR=$CCACHE_DIR" >> $GITHUB_ENV
-          echo "CCACHE_MAXSIZE=2G" >> $GITHUB_ENV
-          echo "CCACHE_COMPRESS=true" >> $GITHUB_ENV
-
-      - name: ccache cache (clang-tidy)
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-tidy-macos-${{ hashFiles('**/CMakeLists.txt') }}
-          restore-keys: |
-            ccache-tidy-macos-
-            ccache-macos-
-
-      - name: Configure (generate compile_commands.json)
-        run: |
-          echo "HALO_LLD environment variable: '$HALO_LLD'"
-          LLD_ARG=""
-          if [ -n "$HALO_LLD" ] && [ -f "$HALO_LLD" ]; then
-            LLD_ARG="-DHALO_LLD_EXECUTABLE=$HALO_LLD -DHALO_LINKER_EXECUTABLE=$HALO_LLD"
-          else
-            echo "[clang-tidy] Skipping linker args; HALO_LLD missing or invalid: '$HALO_LLD'"
-          fi
-          echo "[clang-tidy] LLD_ARG='$LLD_ARG'"
-          cmake -S . -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_C_COMPILER=$CC \
-            -DCMAKE_CXX_COMPILER=$CXX \
-            -DHALO_LLD_EXECUTABLE="$HALO_LLD" \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          ln -sf build/compile_commands.json .
 
       - name: Determine changed C/C++ files
         id: diff
@@ -367,7 +447,7 @@ jobs:
           COUNT=$(wc -l < changed_files.txt | tr -d ' ')
           echo "count=$COUNT" >> $GITHUB_OUTPUT
 
-      - name: Run clang-tidy (batch)
+      - name: Run clang-tidy
         if: steps.diff.outputs.count != '0'
         run: |
           set -e

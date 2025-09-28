@@ -3,7 +3,7 @@
 
 thirdparty_setup_directories("arrow")
 
-set(_ARROW_EXTRA_C_AND_CXX_FLAGS "-I${THIRDPARTY_INSTALL_DIR}/boost/include -I${THIRDPARTY_INSTALL_DIR}/abseil/include")
+set(_ARROW_EXTRA_C_AND_CXX_FLAGS "${HALO_CMAKE_CXX_FLAGS_BASE} -I${THIRDPARTY_INSTALL_DIR}/boost/include -I${THIRDPARTY_INSTALL_DIR}/abseil/include")
 if(APPLE)
     # On macOS we need jemalloc prefix compatibility header to map expected symbols.
     # Include both the directory and the compatibility header for symbol remapping.
@@ -28,7 +28,7 @@ list(APPEND _opt_flags
     -DARROW_DEPENDENCY_SOURCE=SYSTEM
     -DARROW_DEPENDENCY_USE_SHARED=OFF
 
-    # Import include paths (boost, abseil) and macOS-only jemalloc compatibility header
+    # Import base + include paths (boost, abseil) and macOS-only jemalloc compatibility header.
     -DCMAKE_CXX_FLAGS=${_ARROW_EXTRA_C_AND_CXX_FLAGS}
     -DCMAKE_C_FLAGS=${_ARROW_EXTRA_C_AND_CXX_FLAGS}
 

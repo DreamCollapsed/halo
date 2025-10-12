@@ -1039,16 +1039,6 @@ function(thirdparty_get_optimization_flags output_var)
         message(DEBUG "[thirdparty] Inherited CMAKE_MODULE_LINKER_FLAGS: ${CMAKE_MODULE_LINKER_FLAGS}")
     endif()
     
-    # Add libc++ flags on top of existing flags using safe combination
-    if(DEFINED HALO_LIBCPP_CXXFLAGS AND HALO_LIBCPP_CXXFLAGS)
-        thirdparty_combine_flags(HALO_CMAKE_CXX_FLAGS_BASE FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${HALO_LIBCPP_CXXFLAGS}")
-    endif()
-    if(DEFINED HALO_LIBCPP_LINKFLAGS AND HALO_LIBCPP_LINKFLAGS)
-        thirdparty_combine_flags(HALO_CMAKE_EXE_LINKER_FLAGS_BASE FRAGMENTS "${HALO_CMAKE_EXE_LINKER_FLAGS_BASE}" "${HALO_LIBCPP_LINKFLAGS}")
-        thirdparty_combine_flags(HALO_CMAKE_SHARED_LINKER_FLAGS_BASE FRAGMENTS "${HALO_CMAKE_SHARED_LINKER_FLAGS_BASE}" "${HALO_LIBCPP_LINKFLAGS}")
-        thirdparty_combine_flags(HALO_CMAKE_MODULE_LINKER_FLAGS_BASE FRAGMENTS "${HALO_CMAKE_MODULE_LINKER_FLAGS_BASE}" "${HALO_LIBCPP_LINKFLAGS}")
-    endif()
-
     # Unified linker propagation (final): only propagate explicit HALO_LINKER path if provided.
     if(HALO_LINKER)
         list(APPEND _opt_flags -DCMAKE_LINKER=${HALO_LINKER})
@@ -1065,77 +1055,6 @@ function(thirdparty_get_optimization_flags output_var)
         thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _make_jobs)
         list(APPEND _opt_flags -DCMAKE_BUILD_PARALLEL_LEVEL=${_make_jobs})
         message(STATUS "[thirdparty] Ninja not found, using default generator with ${_make_jobs} parallel jobs")
-    endif()
-    
-    # Add Link Time Optimization (IPO) only for optimized builds when requested.
-    # Previous implementation always forced IPO, causing Debug builds (without -flto
-    # driver flags) to link against bitcode objects (e.g., libunwind) and fail under
-    # mold/lld with: "unable to handle this LTO object file because the -plugin option was not provided".
-    # We now enable IPO only if the top-level selected an LTO mode (not 'off') AND
-    # the root build type is an optimized configuration. This keeps third-party
-    # artifacts (libunwind, libomp, etc.) consistent with the main build strategy.
-    if(NOT CMAKE_BUILD_TYPE MATCHES "^Debug$")
-        if(HALO_LTO_MODE AND NOT HALO_LTO_MODE STREQUAL "off")
-            list(APPEND _opt_flags -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON)
-        endif()
-    endif()
-
-    # Propagate explicit LTO mode if requested (clang/LLVM). We only add flags
-    # here; root project already set IPO globally.
-    if(HALO_LTO_MODE AND NOT HALO_LTO_MODE STREQUAL "off")
-        set(_lto_c_flags "")
-        set(_lto_cxx_flags "")
-        set(_lto_linker_flags "")
-        # Normalize (strip) any pre-existing LTO flags from the inherited base flags.
-        # This prevents duplication like "-flto -flto=thin" when switching HALO_LTO_MODE
-        # across cached re-configures or when the toolchain injects a default -flto.
-        foreach(_var HALO_CMAKE_C_FLAGS_BASE HALO_CMAKE_CXX_FLAGS_BASE HALO_CMAKE_EXE_LINKER_FLAGS_BASE HALO_CMAKE_SHARED_LINKER_FLAGS_BASE HALO_CMAKE_MODULE_LINKER_FLAGS_BASE)
-            if(${_var})
-                # Remove any standalone or thin LTO occurrences. Match beginning or space-separated tokens.
-                string(REGEX REPLACE "(^| )-flto(=thin)?( |$)" " " ${_var} "${${_var}}")
-                # Collapse multiple spaces that may have been introduced.
-                string(REGEX REPLACE "  +" " " ${_var} "${${_var}}")
-                # Trim leading/trailing spaces for cleanliness.
-                string(REGEX REPLACE "^ +" "" ${_var} "${${_var}}")
-                string(REGEX REPLACE " +$" "" ${_var} "${${_var}}")
-            endif()
-        endforeach()
-        if(HALO_LTO_MODE STREQUAL "thin")
-            set(_lto_c_flags "-flto=thin")
-            set(_lto_cxx_flags "-flto=thin")
-            set(_lto_linker_flags "-flto=thin")
-        elseif(HALO_LTO_MODE STREQUAL "full")
-            # Use plain -flto which implies full LTO.
-            set(_lto_c_flags "-flto")
-            set(_lto_cxx_flags "-flto")
-            set(_lto_linker_flags "-flto")
-        endif()
-        # Append LTO flags to base variables
-        if(HALO_CMAKE_C_FLAGS_BASE)
-            set(HALO_CMAKE_C_FLAGS_BASE "${HALO_CMAKE_C_FLAGS_BASE} ${_lto_c_flags}")
-        else()
-            set(HALO_CMAKE_C_FLAGS_BASE "${_lto_c_flags}")
-        endif()
-        if(HALO_CMAKE_CXX_FLAGS_BASE)
-            set(HALO_CMAKE_CXX_FLAGS_BASE "${HALO_CMAKE_CXX_FLAGS_BASE} ${_lto_cxx_flags}")
-        else()
-            set(HALO_CMAKE_CXX_FLAGS_BASE "${_lto_cxx_flags}")
-        endif()
-        if(HALO_CMAKE_EXE_LINKER_FLAGS_BASE)
-            set(HALO_CMAKE_EXE_LINKER_FLAGS_BASE "${HALO_CMAKE_EXE_LINKER_FLAGS_BASE} ${_lto_linker_flags}")
-        else()
-            set(HALO_CMAKE_EXE_LINKER_FLAGS_BASE "${_lto_linker_flags}")
-        endif()
-        if(HALO_CMAKE_SHARED_LINKER_FLAGS_BASE)
-            set(HALO_CMAKE_SHARED_LINKER_FLAGS_BASE "${HALO_CMAKE_SHARED_LINKER_FLAGS_BASE} ${_lto_linker_flags}")
-        else()
-            set(HALO_CMAKE_SHARED_LINKER_FLAGS_BASE "${_lto_linker_flags}")
-        endif()
-        if(HALO_CMAKE_MODULE_LINKER_FLAGS_BASE)
-            set(HALO_CMAKE_MODULE_LINKER_FLAGS_BASE "${HALO_CMAKE_MODULE_LINKER_FLAGS_BASE} ${_lto_linker_flags}")
-        else()
-            set(HALO_CMAKE_MODULE_LINKER_FLAGS_BASE "${_lto_linker_flags}")
-        endif()
     endif()
     
     if(APPLE)
@@ -1730,31 +1649,6 @@ function(thirdparty_build_autotools_library library_name)
             string(JOIN " " _auto_LDFLAGS ${_dedup_ld_list})
         else()
             set(_auto_LDFLAGS "")
-        endif()
-
-        # Inject libc++ propagation for autotools libraries (jemalloc, etc.).
-        # CMake-based third-parties already received HALO_LIBCPP_* via thirdparty_get_optimization_flags,
-        # but autotools builds rely solely on environment CXXFLAGS/LDFLAGS here, so we append them if missing.
-        if(DEFINED HALO_LIBCPP_CXXFLAGS AND HALO_LIBCPP_CXXFLAGS)
-            # Avoid double inserting if -stdlib=libc++ already present (use string(FIND instead of regex to prevent errors)
-            string(FIND "${_auto_CXXFLAGS}" "-stdlib=libc++" _halo_libcpp_pos)
-            if(_halo_libcpp_pos EQUAL -1)
-                set(_auto_CXXFLAGS "${_auto_CXXFLAGS} ${HALO_LIBCPP_CXXFLAGS}")
-                message(STATUS "[thirdparty_autotools] Appended HALO_LIBCPP_CXXFLAGS to autotools CXXFLAGS for ${library_name}")
-            endif()
-        endif()
-        if(DEFINED HALO_LIBCPP_LINKFLAGS AND HALO_LIBCPP_LINKFLAGS)
-            # Only add libc++ link flags if -stdlib=libc++ is present (string(FIND based)
-            string(FIND "${_auto_CXXFLAGS}" "-stdlib=libc++" _halo_libcpp_pos2)
-            if(NOT _halo_libcpp_pos2 EQUAL -1)
-                # Check for existing tokens -lc++abi or -lc++ to avoid duplication
-                string(FIND "${_auto_LDFLAGS}" "-lc++abi" _halo_have_cxxabi)
-                string(FIND "${_auto_LDFLAGS}" "-lc++" _halo_have_cxx)
-                if(_halo_have_cxxabi EQUAL -1 AND _halo_have_cxx EQUAL -1)
-                    set(_auto_LDFLAGS "${_auto_LDFLAGS} ${HALO_LIBCPP_LINKFLAGS}")
-                    message(STATUS "[thirdparty_autotools] Appended HALO_LIBCPP_LINKFLAGS to autotools LDFLAGS for ${library_name}")
-                endif()
-            endif()
         endif()
 
         string(STRIP "${_auto_CFLAGS}"   _auto_CFLAGS)

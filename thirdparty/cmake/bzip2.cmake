@@ -45,43 +45,11 @@ if(_need_build)
         set(_ldflags "${CMAKE_EXE_LINKER_FLAGS}")
     endif()
     
-    # Add libc++ link flags if available (from top-level project configuration)
-    if(DEFINED HALO_LIBCPP_LINKFLAGS AND HALO_LIBCPP_LINKFLAGS)
-        if(_ldflags)
-            set(_ldflags "${_ldflags} ${HALO_LIBCPP_LINKFLAGS}")
-        else()
-            set(_ldflags "${HALO_LIBCPP_LINKFLAGS}")
-        endif()
-        message(DEBUG "[bzip2] Added libc++ link flags: ${HALO_LIBCPP_LINKFLAGS}")
-    endif()
-    
     # Apply combined LDFLAGS
     if(_ldflags)
         list(APPEND _make_env "LDFLAGS=${_ldflags}")
     endif()
     
-    # Do NOT propagate -stdlib=libc++ into pure C compilation; it's a C++ driver option.
-    # Instead, only propagate include search path if libc++ headers were explicitly located (harmless for C).
-    if(DEFINED HALO_LIBCPP_CXXFLAGS AND HALO_LIBCPP_CXXFLAGS)
-        # Try to extract an -isystem <path> sequence to keep diagnostic parity (optional)
-        separate_arguments(_libcpp_tokens UNIX_COMMAND "${HALO_LIBCPP_CXXFLAGS}")
-        set(_next_is_path FALSE)
-        set(_c_includes "")
-        foreach(tok ${_libcpp_tokens})
-            if(_next_is_path)
-                set(_c_includes "${_c_includes} -isystem ${tok}")
-                set(_next_is_path FALSE)
-            elseif(tok STREQUAL "-isystem")
-                set(_next_is_path TRUE)
-            endif()
-        endforeach()
-        if(_c_includes)
-            string(STRIP "${_c_includes}" _c_includes)
-            list(APPEND _make_env "CFLAGS=${_c_includes}")
-            message(DEBUG "[bzip2] Propagated libc++ include path(s) to CFLAGS: ${_c_includes}")
-        endif()
-    endif()
-
     # Some upstream bzip2 Makefiles assign CC?=gcc or CC=gcc after environment propagation.
     # Passing CC=<compiler> on the make command line has the highest precedence.
     execute_process(

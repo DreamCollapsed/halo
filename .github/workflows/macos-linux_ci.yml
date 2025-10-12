@@ -18,6 +18,7 @@ permissions:
 
 env:
   GH_API_VERSION: "2022-11-28"
+  CMAKE_REQUESTED_VERSION: "latest"
 
 jobs:
   lint-format:
@@ -183,8 +184,81 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 install -y \
             wget gnupg lsb-release software-properties-common \
             clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 libc++-20-dev libc++abi-20-dev \
-            ninja-build ccache cmake autoconf automake libtool gettext gettext-base autopoint \
+            ninja-build ccache autoconf automake libtool gettext gettext-base autopoint \
             build-essential pkg-config libopenblas-dev liblapack-dev libblas-dev
+
+          # Robust CMake version resolution (handles API failures / rate limits / HTML responses)
+          set -euo pipefail
+          REQUESTED="${CMAKE_REQUESTED_VERSION:-latest}"
+          echo "Requested CMake version: $REQUESTED"
+          resolve_cmake_version() {
+            local req="$1"
+            if [ "$req" != "latest" ]; then
+              echo "$req"
+              return 0
+            fi
+            local authHeader="" http_code resp tag
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              authHeader="Authorization: Bearer $GITHUB_TOKEN"
+            fi
+            echo "[cmake-version] Query releases/latest (authenticated=${authHeader:+yes}${authHeader:+=no})" >&2
+            # Simple retry loop (3 attempts, 3s sleep) if parsing fails
+            for attempt in 1 2 3; do
+              resp=$(curl -sSL -w '\n%{http_code}' --retry 3 \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: ${GH_API_VERSION:-2022-11-28}" \
+                ${authHeader:+ -H "$authHeader"} \
+                "https://api.github.com/repos/Kitware/CMake/releases/latest" || true)
+              http_code=$(echo "$resp" | tail -n1)
+              body=$(echo "$resp" | sed '$d')
+              if [ "$http_code" != "200" ]; then
+                echo "[cmake-version] releases/latest HTTP $http_code (attempt $attempt)" >&2
+                echo "$body" | head -5 >&2
+              fi
+              tag=$(echo "$body" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": "v?([^\"]+)".*/\1/')
+              if [ -n "$tag" ]; then
+                echo "$tag"
+                return 0
+              fi
+              if [ $attempt -lt 3 ]; then
+                echo "[cmake-version] Parse failed (attempt $attempt); sleeping 3s before retry" >&2
+                sleep 3
+              fi
+            done
+            echo "[cmake-version] Primary parse failed; fallback to /tags endpoint" >&2
+            resp=$(curl -sSL --retry 3 -H "Accept: application/vnd.github+json" ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/Kitware/CMake/tags?per_page=10" || true)
+            tag=$(echo "$resp" | grep -E '"name": "v?[0-9]+\.[0-9]+\.[0-9]+"' | sed -E 's/.*"name": "v?([0-9]+\.[0-9]+\.[0-9]+)".*/\1/' | sort -V | tail -1)
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            echo "[cmake-version] Fallback to git ls-remote (tags)" >&2
+            if command -v git >/dev/null 2>&1; then
+              tag=$(git ls-remote --tags https://github.com/Kitware/CMake.git | \
+                grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | \
+                cut -d/ -f3 | sed 's/^v//' | sort -V | tail -1 || true)
+            fi
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            # Final hard fallback: use a pinned known-good version (update periodically)
+            echo "[cmake-version] All resolution strategies failed; using pinned fallback 3.30.4" >&2
+            echo "3.30.4"
+          }
+          CM_VER=$(resolve_cmake_version "$REQUESTED")
+          echo "Using CMake version: $CM_VER"
+          ARCHIVE="cmake-$CM_VER-linux-x86_64.tar.gz"
+          URL="https://github.com/Kitware/CMake/releases/download/v$CM_VER/$ARCHIVE"
+          echo "Downloading $URL"
+          curl -fsSL --retry 3 "$URL" -o "$ARCHIVE" || { echo "Failed to download CMake $CM_VER" >&2; exit 1; }
+          sudo tar -C /opt -xzf "$ARCHIVE" || { echo "Failed to extract CMake" >&2; exit 1; }
+          rm "$ARCHIVE"
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/cmake /usr/local/bin/cmake
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/ctest /usr/local/bin/ctest || true
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/cpack /usr/local/bin/cpack || true
+          cmake --version
 
           echo "Installing mold from GitHub releases..."
           MOLD_VERSION="2.40.4"
@@ -233,12 +307,11 @@ jobs:
           echo "CC=$CC_PATH" >> $GITHUB_ENV
           echo "CXX=$CXX_PATH" >> $GITHUB_ENV
           
-          # Configure mold linker (fastest available)
+          # Verify mold linker is available (CMake FindLinker.cmake will configure it)
           MOLD_PATH=$(command -v mold || echo /usr/local/bin/mold)
           if [ -x "$MOLD_PATH" ]; then
-            echo "Using mold linker for maximum speed: $MOLD_PATH"
+            echo "Mold linker available at: $MOLD_PATH"
             "$MOLD_PATH" --version
-            echo "LDFLAGS=-fuse-ld=mold" >> $GITHUB_ENV
           fi
           
           # Add LLVM tools to PATH
@@ -469,8 +542,79 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 install -y \
             wget gnupg lsb-release software-properties-common \
             clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 libc++-20-dev libc++abi-20-dev \
-            ninja-build ccache cmake autoconf automake libtool gettext gettext-base autopoint \
+            ninja-build ccache autoconf automake libtool gettext gettext-base autopoint \
             build-essential pkg-config libopenblas-dev liblapack-dev libblas-dev
+
+          set -euo pipefail
+          REQUESTED="${CMAKE_REQUESTED_VERSION:-latest}"
+          echo "Requested CMake version: $REQUESTED"
+          resolve_cmake_version() {
+            local req="$1"
+            if [ "$req" != "latest" ]; then
+              echo "$req"
+              return 0
+            fi
+            local authHeader="" http_code resp tag
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              authHeader="Authorization: Bearer $GITHUB_TOKEN"
+            fi
+            echo "[cmake-version] Query releases/latest (authenticated=${authHeader:+yes}${authHeader:+=no})" >&2
+            # Simple retry loop (3 attempts, 3s sleep) if parsing fails
+            for attempt in 1 2 3; do
+              resp=$(curl -sSL -w '\n%{http_code}' --retry 3 \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: ${GH_API_VERSION:-2022-11-28}" \
+                ${authHeader:+ -H "$authHeader"} \
+                "https://api.github.com/repos/Kitware/CMake/releases/latest" || true)
+              http_code=$(echo "$resp" | tail -n1)
+              body=$(echo "$resp" | sed '$d')
+              if [ "$http_code" != "200" ]; then
+                echo "[cmake-version] releases/latest HTTP $http_code (attempt $attempt)" >&2
+                echo "$body" | head -5 >&2
+              fi
+              tag=$(echo "$body" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": "v?([^\"]+)".*/\1/')
+              if [ -n "$tag" ]; then
+                echo "$tag"
+                return 0
+              fi
+              if [ $attempt -lt 3 ]; then
+                echo "[cmake-version] Parse failed (attempt $attempt); sleeping 3s before retry" >&2
+                sleep 3
+              fi
+            done
+            echo "[cmake-version] Primary parse failed; fallback to /tags endpoint" >&2
+            resp=$(curl -sSL --retry 3 -H "Accept: application/vnd.github+json" ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/Kitware/CMake/tags?per_page=10" || true)
+            tag=$(echo "$resp" | grep -E '"name": "v?[0-9]+\.[0-9]+\.[0-9]+"' | sed -E 's/.*"name": "v?([0-9]+\.[0-9]+\.[0-9]+)".*/\1/' | sort -V | tail -1)
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            echo "[cmake-version] Fallback to git ls-remote (tags)" >&2
+            if command -v git >/dev/null 2>&1; then
+              tag=$(git ls-remote --tags https://github.com/Kitware/CMake.git | \
+                grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | \
+                cut -d/ -f3 | sed 's/^v//' | sort -V | tail -1 || true)
+            fi
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            echo "[cmake-version] All resolution strategies failed; using pinned fallback 3.30.4" >&2
+            echo "3.30.4"
+          }
+          CM_VER=$(resolve_cmake_version "$REQUESTED")
+          echo "Using CMake version: $CM_VER"
+          ARCHIVE="cmake-$CM_VER-linux-x86_64.tar.gz"
+          URL="https://github.com/Kitware/CMake/releases/download/v$CM_VER/$ARCHIVE"
+          echo "Downloading $URL"
+          curl -fsSL --retry 3 "$URL" -o "$ARCHIVE" || { echo "Failed to download CMake $CM_VER" >&2; exit 1; }
+          sudo tar -C /opt -xzf "$ARCHIVE" || { echo "Failed to extract CMake" >&2; exit 1; }
+          rm "$ARCHIVE"
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/cmake /usr/local/bin/cmake
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/ctest /usr/local/bin/ctest || true
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/cpack /usr/local/bin/cpack || true
+          cmake --version
 
           echo "Installing mold from GitHub releases..."
           MOLD_VERSION="2.40.4"
@@ -519,12 +663,11 @@ jobs:
           echo "CC=$CC_PATH" >> $GITHUB_ENV
           echo "CXX=$CXX_PATH" >> $GITHUB_ENV
           
-          # Configure mold linker (fastest available)
+          # Verify mold linker is available (CMake FindLinker.cmake will configure it)
           MOLD_PATH=$(command -v mold || echo /usr/local/bin/mold)
           if [ -x "$MOLD_PATH" ]; then
-            echo "Using mold linker for maximum speed: $MOLD_PATH"
+            echo "Mold linker available at: $MOLD_PATH"
             "$MOLD_PATH" --version
-            echo "LDFLAGS=-fuse-ld=mold" >> $GITHUB_ENV
           fi
           
           # Add LLVM tools to PATH

@@ -33,8 +33,6 @@ function(boost_configure_and_build)
         runtime-link=static
         threading=multi
         cxxstd=23
-        cxxflags=-stdlib=libc++
-        linkflags=-stdlib=libc++
         address-model=${BOOST_ADDRESS_MODEL}
         architecture=${BOOST_ARCHITECTURE}
         --layout=tagged
@@ -99,14 +97,6 @@ function(boost_configure_and_build)
             list(APPEND BOOST_B2_OPTIONS linkflags=${_flag})
         endforeach()
         message(DEBUG "[boost] Added CMAKE_EXE_LINKER_FLAGS: ${CMAKE_EXE_LINKER_FLAGS}")
-    endif()
-
-    if(UNIX AND NOT APPLE)
-        list(FIND BOOST_B2_OPTIONS "linkflags=-lc++abi" _have_cxxabi)
-        if(_have_cxxabi EQUAL -1)
-            list(APPEND BOOST_B2_OPTIONS linkflags=-lc++abi)
-            message(DEBUG "[boost] Added -lc++abi for libc++ (Linux)")
-        endif()
     endif()
 
     # macOS specific linker behavior: only add force_load & search_paths_first on Apple

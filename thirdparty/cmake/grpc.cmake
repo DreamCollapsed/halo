@@ -33,7 +33,7 @@ thirdparty_build_cmake_library("grpc"
     FILE_REPLACEMENTS
         "src/core/credentials/transport/tls/tls_security_connector.cc"
         "absl::bind_front(&ChannelPendingVerifierRequest::OnVerifyDone, this,
-                        true),"
+                       true),"
         "[this](absl::Status status) {
           this->OnVerifyDone(true, std::move(status));
         },"
@@ -42,6 +42,16 @@ thirdparty_build_cmake_library("grpc"
         "[this](absl::Status status) {
           this->OnVerifyDone(true, std::move(status));
         },"
+        "src/core/resolver/dns/native/dns_resolver.cc"
+        "absl::bind_front(&NativeClientChannelDNSResolver::OnResolved, this),"
+        "[this](absl::StatusOr<std::vector<grpc_resolved_address>> addresses_or) {
+          this->OnResolved(std::move(addresses_or));
+        },"
+        "src/core/xds/grpc/xds_certificate_provider.cc"
+        "absl::bind_front(&XdsCertificateProvider::WatchStatusCallback, this))"
+        "[this](std::string cert_name, bool root_being_watched, bool identity_being_watched) {
+          this->WatchStatusCallback(std::move(cert_name), root_being_watched, identity_being_watched);
+        })"
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/grpc/lib/libgrpc.a"
         "${THIRDPARTY_INSTALL_DIR}/grpc/lib/libgrpc++.a"

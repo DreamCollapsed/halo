@@ -73,8 +73,6 @@ set_target_properties(unwind::unwind PROPERTIES
   INTERFACE_INCLUDE_DIRECTORIES "${LLVM_PROJECT_INSTALL_DIR}/include"
 )
 
-# Fix for libunwind symbol drop on macOS (observed even when LTO not explicitly enabled)
-# Force the symbol ___unw_get_proc_name to be retained by the linker.
 if(APPLE)
   # Append (do not overwrite) any existing interface link options.
   get_target_property(_unwind_link_opts unwind::unwind INTERFACE_LINK_OPTIONS)

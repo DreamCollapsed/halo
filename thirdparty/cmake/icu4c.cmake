@@ -52,7 +52,7 @@ if(_icu_platform STREQUAL "APPLE")
     list(APPEND _icu_configure_args "CFLAGS=-fPIC -O2")
     list(APPEND _icu_configure_args "CXXFLAGS=-fPIC -O2")
 elseif(_icu_platform STREQUAL "LINUX")
-    # Linux: Preserve environment-provided CFLAGS/CXXFLAGS (they carry libc++ / LTO / mold / rpaths).
+    # Linux: Preserve environment-provided CFLAGS/CXXFLAGS (they carry mold / rpaths).
     # Only add a non-intrusive ASFLAGS if integrated assembler causes issues; start conservative.
     # If future failures occur in .S files, we can append ASFLAGS=-fno-integrated-as here.
     list(APPEND _icu_configure_args "CPPFLAGS=-fPIC -O2")

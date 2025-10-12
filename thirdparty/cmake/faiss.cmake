@@ -50,7 +50,7 @@ thirdparty_build_cmake_library(faiss
         -DFAISS_ENABLE_C_API=ON
         -DCMAKE_BUILD_TYPE=Release
         -DFAISS_OPT_LEVEL=${_faiss_opt_level}
-        -DFAISS_USE_LTO=ON
+        -DFAISS_USE_LTO=OFF
         # Point to our OpenMP installation - these are checked by FindOpenMP
         -DOpenMP_ROOT=${_openmp_dir}
         -DOpenMP_CXX_INCLUDE_DIRS=${_openmp_dir}/include

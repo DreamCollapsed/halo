@@ -989,14 +989,15 @@ delta 28
 gcmX@x!gR5PX+w(%i-MAp!sIrSCNN_&m#MQa0E})3bN~PV
 
 diff --git a/velox/external/tzdb/tzdb_list_private.h b/velox/external/tzdb/tzdb_list_private.h
-index 9fa8dbab56b851ddc6a4c8b21654b565dd43719d..aef3acb8e325b048921051a04a351a6b36c7121c 100644
+index 9fa8dbab56b851ddc6a4c8b21654b565dd43719d..ea30ecb95bc2b05c3e93793f1137e0968c2d563b 100644
 GIT binary patch
-delta 58
-zcmew_x=L)rJ|^wb;>^5sh2oMFE34enlGF-oE+moCyv)MV)cBnI<ZNp$t_i`L1)1Nm
-F0|1up6@LH#
+delta 74
+zcmew_+9kH(731V?CeF!^7&|84=aSb~sOI7-EzZnKS12w?v9ii7ElI7gMiwc}%PcHS
+UjnBzX&bH>_nh?BMkog@u02w(N{{R30
 
-delta 16
-YcmZ1__Fr_vKBmb@%z>M&m_M)s06Yi=bpQYW
+delta 52
+zcmeAY`!BlT731XJj17|&*d)Z2GxL&jN>fr5Y;sFWQY-AZlvDFkGSenkGO12>Vh-Fa
+I#r%OC00+|&aR2}S
 
 diff --git a/velox/functions/prestosql/geospatial/GeometryUtils.h b/velox/functions/prestosql/geospatial/GeometryUtils.h
 index af32c0ae6..cd0d16486 100644

@@ -14,6 +14,72 @@ include_guard(GLOBAL)
 
 set(HALO_VELOX_SOURCE_DIR "${CMAKE_SOURCE_DIR}/velox" CACHE PATH "Velox source dir" FORCE)
 
+find_package(Git REQUIRED QUIET)
+
+if(TRUE)
+  if(GIT_EXECUTABLE)
+    # Verify .git directory exists to avoid running in an exported source tree
+    if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
+      # Query gitlink
+      execute_process(
+        COMMAND "${GIT_EXECUTABLE}" ls-files --stage velox
+        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+        OUTPUT_VARIABLE _velox_ls_stage
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+      string(FIND "${_velox_ls_stage}" "160000" _gitlink_pos)
+      if(_gitlink_pos EQUAL -1)
+        # Gitlink missing: check whether .gitmodules still references velox
+        set(_need_restore FALSE)
+        if(EXISTS "${CMAKE_SOURCE_DIR}/.gitmodules")
+          file(READ "${CMAKE_SOURCE_DIR}/.gitmodules" _gm)
+          if(_gm MATCHES "\n\[submodule \"velox\"\]\n")
+            set(_need_restore TRUE)
+          endif()
+        endif()
+        if(_need_restore)
+          message(WARNING "Velox gitlink missing from index; attempting automatic re-add of submodule.")
+          # Attempt re-add (non-fatal fallback: user can manually restore if this fails)
+          execute_process(
+            COMMAND "${GIT_EXECUTABLE}" submodule add https://github.com/facebookincubator/velox.git velox
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            RESULT_VARIABLE _add_res
+            OUTPUT_QUIET ERROR_VARIABLE _add_err)
+          if(_add_res EQUAL 0)
+            message(STATUS "Velox submodule re-added. Initializing...")
+            execute_process(
+              COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive velox
+              WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+              RESULT_VARIABLE _upd_res
+              OUTPUT_QUIET ERROR_VARIABLE _upd_err)
+            if(_upd_res EQUAL 0)
+              # Checkout pinned commit if defined
+              if(DEFINED VELOX_SHA256 AND NOT VELOX_SHA256 STREQUAL "")
+                execute_process(
+                  COMMAND "${GIT_EXECUTABLE}" -C velox checkout ${VELOX_SHA256}
+                  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                  RESULT_VARIABLE _co_res
+                  OUTPUT_QUIET ERROR_VARIABLE _co_err)
+                if(NOT _co_res EQUAL 0)
+                  message(WARNING "Failed to checkout pinned Velox commit ${VELOX_SHA256} after auto-restore: ${_co_err}")
+                else()
+                  message(STATUS "Velox auto-restore: pinned commit ${VELOX_SHA256} checked out.")
+                endif()
+              endif()
+            else()
+              message(WARNING "Velox auto-restore submodule update failed: ${_upd_err}")
+            endif()
+          else()
+            message(WARNING "Velox auto-restore failed to add submodule: ${_add_err}")
+          endif()
+        else()
+          message(WARNING "Velox directory missing and .gitmodules has no velox entry; cannot auto-restore.")
+        endif()
+      endif()
+    endif()
+  endif()
+endif()
+
 # Check if Velox submodule is initialized and has content
 set(VELOX_NEEDS_INIT FALSE)
 set(VELOX_NEEDS_PATCH FALSE)
@@ -31,7 +97,6 @@ endif()
 
 # Initialize submodule if needed
 if(VELOX_NEEDS_INIT)
-  find_package(Git REQUIRED)
   
   execute_process(
     COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive velox
@@ -45,30 +110,43 @@ endif()
 
 # Ensure we're at the correct commit
 if(DEFINED VELOX_SHA256 AND NOT VELOX_SHA256 STREQUAL "")
-  find_package(Git QUIET)
   if(GIT_EXECUTABLE)
+    # Fetch latest refs (non-fatal if offline)
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" fetch --depth 1 origin main
+      WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
+      RESULT_VARIABLE _fetch_res
+      OUTPUT_QUIET ERROR_QUIET)
     execute_process(
       COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
       WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
       OUTPUT_VARIABLE _current_commit
       OUTPUT_STRIP_TRAILING_WHITESPACE
       ERROR_QUIET)
-    
     if(NOT _current_commit STREQUAL VELOX_SHA256)
-      message(STATUS "Velox at commit ${_current_commit}, switching to ${VELOX_SHA256}")
+      message(STATUS "Velox commit mismatch (have=${_current_commit} want=${VELOX_SHA256}); attempting checkout.")
       execute_process(
         COMMAND "${GIT_EXECUTABLE}" checkout ${VELOX_SHA256}
         WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
         RESULT_VARIABLE _checkout_res
-        OUTPUT_QUIET ERROR_QUIET)
+        OUTPUT_VARIABLE _checkout_out
+        ERROR_VARIABLE _checkout_err)
       if(NOT _checkout_res EQUAL 0)
-        message(WARNING "Failed to checkout Velox commit ${VELOX_SHA256}. Continuing with current commit.")
-      else()
-        # If we changed commits, we may need to re-apply patches
-        if(NOT VELOX_NEEDS_INIT AND EXISTS "${HALO_VELOX_SOURCE_DIR}/.velox_patched")
-          set(VELOX_NEEDS_PATCH TRUE)
-          message(STATUS "Commit changed, will re-apply patches.")
-        endif()
+        message(FATAL_ERROR "Failed to checkout required Velox commit ${VELOX_SHA256}. Output='${_checkout_out}' Error='${_checkout_err}'")
+      endif()
+      # Re-parse HEAD
+      execute_process(
+        COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
+        WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
+        OUTPUT_VARIABLE _current_commit
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+      if(NOT _current_commit STREQUAL VELOX_SHA256)
+        message(FATAL_ERROR "Velox commit after checkout (${_current_commit}) still differs from required ${VELOX_SHA256}")
+      endif()
+      if(NOT VELOX_NEEDS_INIT AND EXISTS "${HALO_VELOX_SOURCE_DIR}/.velox_patched")
+        set(VELOX_NEEDS_PATCH TRUE)
+        message(STATUS "Velox commit changed; will re-apply patches.")
       endif()
     endif()
   endif()
@@ -78,7 +156,6 @@ endif()
 if(VELOX_NEEDS_PATCH)
   set(VELOX_PATCH_FILE "${CMAKE_SOURCE_DIR}/cmake/patches/velox.patch")
   if(EXISTS "${VELOX_PATCH_FILE}")
-    find_package(Git REQUIRED)
     if(EXISTS "${HALO_VELOX_SOURCE_DIR}/.velox_patched")
       file(REMOVE "${HALO_VELOX_SOURCE_DIR}/.velox_patched")
     endif()
@@ -110,44 +187,6 @@ if(VELOX_NEEDS_PATCH)
   endif()
 endif()
 
-# Check if Velox submodule is initialized and at the correct commit
-if(NOT EXISTS "${HALO_VELOX_SOURCE_DIR}/CMakeLists.txt")
-  find_package(Git REQUIRED)
-
-  execute_process(
-    COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive velox
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    RESULT_VARIABLE _submodule_res
-    OUTPUT_QUIET ERROR_QUIET)
-  if(NOT _submodule_res EQUAL 0)
-    message(FATAL_ERROR "Failed to initialize Velox submodule (exit ${_submodule_res}).")
-  endif()
-endif()
-
-# Ensure we're at the correct commit
-if(DEFINED VELOX_SHA256 AND NOT VELOX_SHA256 STREQUAL "")
-  find_package(Git QUIET)
-  if(GIT_EXECUTABLE)
-    execute_process(
-      COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
-      WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
-      OUTPUT_VARIABLE _current_commit
-      OUTPUT_STRIP_TRAILING_WHITESPACE
-      ERROR_QUIET)
-    
-    if(NOT _current_commit STREQUAL VELOX_SHA256)
-      message(STATUS "Velox at commit ${_current_commit}, switching to ${VELOX_SHA256}")
-      execute_process(
-        COMMAND "${GIT_EXECUTABLE}" checkout ${VELOX_SHA256}
-        WORKING_DIRECTORY "${HALO_VELOX_SOURCE_DIR}"
-        RESULT_VARIABLE _checkout_res
-        OUTPUT_QUIET ERROR_QUIET)
-      if(NOT _checkout_res EQUAL 0)
-        message(WARNING "Failed to checkout Velox commit ${VELOX_SHA256}. Continuing with current commit.")
-      endif()
-    endif()
-  endif()
-endif()
 
 # 3) Set Velox build options and dependency hints
 set(VELOX_BUILD_SHARED            OFF      CACHE BOOL   "" FORCE)

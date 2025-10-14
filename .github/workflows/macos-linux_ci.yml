@@ -186,6 +186,35 @@ jobs:
             clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 libc++-20-dev libc++abi-20-dev \
             ninja-build ccache autoconf automake libtool gettext gettext-base autopoint \
             build-essential pkg-config libopenblas-dev liblapack-dev libblas-dev
+          
+          # Install latest GCC and libstdc++ development files
+          # build-essential provides g++ and libstdc++, but we explicitly install for clarity
+          echo "Ensuring GCC toolchain for Clang with libstdc++..."
+          sudo apt-get install -y g++
+          
+          # Verify GCC and libstdc++ are available
+          echo "Verifying GCC toolchain:"
+          g++ --version
+          GCC_VERSION=$(g++ -dumpversion | cut -d. -f1)
+          echo "Detected GCC major version: $GCC_VERSION"
+          
+          # Verify C++ standard library headers exist
+          if [ -d "/usr/include/c++/$GCC_VERSION" ]; then
+            echo "Found libstdc++ headers at: /usr/include/c++/$GCC_VERSION"
+            ls -la /usr/include/c++/$GCC_VERSION | head -5
+          elif [ -d "/usr/include/c++" ]; then
+            echo "Found libstdc++ headers at: /usr/include/c++"
+            ls -la /usr/include/c++/
+          else
+            echo "ERROR: Could not find libstdc++ headers"
+            exit 1
+          fi
+          
+          # Also verify architecture-specific headers
+          if [ -d "/usr/include/x86_64-linux-gnu/c++/$GCC_VERSION" ]; then
+            echo "Found arch-specific headers at: /usr/include/x86_64-linux-gnu/c++/$GCC_VERSION"
+            ls -la /usr/include/x86_64-linux-gnu/c++/$GCC_VERSION | head -5
+          fi
 
           # Robust CMake version resolution (handles API failures / rate limits / HTML responses)
           set -euo pipefail
@@ -321,15 +350,6 @@ jobs:
           # Verify final setup
           "$CC_PATH" --version
           "$CXX_PATH" --version
-          # Export libc++ paths explicitly for deterministic detection
-          if [ -d /usr/include/c++/v1 ]; then
-            echo "LIBCXX_INCLUDE=/usr/include/c++/v1" >> $GITHUB_ENV
-          fi
-          if [ -f /usr/lib/llvm-20/lib/libc++.so ]; then
-            echo "LIBCXX_LIB=/usr/lib/llvm-20/lib" >> $GITHUB_ENV
-          elif [ -f /usr/lib/x86_64-linux-gnu/libc++.so ]; then
-            echo "LIBCXX_LIB=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
-          fi
 
       - name: Restore thirdparty downloads cache
         id: downloads-cache-restore
@@ -544,6 +564,34 @@ jobs:
             clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 libc++-20-dev libc++abi-20-dev \
             ninja-build ccache autoconf automake libtool gettext gettext-base autopoint \
             build-essential pkg-config libopenblas-dev liblapack-dev libblas-dev
+          
+          # Install latest GCC and libstdc++ development files
+          echo "Ensuring GCC toolchain for Clang with libstdc++..."
+          sudo apt-get install -y g++
+          
+          # Verify GCC and libstdc++ are available
+          echo "Verifying GCC toolchain:"
+          g++ --version
+          GCC_VERSION=$(g++ -dumpversion | cut -d. -f1)
+          echo "Detected GCC major version: $GCC_VERSION"
+          
+          # Verify C++ standard library headers exist
+          if [ -d "/usr/include/c++/$GCC_VERSION" ]; then
+            echo "Found libstdc++ headers at: /usr/include/c++/$GCC_VERSION"
+            ls -la /usr/include/c++/$GCC_VERSION | head -5
+          elif [ -d "/usr/include/c++" ]; then
+            echo "Found libstdc++ headers at: /usr/include/c++"
+            ls -la /usr/include/c++/
+          else
+            echo "ERROR: Could not find libstdc++ headers"
+            exit 1
+          fi
+          
+          # Also verify architecture-specific headers
+          if [ -d "/usr/include/x86_64-linux-gnu/c++/$GCC_VERSION" ]; then
+            echo "Found arch-specific headers at: /usr/include/x86_64-linux-gnu/c++/$GCC_VERSION"
+            ls -la /usr/include/x86_64-linux-gnu/c++/$GCC_VERSION | head -5
+          fi
 
           set -euo pipefail
           REQUESTED="${CMAKE_REQUESTED_VERSION:-latest}"
@@ -677,15 +725,6 @@ jobs:
           # Verify final setup
           "$CC_PATH" --version
           "$CXX_PATH" --version
-          # Export libc++ paths explicitly for deterministic detection
-          if [ -d /usr/include/c++/v1 ]; then
-            echo "LIBCXX_INCLUDE=/usr/include/c++/v1" >> $GITHUB_ENV
-          fi
-          if [ -f /usr/lib/llvm-20/lib/libc++.so ]; then
-            echo "LIBCXX_LIB=/usr/lib/llvm-20/lib" >> $GITHUB_ENV
-          elif [ -f /usr/lib/x86_64-linux-gnu/libc++.so ]; then
-            echo "LIBCXX_LIB=/usr/lib/x86_64-linux-gnu" >> $GITHUB_ENV
-          fi
 
       - name: Setup ccache
         run: |

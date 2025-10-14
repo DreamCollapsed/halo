@@ -15,6 +15,60 @@ if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     message(FATAL_ERROR "This project requires Clang compiler. Current compiler: ${CMAKE_CXX_COMPILER_ID}")
 endif()
 
+# On Linux, when using Clang with libstdc++ (GCC's standard library),
+# we must prevent Clang from including its own libc++ headers which conflict with libstdc++.
+# We need to properly configure --gcc-toolchain to point to the actual GCC installation.
+if(UNIX AND NOT APPLE)
+    set(_gcc_toolchain_candidates "/usr" "/usr/local")
+    set(_gcc_toolchain_root "")
+    
+    # Look for include/c++/* directories
+    foreach(_candidate ${_gcc_toolchain_candidates})
+        if(EXISTS "${_candidate}/include/c++")
+            file(GLOB _cxx_versions "${_candidate}/include/c++/*")
+            list(LENGTH _cxx_versions _num_versions)
+            if(_num_versions GREATER 0)
+                set(_gcc_toolchain_root "${_candidate}")
+                message(STATUS "Found GCC C++ headers in: ${_candidate}/include/c++")
+                break()
+            endif()
+        endif()
+    endforeach()
+    
+    # If not found in standard locations, try to detect from g++
+    if(NOT _gcc_toolchain_root)
+        find_program(GXX_EXECUTABLE g++)
+        if(GXX_EXECUTABLE)
+            # Ask g++ where its installation is
+            execute_process(
+                COMMAND ${GXX_EXECUTABLE} -print-file-name=include
+                OUTPUT_VARIABLE _gxx_include_dir
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+            
+            if(_gxx_include_dir AND EXISTS "${_gxx_include_dir}")
+                # _gxx_include_dir is usually something like /usr/lib/gcc/x86_64-linux-gnu/14/include
+                # We need to go up to /usr
+                if(_gxx_include_dir MATCHES "^(/usr)/")
+                    set(_gcc_toolchain_root "/usr")
+                endif()
+            endif()
+        endif()
+    endif()
+    
+    # Simple configuration: rely on Clang toolchain detection + libstdc++.
+    if(_gcc_toolchain_root)
+        add_compile_options(-stdlib=libstdc++ "--gcc-toolchain=${_gcc_toolchain_root}")
+        add_link_options(-stdlib=libstdc++ "--gcc-toolchain=${_gcc_toolchain_root}")
+        if(CMAKE_CXX_FLAGS)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++ --gcc-toolchain=${_gcc_toolchain_root}" CACHE STRING "C++ flags" FORCE)
+        else()
+            set(CMAKE_CXX_FLAGS "-stdlib=libstdc++ --gcc-toolchain=${_gcc_toolchain_root}" CACHE STRING "C++ flags" FORCE)
+        endif()
+        message(STATUS "[libstdc++] Using GCC toolchain root='${_gcc_toolchain_root}' (default Clang search paths)")
+    endif()
+endif()
+
 get_filename_component(COMPILER_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
 get_filename_component(COMPILER_ROOT "${COMPILER_BIN_DIR}/.." ABSOLUTE)
 

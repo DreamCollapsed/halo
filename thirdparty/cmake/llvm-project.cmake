@@ -55,22 +55,44 @@ thirdparty_build_cmake_library(llvm-project
         "${LLVM_PROJECT_INSTALL_DIR}/include/unwind.h"
 )
 
+# On Linux with libstdc++, we must avoid exposing LLVM's C++ ABI headers (cxxabi.h, etc.)
+# which conflict with GCC's libstdc++ headers. We create a filtered include directory
+# that only contains the OpenMP and libunwind headers we need.
+if(UNIX AND NOT APPLE)
+    set(_llvm_filtered_include_dir "${LLVM_PROJECT_INSTALL_DIR}/include_filtered")
+    file(MAKE_DIRECTORY "${_llvm_filtered_include_dir}")
+    
+    # Copy only the headers we need (OpenMP and libunwind)
+    set(_headers_to_copy "omp.h" "ompx.h" "unwind.h" "libunwind.h" "__libunwind_config.h")
+    foreach(_header ${_headers_to_copy})
+        if(EXISTS "${LLVM_PROJECT_INSTALL_DIR}/include/${_header}")
+            file(COPY "${LLVM_PROJECT_INSTALL_DIR}/include/${_header}"
+                 DESTINATION "${_llvm_filtered_include_dir}")
+        endif()
+    endforeach()
+    
+    set(_llvm_interface_include_dir "${_llvm_filtered_include_dir}")
+else()
+    # On macOS, we can use the full include directory safely
+    set(_llvm_interface_include_dir "${LLVM_PROJECT_INSTALL_DIR}/include")
+endif()
+
 add_library(OpenMP::OpenMP_CXX STATIC IMPORTED GLOBAL)
 set_target_properties(OpenMP::OpenMP_CXX PROPERTIES
   IMPORTED_LOCATION "${LLVM_PROJECT_INSTALL_DIR}/lib/libomp.a"
-  INTERFACE_INCLUDE_DIRECTORIES "${LLVM_PROJECT_INSTALL_DIR}/include"
+  INTERFACE_INCLUDE_DIRECTORIES "${_llvm_interface_include_dir}"
   INTERFACE_COMPILE_OPTIONS "-fopenmp=libomp"
 )
 add_library(OpenMP::OpenMP_C STATIC IMPORTED GLOBAL)
 set_target_properties(OpenMP::OpenMP_C PROPERTIES
   IMPORTED_LOCATION "${LLVM_PROJECT_INSTALL_DIR}/lib/libomp.a"
-  INTERFACE_INCLUDE_DIRECTORIES "${LLVM_PROJECT_INSTALL_DIR}/include"
+  INTERFACE_INCLUDE_DIRECTORIES "${_llvm_interface_include_dir}"
   INTERFACE_COMPILE_OPTIONS "-fopenmp=libomp"
 )
 add_library(unwind::unwind STATIC IMPORTED GLOBAL)
 set_target_properties(unwind::unwind PROPERTIES
   IMPORTED_LOCATION "${LLVM_PROJECT_INSTALL_DIR}/lib/libunwind.a"
-  INTERFACE_INCLUDE_DIRECTORIES "${LLVM_PROJECT_INSTALL_DIR}/include"
+  INTERFACE_INCLUDE_DIRECTORIES "${_llvm_interface_include_dir}"
 )
 
 if(APPLE)

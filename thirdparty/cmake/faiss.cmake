@@ -6,6 +6,13 @@ thirdparty_setup_directories("faiss")
 # Get OpenMP path from llvm-project dependency
 set(_openmp_dir "${THIRDPARTY_INSTALL_DIR}/llvm-project")
 
+# On Linux with libstdc++, use the filtered include directory to avoid conflicts
+if(UNIX AND NOT APPLE)
+    set(_openmp_include_dir "${_openmp_dir}/include_filtered")
+else()
+    set(_openmp_include_dir "${_openmp_dir}/include")
+endif()
+
 ###############################################################################
 # Auto-select FAISS_OPT_LEVEL for the limited set of platforms we care about.
 # Scope (only these three cases):
@@ -26,7 +33,7 @@ else()
 endif()
 message(DEBUG "[faiss] Auto FAISS_OPT_LEVEL='${_faiss_opt_level}' (Apple arm64 -> arm64; Linux x86_64 -> avx2; Linux arm64 -> arm64; other -> generic)")
 
-thirdparty_combine_flags(_faiss_cxx_flags FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "-I${_openmp_dir}/include")
+thirdparty_combine_flags(_faiss_cxx_flags FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "-I${_openmp_include_dir}")
 
 thirdparty_build_cmake_library(faiss
     CMAKE_CACHE_ARGS
@@ -42,7 +49,7 @@ thirdparty_build_cmake_library(faiss
         "OpenMP_C_LIB_NAMES=omp"
         "OpenMP_CXX_LIB_NAMES=omp"
         "OpenMP_omp_LIBRARY=${_openmp_dir}/lib/libomp.a"
-        "OpenMP_CXX_INCLUDE_DIR=${_openmp_dir}/include"
+        "OpenMP_CXX_INCLUDE_DIR=${_openmp_include_dir}"
     CMAKE_ARGS
         -DFAISS_ENABLE_GPU=OFF
         -DFAISS_ENABLE_PYTHON=OFF
@@ -53,7 +60,7 @@ thirdparty_build_cmake_library(faiss
         -DFAISS_USE_LTO=OFF
         # Point to our OpenMP installation - these are checked by FindOpenMP
         -DOpenMP_ROOT=${_openmp_dir}
-        -DOpenMP_CXX_INCLUDE_DIRS=${_openmp_dir}/include
+        -DOpenMP_CXX_INCLUDE_DIRS=${_openmp_include_dir}
         # Use safely combined CMAKE_CXX_FLAGS
         -DCMAKE_CXX_FLAGS=${_faiss_cxx_flags}
     VALIDATION_FILES

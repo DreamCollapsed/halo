@@ -208,3 +208,70 @@ else()
     unset(CMAKE_MESSAGE_LOG_LEVEL)
 endif()
 
+
+# --------------------------------------------------------------------------------
+# Targeted LLVM header filtering
+# On Linux with Clang + libstdc++, Arrow/Gandiva's FindLLVMAlt exposes the system
+# LLVM include root (e.g. /usr/lib/llvm-20/include) via LLVM::LLVM_HEADERS. That
+# directory contains the libc++ and libc++abi headers (c++/v1/*, cxxabi.h) which
+# must NOT participate in our translation unit searches, otherwise the wrong ABI
+# layer may be selected (leading to duplicate __cxa* symbols or mixed allocation
+# semantics). We cannot simply remove the entire root include path because LLVM
+# headers (llvm/IR/..., clang/Basic/...) rely on it. Instead we create a filtered
+# mirror that preserves required subdirectories while excluding the C++ standard
+# library implementation directories.
+#
+# Strategy:
+#   1. Detect an include directory matching the system LLVM pattern.
+#   2. Materialize a filtered directory under the third-party build tree.
+#   3. Copy top-level headers and all needed subdirectories EXCEPT those named:
+#        c++        (contains libc++/v1)
+#        libc++     (rare alternate layout)
+#        libc++abi  (ABI impl headers)
+#   4. Redirect LLVM::LLVM_HEADERS' INTERFACE_INCLUDE_DIRECTORIES to the filtered
+#      path so dependent targets only see sanitized headers.
+#
+# This avoids global flag hacks (-nostdinc++) and keeps configuration minimal.
+# Applied only on non-Apple UNIX platforms (Linux). macOS is unaffected because
+# we intentionally allow the platform default libc++ there.
+# --------------------------------------------------------------------------------
+if(UNIX AND NOT APPLE AND TARGET LLVM::LLVM_HEADERS)
+    get_target_property(_halo_llvm_header_includes LLVM::LLVM_HEADERS INTERFACE_INCLUDE_DIRECTORIES)
+    if(_halo_llvm_header_includes)
+        set(_halo_llvm_filtered_dir "${THIRDPARTY_BUILD_DIR}/arrow/llvm_headers_filtered")
+        set(_halo_need_filter FALSE)
+        foreach(_inc_dir IN LISTS _halo_llvm_header_includes)
+            # Heuristic: system-discovered LLVM includes live under
+            #   /usr/lib/llvm/include            (unversioned)
+            #   /usr/lib/llvm-<ver>/include      (versioned)
+            # Use a regex that matches both forms.
+            if(_inc_dir MATCHES "/llvm(-[0-9]+)?/include$")
+                set(_halo_need_filter TRUE)
+                if(NOT EXISTS "${_halo_llvm_filtered_dir}")
+                    file(MAKE_DIRECTORY "${_halo_llvm_filtered_dir}")
+                    # Enumerate entries in the source include root
+                    file(GLOB _halo_llvm_root_entries RELATIVE "${_inc_dir}" "${_inc_dir}/*")
+                    foreach(_entry IN LISTS _halo_llvm_root_entries)
+                        # Skip C++ standard library implementation directories
+                        if(_entry STREQUAL "c++" OR _entry STREQUAL "libc++" OR _entry STREQUAL "libc++abi")
+                            continue()
+                        endif()
+                        if(IS_DIRECTORY "${_inc_dir}/${_entry}")
+                            file(COPY "${_inc_dir}/${_entry}" DESTINATION "${_halo_llvm_filtered_dir}/${_entry}")
+                        else()
+                            # Copy top-level header file
+                            file(COPY "${_inc_dir}/${_entry}" DESTINATION "${_halo_llvm_filtered_dir}")
+                        endif()
+                    endforeach()
+                endif()
+            endif()
+        endforeach()
+        if(_halo_need_filter)
+            # Replace include directories with only the filtered path to prevent
+            # libc++/libc++abi headers from being reachable via this target.
+            set_target_properties(LLVM::LLVM_HEADERS PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${_halo_llvm_filtered_dir}")
+            message(DEBUG "[arrow] Applied targeted LLVM header filtering: ${_halo_llvm_filtered_dir}")
+        endif()
+    endif()
+endif()
+

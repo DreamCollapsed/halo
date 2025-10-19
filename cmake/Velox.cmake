@@ -16,70 +16,6 @@ set(HALO_VELOX_SOURCE_DIR "${CMAKE_SOURCE_DIR}/velox" CACHE PATH "Velox source d
 
 find_package(Git REQUIRED QUIET)
 
-if(TRUE)
-  if(GIT_EXECUTABLE)
-    # Verify .git directory exists to avoid running in an exported source tree
-    if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
-      # Query gitlink
-      execute_process(
-        COMMAND "${GIT_EXECUTABLE}" ls-files --stage velox
-        WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-        OUTPUT_VARIABLE _velox_ls_stage
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        ERROR_QUIET)
-      string(FIND "${_velox_ls_stage}" "160000" _gitlink_pos)
-      if(_gitlink_pos EQUAL -1)
-        # Gitlink missing: check whether .gitmodules still references velox
-        set(_need_restore FALSE)
-        if(EXISTS "${CMAKE_SOURCE_DIR}/.gitmodules")
-          file(READ "${CMAKE_SOURCE_DIR}/.gitmodules" _gm)
-          if(_gm MATCHES "\n\[submodule \"velox\"\]\n")
-            set(_need_restore TRUE)
-          endif()
-        endif()
-        if(_need_restore)
-          message(WARNING "Velox gitlink missing from index; attempting automatic re-add of submodule.")
-          # Attempt re-add (non-fatal fallback: user can manually restore if this fails)
-          execute_process(
-            COMMAND "${GIT_EXECUTABLE}" submodule add https://github.com/facebookincubator/velox.git velox
-            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-            RESULT_VARIABLE _add_res
-            OUTPUT_QUIET ERROR_VARIABLE _add_err)
-          if(_add_res EQUAL 0)
-            message(STATUS "Velox submodule re-added. Initializing...")
-            execute_process(
-              COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive velox
-              WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-              RESULT_VARIABLE _upd_res
-              OUTPUT_QUIET ERROR_VARIABLE _upd_err)
-            if(_upd_res EQUAL 0)
-              # Checkout pinned commit if defined
-              if(DEFINED VELOX_SHA256 AND NOT VELOX_SHA256 STREQUAL "")
-                execute_process(
-                  COMMAND "${GIT_EXECUTABLE}" -C velox checkout ${VELOX_SHA256}
-                  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-                  RESULT_VARIABLE _co_res
-                  OUTPUT_QUIET ERROR_VARIABLE _co_err)
-                if(NOT _co_res EQUAL 0)
-                  message(WARNING "Failed to checkout pinned Velox commit ${VELOX_SHA256} after auto-restore: ${_co_err}")
-                else()
-                  message(STATUS "Velox auto-restore: pinned commit ${VELOX_SHA256} checked out.")
-                endif()
-              endif()
-            else()
-              message(WARNING "Velox auto-restore submodule update failed: ${_upd_err}")
-            endif()
-          else()
-            message(WARNING "Velox auto-restore failed to add submodule: ${_add_err}")
-          endif()
-        else()
-          message(WARNING "Velox directory missing and .gitmodules has no velox entry; cannot auto-restore.")
-        endif()
-      endif()
-    endif()
-  endif()
-endif()
-
 # Check if Velox submodule is initialized and has content
 set(VELOX_NEEDS_INIT FALSE)
 set(VELOX_NEEDS_PATCH FALSE)
@@ -97,14 +33,111 @@ endif()
 
 # Initialize submodule if needed
 if(VELOX_NEEDS_INIT)
+  # Clean stale Velox build artifacts if build directory exists
+  if(EXISTS "${CMAKE_BINARY_DIR}/velox")
+    message(STATUS "Removing stale Velox build artifacts from ${CMAKE_BINARY_DIR}/velox")
+    file(REMOVE_RECURSE "${CMAKE_BINARY_DIR}/velox")
+  endif()
   
-  execute_process(
-    COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive velox
-    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
-    RESULT_VARIABLE _submodule_res
-    OUTPUT_QUIET ERROR_QUIET)
-  if(NOT _submodule_res EQUAL 0)
-    message(FATAL_ERROR "Failed to initialize Velox submodule (exit ${_submodule_res}).")
+  if(EXISTS "${CMAKE_SOURCE_DIR}/.git" AND GIT_EXECUTABLE)
+    execute_process(
+      COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive velox
+      WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+      RESULT_VARIABLE _submodule_res
+      OUTPUT_VARIABLE _submodule_out
+      ERROR_VARIABLE _submodule_err
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+      ERROR_STRIP_TRAILING_WHITESPACE)
+    if(NOT _submodule_res EQUAL 0)
+      set(_velox_dir_exists FALSE)
+      if(EXISTS "${HALO_VELOX_SOURCE_DIR}/.git" OR EXISTS "${HALO_VELOX_SOURCE_DIR}/CMakeLists.txt")
+        set(_velox_dir_exists TRUE)
+      endif()
+      
+      if(_velox_dir_exists)
+        message(WARNING "Velox submodule update failed (exit=${_submodule_res}), but local velox directory detected. Reusing existing directory, skipping submodule add. Err='${_submodule_err}'")
+      else()
+        # No local directory: could be fresh build after deleting velox + pushing (index cleared)
+        # First check and clean stale .git/modules/velox if exists
+        set(_modules_velox_dir "${CMAKE_SOURCE_DIR}/.git/modules/velox")
+        if(EXISTS "${_modules_velox_dir}")
+          message(STATUS "Detected stale .git/modules/velox from previous build. Removing before submodule operations.")
+          file(REMOVE_RECURSE "${_modules_velox_dir}")
+        endif()
+        
+        message(DEBUG "Velox submodule initial update failed (exit=${_submodule_res}). Out='${_submodule_out}' Err='${_submodule_err}'. Attempting submodule add.")
+        execute_process(
+          COMMAND "${GIT_EXECUTABLE}" submodule add https://github.com/facebookincubator/velox.git velox
+          WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+          RESULT_VARIABLE _add_res
+          OUTPUT_VARIABLE _add_out
+          ERROR_VARIABLE _add_err
+          OUTPUT_STRIP_TRAILING_WHITESPACE
+          ERROR_STRIP_TRAILING_WHITESPACE)
+        if(_add_res EQUAL 0)
+          message(DEBUG "Velox submodule added; retrying update.")
+          execute_process(
+            COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive velox
+            WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+            RESULT_VARIABLE _upd2_res
+            OUTPUT_VARIABLE _upd2_out
+            ERROR_VARIABLE _upd2_err
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_STRIP_TRAILING_WHITESPACE)
+          if(NOT _upd2_res EQUAL 0)
+            if(EXISTS "${HALO_VELOX_SOURCE_DIR}/.git" OR EXISTS "${HALO_VELOX_SOURCE_DIR}/CMakeLists.txt")
+              message(WARNING "Velox submodule update-after-add failed (exit=${_upd2_res}). Err='${_upd2_err}'. Local velox directory detected, continuing (treated as manual clone).")
+            else()
+              message(FATAL_ERROR "Velox submodule update after add failed: ${_upd2_err}")
+            endif()
+          endif()
+        else()
+          # Check if failure is due to leftover .git/modules/velox
+          string(TOLOWER "${_add_err}" _add_err_lower)
+          if(_add_err_lower MATCHES "a git directory for 'velox' is found locally")
+            # Clean up stale git modules directory and retry
+            set(_modules_velox_dir "${CMAKE_SOURCE_DIR}/.git/modules/velox")
+            if(EXISTS "${_modules_velox_dir}")
+              message(STATUS "Detected stale .git/modules/velox. Removing and retrying submodule add.")
+              file(REMOVE_RECURSE "${_modules_velox_dir}")
+              execute_process(
+                COMMAND "${GIT_EXECUTABLE}" submodule add https://github.com/facebookincubator/velox.git velox
+                WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                RESULT_VARIABLE _add_retry_res
+                OUTPUT_VARIABLE _add_retry_out
+                ERROR_VARIABLE _add_retry_err
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_STRIP_TRAILING_WHITESPACE)
+              if(_add_retry_res EQUAL 0)
+                message(STATUS "Velox submodule added after cleanup; running update.")
+                execute_process(
+                  COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive velox
+                  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+                  RESULT_VARIABLE _upd3_res
+                  OUTPUT_QUIET ERROR_QUIET)
+                if(NOT _upd3_res EQUAL 0)
+                  message(WARNING "Velox submodule update after cleanup failed, but continuing.")
+                endif()
+              else()
+                message(FATAL_ERROR "Velox submodule add retry failed (exit=${_add_retry_res}). Err='${_add_retry_err}'. Please run manually: rm -rf .git/modules/velox && git submodule add https://github.com/facebookincubator/velox.git velox")
+              endif()
+            else()
+              message(FATAL_ERROR "Velox submodule add failed (exit=${_add_res}). Err='${_add_err}'. No stale modules found. Please investigate manually.")
+            endif()
+          elseif(EXISTS "${HALO_VELOX_SOURCE_DIR}/.git" OR EXISTS "${HALO_VELOX_SOURCE_DIR}/CMakeLists.txt")
+            message(WARNING "Velox submodule add failed (exit=${_add_res}). Err='${_add_err}'. Existing velox directory detected, continuing (skipping fatal).")
+          else()
+            message(FATAL_ERROR "Velox submodule add failed (exit=${_add_res}). Out='${_add_out}' Err='${_add_err}'. Please run manually: git clone https://github.com/facebookincubator/velox.git velox")
+          endif()
+        endif()
+      endif()
+    endif()
+  else()
+    if(EXISTS "${HALO_VELOX_SOURCE_DIR}/CMakeLists.txt")
+      message(WARNING ".git directory not found or Git unavailable, but local velox directory exists. Skipping submodule initialization.")
+    else()
+      message(FATAL_ERROR "Git or .git directory unavailable and velox source missing. Cannot initialize Velox. Please clone manually if needed.")
+    endif()
   endif()
 endif()
 

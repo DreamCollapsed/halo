@@ -252,8 +252,12 @@ if(UNIX AND NOT APPLE AND TARGET LLVM::LLVM_HEADERS)
                     # Enumerate entries in the source include root
                     file(GLOB _halo_llvm_root_entries RELATIVE "${_inc_dir}" "${_inc_dir}/*")
                     foreach(_entry IN LISTS _halo_llvm_root_entries)
-                        # Skip C++ standard library implementation directories
-                        if(_entry STREQUAL "c++" OR _entry STREQUAL "libc++" OR _entry STREQUAL "libc++abi")
+                        # Skip C++ standard library implementation directories and libc++abi top-level headers.
+                        # The top-level cxxabi.h in the LLVM include root belongs to libc++abi and
+                        # conflicts with libstdc++'s own internal ABI headers when we are compiling
+                        # with libstdc++. Copying it would surface conflicting declarations for
+                        # symbols like __cxa_init_primary_exception. Exclude it explicitly.
+                        if(_entry STREQUAL "c++" OR _entry STREQUAL "libc++" OR _entry STREQUAL "libc++abi" OR _entry STREQUAL "cxxabi.h")
                             continue()
                         endif()
                         if(IS_DIRECTORY "${_inc_dir}/${_entry}")

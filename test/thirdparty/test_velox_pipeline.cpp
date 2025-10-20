@@ -9,6 +9,7 @@
 // hash support. This is needed by Folly F14 containers used internally by
 // Velox. Note: macOS with libc++ (Clang's standard library) doesn't need this
 // workaround as it provides __int128 hash support out of the box.
+#include <cstdint>
 #include <functional>
 #include <type_traits>
 

@@ -148,6 +148,11 @@ target_link_libraries(halo_thirdparty_with_fbthrift
     FBThrift::thriftcpp2
 )
 
+# On Linux, link against libatomic for __atomic_compare_exchange operations
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(halo_thirdparty_with_fbthrift INTERFACE atomic)
+endif()
+
 add_library(halo_thirdparty_test INTERFACE)
 target_link_libraries(halo_thirdparty_test
     INTERFACE

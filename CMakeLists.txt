@@ -66,6 +66,13 @@ if(UNIX AND NOT APPLE)
             set(CMAKE_CXX_FLAGS "-stdlib=libstdc++ --gcc-toolchain=${_gcc_toolchain_root}" CACHE STRING "C++ flags" FORCE)
         endif()
         message(STATUS "[libstdc++] Using GCC toolchain root='${_gcc_toolchain_root}' (default Clang search paths)")
+        
+        add_compile_options(
+            -Wno-gnu-case-range                      # Case ranges (case 1...5:) used in Velox
+            -Wno-gnu-zero-variadic-macro-arguments   # Empty variadic macro args
+            -Wno-gnu-statement-expression            # Statement expressions ({...})
+        )
+        message(STATUS "[libstdc++] Suppressing GNU extension warnings for third-party compatibility")
     endif()
 endif()
 
@@ -392,6 +399,25 @@ add_subdirectory(thirdparty)
 message(STATUS "[  Halo Embedded Code  ] Velox integration")
 include(cmake/Velox.cmake)
 add_subdirectory(velox)
+
+# Re-apply / centralize GNU extension warning suppressions AFTER velox configuration.
+# Ordering matters: velox may append -Wall/-Wextra/-Wpedantic to CMAKE_CXX_FLAGS.
+# Adding -Wno-* here guarantees they appear later on the compile command line
+# and are therefore effective. Scope limited to Linux + Clang + libstdc++ only.
+if(UNIX AND NOT APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # Detect that we are actually using libstdc++ (avoid on macOS / libc++ even if cross)
+    include(CheckCXXSourceCompiles)
+    set(CMAKE_REQUIRED_FLAGS "-stdlib=libstdc++")
+    check_cxx_source_compiles("#include <cstddef>\n#ifndef __GLIBCXX__\n#error not libstdc++\n#endif\nint main(){return 0;}" _USING_GLIBCXX)
+    if(_USING_GLIBCXX)
+        add_compile_options(
+            -Wno-gnu-zero-variadic-macro-arguments   # Velox token-pasting of , ##__VA_ARGS__
+            -Wno-gnu-case-range                      # case 1...5: patterns
+            -Wno-gnu-statement-expression            # ({ expr }) extensions in third-party code
+        )
+        message(STATUS "[warnings] Suppressed GNU extension warnings for velox (Clang+libstdc++)")
+    endif()
+endif()
 
 add_subdirectory(src)
 add_subdirectory(test)

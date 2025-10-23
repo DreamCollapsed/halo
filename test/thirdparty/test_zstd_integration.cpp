@@ -3,6 +3,12 @@
 
 #include <string>
 #include <vector>
+#ifdef __linux__
+#include <dlfcn.h>
+
+#include <cstdlib>
+#include <fstream>
+#endif
 
 class ZstdIntegrationTest : public ::testing::Test {
  protected:
@@ -166,3 +172,58 @@ TEST_F(ZstdIntegrationTest, ErrorHandlingTest) {
   EXPECT_NE(error_name, nullptr);
   EXPECT_NE(strlen(error_name), 0);
 }
+
+#ifdef __linux__
+// Runtime diagnostics: capture the actual shared object (or archive) path that
+// provides ZSTD_versionNumber via dladdr, plus selected /proc/self/maps lines.
+// Never fails the test; provides artifact for post-run analysis.
+TEST_F(ZstdIntegrationTest, RuntimeDiagnostics) {
+  const char* diagPath =
+      "zstd_runtime_diag.txt";  // relative to CTest working dir (build)
+  std::ofstream out(diagPath, std::ios::out | std::ios::trunc);
+  if (!out.is_open()) {
+    GTEST_SKIP() << "Unable to open diagnostics output file: " << diagPath;
+    return;
+  }
+
+  unsigned ver = ZSTD_versionNumber();
+  const char* verStr = ZSTD_versionString();
+  out << "ZSTD_versionNumber=" << ver << "\n";
+  out << "ZSTD_versionString=" << (verStr ? verStr : "<null>") << "\n";
+
+  Dl_info info;  // dladdr resides in libdl
+  if (dladdr((void*)ZSTD_versionNumber, &info)) {
+    out << "dladdr.dli_fname=" << (info.dli_fname ? info.dli_fname : "<null>")
+        << "\n";
+    out << "dladdr.dli_fbase=" << info.dli_fbase << "\n";
+  } else {
+    out << "dladdr.failed=1" << "\n";
+  }
+
+  // Dump any environment hints that affect loader decisions.
+  const char* ldPath = std::getenv("LD_LIBRARY_PATH");
+  out << "LD_LIBRARY_PATH=" << (ldPath ? ldPath : "<unset>") << "\n";
+
+  // Filter /proc/self/maps to lines mentioning zstd (shared objects or
+  // archives).
+  out << "\n[proc_self_maps_filtered]\n";
+  std::ifstream maps("/proc/self/maps");
+  std::string line;
+  size_t matchCount = 0;
+  while (std::getline(maps, line)) {
+    if (line.find("zstd") != std::string::npos) {
+      out << line << "\n";
+      ++matchCount;
+    }
+  }
+  out << "matches=" << matchCount << "\n";
+
+  // Provide a simple heuristic: expected 1.5.7 encoded (10507)
+  unsigned expected_version = 10507;
+  out << "expected_version=" << expected_version << "\n";
+  out << "version_match=" << ((ver == expected_version) ? 1 : 0) << "\n";
+
+  out.close();
+  // Intentionally no ASSERT/EXPECT here; this test is informational.
+}
+#endif  // __linux__

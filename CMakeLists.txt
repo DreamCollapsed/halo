@@ -67,12 +67,7 @@ if(UNIX AND NOT APPLE)
         endif()
         message(STATUS "[libstdc++] Using GCC toolchain root='${_gcc_toolchain_root}' (default Clang search paths)")
         
-        add_compile_options(
-            -Wno-gnu-case-range                      # Case ranges (case 1...5:) used in Velox
-            -Wno-gnu-zero-variadic-macro-arguments   # Empty variadic macro args
-            -Wno-gnu-statement-expression            # Statement expressions ({...})
-        )
-        message(STATUS "[libstdc++] Suppressing GNU extension warnings for third-party compatibility")
+        message(STATUS "[libstdc++] Detected libstdc++; GNU extension warnings will be suppressed in centralized block")
     endif()
 endif()
 
@@ -225,10 +220,8 @@ linker_add_selfcheck()
 # Compiler feature / warning flag probes (performed once)
 # -----------------------------------------------------------------------------
 include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag("-Wno-gnu-zero-variadic-macro-arguments" COMPILER_SUPPORTS_WNO_GNU_ZERO_VARIADIC_MACRO_ARGS)
 check_cxx_compiler_flag("-Wno-sign-compare" COMPILER_SUPPORTS_WNO_SIGN_COMPARE)
 check_cxx_compiler_flag("-Wno-extra-semi" COMPILER_SUPPORTS_WNO_EXTRA_SEMI)
-check_cxx_compiler_flag("-Wno-gnu-statement-expression" COMPILER_SUPPORTS_WNO_GNU_STMT_EXPR)
 
 ###############################################################################
 # LTO mode selection
@@ -323,18 +316,11 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
         -fno-optimize-sibling-calls  # Better debugging experience
     )
 
-    if(COMPILER_SUPPORTS_WNO_GNU_ZERO_VARIADIC_MACRO_ARGS)
-        add_compile_options(-Wno-gnu-zero-variadic-macro-arguments)
-    endif()
-
     if(COMPILER_SUPPORTS_WNO_SIGN_COMPARE)
         add_compile_options(-Wno-sign-compare)
     endif()
     if(COMPILER_SUPPORTS_WNO_EXTRA_SEMI)
         add_compile_options(-Wno-extra-semi)
-    endif()
-    if(COMPILER_SUPPORTS_WNO_GNU_STMT_EXPR)
-        add_compile_options(-Wno-gnu-statement-expression)
     endif()
 elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     # RelWithDebInfo: Optimized with debug symbols for profiling (Clang only)
@@ -400,22 +386,16 @@ message(STATUS "[  Halo Embedded Code  ] Velox integration")
 include(cmake/Velox.cmake)
 add_subdirectory(velox)
 
-# Re-apply / centralize GNU extension warning suppressions AFTER velox configuration.
-# Ordering matters: velox may append -Wall/-Wextra/-Wpedantic to CMAKE_CXX_FLAGS.
-# Adding -Wno-* here guarantees they appear later on the compile command line
-# and are therefore effective. Scope limited to Linux + Clang + libstdc++ only.
-if(UNIX AND NOT APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    # Detect that we are actually using libstdc++ (avoid on macOS / libc++ even if cross)
+if(UNIX AND NOT APPLE)
     include(CheckCXXSourceCompiles)
     set(CMAKE_REQUIRED_FLAGS "-stdlib=libstdc++")
     check_cxx_source_compiles("#include <cstddef>\n#ifndef __GLIBCXX__\n#error not libstdc++\n#endif\nint main(){return 0;}" _USING_GLIBCXX)
     if(_USING_GLIBCXX)
         add_compile_options(
-            -Wno-gnu-zero-variadic-macro-arguments   # Velox token-pasting of , ##__VA_ARGS__
-            -Wno-gnu-case-range                      # case 1...5: patterns
-            -Wno-gnu-statement-expression            # ({ expr }) extensions in third-party code
+            -Wno-gnu-zero-variadic-macro-arguments
+            -Wno-gnu-case-range
+            -Wno-gnu-statement-expression
         )
-        message(STATUS "[warnings] Suppressed GNU extension warnings for velox (Clang+libstdc++)")
     endif()
 endif()
 

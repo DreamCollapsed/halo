@@ -763,12 +763,57 @@ jobs:
           echo "== ccache stats (after build) =="
           command -v ccache >/dev/null 2>&1 && ccache -s || true
 
+      - name: Package Linux Debug build dirs (pre-test)
+        if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Debug'
+        run: |
+          set -euxo pipefail
+          echo "Packaging full build and thirdparty directories for Linux Debug before tests"
+          tar -czf linux-debug-pretest-build.tar.gz build thirdparty || {
+            echo "Failed to create pretest build tarball" >&2; ls -la .; exit 1; }
+          ls -lh linux-debug-pretest-build.tar.gz
+
+      - name: Upload Linux Debug pre-test build artifact
+        if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-debug-pretest-build
+          path: linux-debug-pretest-build.tar.gz
+          retention-days: 3
+
       - name: Run tests
         run: |
           # Detect CPU cores
           CORES=$(command -v nproc >/dev/null 2>&1 && nproc || sysctl -n hw.ncpu)
           echo "Running tests with $CORES parallel jobs"
           ctest --test-dir build -j$CORES --output-on-failure
+
+      - name: Upload Linux Debug runtime diagnostics (zstd)
+        if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-debug-zstd-runtime-diagnostics
+          path: |
+            build/zstd_runtime_diag.txt
+          if-no-files-found: warn
+          retention-days: 3
+
+      - name: Run comprehensive zstd diagnostics script (Linux Debug)
+        if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Debug'
+        run: |
+          set -euxo pipefail
+          chmod +x scripts/collect_zstd_diagnostics.sh
+          ./scripts/collect_zstd_diagnostics.sh
+          ls -R build/zstd_diagnostics | head -100 || true
+
+      - name: Upload comprehensive zstd diagnostics (Linux Debug)
+        if: matrix.os == 'ubuntu-latest' && matrix.build_type == 'Debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-debug-zstd-complete-diagnostics
+          path: |
+            build/zstd_diagnostics
+          if-no-files-found: error
+          retention-days: 5
 
       - name: Run halo executable
         run: ./build/halo || (echo "halo run failed" && exit 1)

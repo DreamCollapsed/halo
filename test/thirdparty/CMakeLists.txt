@@ -137,6 +137,16 @@ add_module_test(thirdparty_zstd
     TIMEOUT 30
 )
 
+# Ensure libdl is linked for runtime diagnostics on Linux
+if(UNIX AND NOT APPLE)
+    # add_module_test creates executable target named test_<module_name>
+    if(TARGET test_thirdparty_zstd)
+        target_link_libraries(test_thirdparty_zstd PRIVATE dl)
+    else()
+        message(STATUS "test_thirdparty_zstd not yet created; skipping dl link (will be linked by add_module_test)")
+    endif()
+endif()
+
 # lz4 integration test
 add_module_test(thirdparty_lz4
     TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_lz4_integration.cpp"

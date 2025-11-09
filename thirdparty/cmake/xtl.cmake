@@ -15,3 +15,5 @@ thirdparty_build_cmake_library("xtl"
 )
 
 find_package(xtl CONFIG REQUIRED)
+
+thirdparty_map_imported_config(xtl)

@@ -439,3 +439,9 @@ TEST(FbthriftIntegration, ContainerSerialization) {
     EXPECT_EQ(resultList, stringList);
   }
 }
+
+int main(int argc, char** argv) {
+  folly::Init init{&argc, &argv};
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

@@ -16,6 +16,9 @@ thirdparty_build_cmake_library("glog"
 )
 
 find_package(glog CONFIG REQUIRED)
+
+thirdparty_map_imported_config(glog::glog)
+
 if(TARGET gflags::gflags AND NOT TARGET gflags)
     add_library(gflags ALIAS gflags::gflags)
 endif()

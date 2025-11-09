@@ -13,3 +13,14 @@ thirdparty_build_cmake_library("abseil"
 )
 
 find_package(absl CONFIG QUIET REQUIRED)
+
+thirdparty_map_imported_config(
+    absl::strings
+    absl::str_format
+    absl::flat_hash_map
+    absl::hash
+    absl::time
+    absl::civil_time
+    absl::status
+    absl::statusor
+)

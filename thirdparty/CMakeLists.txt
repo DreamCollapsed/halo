@@ -51,6 +51,7 @@ endif()
 add_library(halo_thirdparty_core INTERFACE)
 target_link_libraries(halo_thirdparty_core
     INTERFACE
+    jemalloc::jemalloc_pic
     absl::strings
     absl::str_format
     absl::flat_hash_map
@@ -88,7 +89,6 @@ target_link_libraries(halo_thirdparty_core
     double-conversion::double-conversion
     FastFloat::fast_float
     fmt::fmt
-    jemalloc::jemalloc_pic
     zstd::libzstd_static
     LZ4::lz4_static
     liblzma::liblzma
@@ -147,6 +147,11 @@ target_link_libraries(halo_thirdparty_with_fbthrift
     INTERFACE
     FBThrift::thriftcpp2
 )
+
+# On Linux, link against libatomic for __atomic_compare_exchange operations
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(halo_thirdparty_with_fbthrift INTERFACE atomic)
+endif()
 
 add_library(halo_thirdparty_test INTERFACE)
 target_link_libraries(halo_thirdparty_test

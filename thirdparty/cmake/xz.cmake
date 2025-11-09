@@ -24,6 +24,8 @@ thirdparty_build_cmake_library("xz"
 
 find_package(liblzma CONFIG REQUIRED)
 
+thirdparty_map_imported_config(liblzma::liblzma)
+
 set(XZ_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/xz")
 get_filename_component(XZ_INSTALL_DIR "${XZ_INSTALL_DIR}" ABSOLUTE)
 if(TARGET liblzma::liblzma)

@@ -18,6 +18,8 @@ set(GFLAGS_SHARED FALSE CACHE BOOL "Use static gflags library")
 set(GFLAGS_NOTHREADS FALSE CACHE BOOL "Use threaded gflags library")
 find_package(gflags CONFIG REQUIRED)
 
+thirdparty_map_imported_config(gflags::gflags_static gflags::gflags_nothreads_static)
+
 if(TARGET gflags::gflags_static AND NOT TARGET gflags)
     add_library(gflags ALIAS gflags::gflags_static)
 endif()

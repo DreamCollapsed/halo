@@ -16,3 +16,5 @@ thirdparty_build_cmake_library("xsimd"
 )
 
 find_package(xsimd CONFIG REQUIRED)
+
+thirdparty_map_imported_config(xsimd)

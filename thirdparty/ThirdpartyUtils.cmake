@@ -1,4 +1,69 @@
 
+# --- MAP_IMPORTED_CONFIG Utility Macro ---
+# This macro maps Debug and other build configurations to use the Release library
+# for IMPORTED targets that only export IMPORTED_LOCATION_RELEASE.
+#
+# Background:
+#   All third-party libraries are built in Release mode (see line 988 below),
+#   so they only export IMPORTED_LOCATION_RELEASE in their *Targets-release.cmake files.
+#   Without this mapping, when the main project builds in Debug mode, CMake cannot find
+#   IMPORTED_LOCATION_DEBUG and falls back to searching system paths, which may lead to
+#   linking against system libraries instead of our built static libraries.
+#
+# Usage:
+#   thirdparty_map_imported_config(<target_name> [<target_name2> ...])
+#
+# CMake Documentation:
+#   https://cmake.org/cmake/help/latest/prop_tgt/MAP_IMPORTED_CONFIG_CONFIG.html
+#
+# CRITICAL FIX: When third-party packages only define IMPORTED_CONFIGURATIONS=RELEASE,
+# CMake treats the target as unavailable in Debug builds, causing linker to fall back
+# to system libraries. We must:
+# 1. Add Debug/RelWithDebInfo/MinSizeRel to IMPORTED_CONFIGURATIONS
+# 2. Set IMPORTED_LOCATION_* for all configurations
+# 3. Set MAP_IMPORTED_CONFIG_* as fallback
+#
+macro(thirdparty_map_imported_config)
+    foreach(_target IN ITEMS ${ARGN})
+        if(TARGET ${_target})
+            # Step 1: Ensure IMPORTED_CONFIGURATIONS includes all build types
+            get_target_property(_existing_configs ${_target} IMPORTED_CONFIGURATIONS)
+            if(_existing_configs)
+                list(APPEND _existing_configs DEBUG RELWITHDEBINFO MINSIZEREL)
+                list(REMOVE_DUPLICATES _existing_configs)
+            else()
+                set(_existing_configs "RELEASE;DEBUG;RELWITHDEBINFO;MINSIZEREL")
+            endif()
+            set_target_properties(${_target} PROPERTIES
+                IMPORTED_CONFIGURATIONS "${_existing_configs}"
+            )
+            
+            # Step 2: Set fallback mapping
+            set_target_properties(${_target} PROPERTIES
+                MAP_IMPORTED_CONFIG_DEBUG Release
+                MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release
+                MAP_IMPORTED_CONFIG_MINSIZEREL Release
+            )
+            
+            # Step 3: Explicitly copy IMPORTED_LOCATION_RELEASE to other configs
+            get_target_property(_release_loc ${_target} IMPORTED_LOCATION_RELEASE)
+            if(_release_loc)
+                set_target_properties(${_target} PROPERTIES
+                    IMPORTED_LOCATION_DEBUG "${_release_loc}"
+                    IMPORTED_LOCATION_RELWITHDEBINFO "${_release_loc}"
+                    IMPORTED_LOCATION_MINSIZEREL "${_release_loc}"
+                )
+                message(DEBUG "[thirdparty] Mapped ${_target}: configs=${_existing_configs}, location=${_release_loc}")
+            else()
+                message(DEBUG "[thirdparty] Mapped ${_target}: configs=${_existing_configs} (no RELEASE location)")
+            endif()
+            unset(_existing_configs)
+        else()
+            message(FATAL_ERROR "[thirdparty] Cannot map configs for ${_target}: target does not exist")
+        endif()
+    endforeach()
+endmacro()
+
 # --- CMAKE_PREFIX_PATH Registration Utility ---
 # This function adds a path to CMAKE_PREFIX_PATH for dependency resolution.
 # It now deduplicates and writes to the cache to make find_package() work
@@ -666,7 +731,7 @@ function(thirdparty_cmake_configure srcdir builddir)
 
     if(NOT ARG_FORCE_CONFIGURE)
         set(need_configure TRUE)
-        set(_mode ALL)
+        set(_mode ANY)
         if(ARG_VALIDATION_MODE)
             string(TOUPPER "${ARG_VALIDATION_MODE}" _mode)
         endif()
@@ -1010,56 +1075,39 @@ function(thirdparty_get_optimization_flags output_var)
         -DBoost_NO_SYSTEM_PATHS=ON
     )
 
-    # Propagate lld usage to third-party CMake invocations on Apple only when enabled.
-    # We rely on:
-    #   HALO_LLD_ENABLED (BOOL)          - root detection result
-    #   HALO_LLD_LINKER_FLAG (maybe "") - the driver flag (e.g. -fuse-ld=lld) if supported
-    # Strategy for isolated builds:
-    #   * Always pass -DCMAKE_LINKER so child CMake uses the same linker binary.
-    #   * If HALO_LLD_LINKER_FLAG not empty, append it to each linker flags variable explicitly.
-    if(APPLE AND HALO_LLD_ENABLED)
-        if(CMAKE_LINKER)
-            list(APPEND _opt_flags -DCMAKE_LINKER=${CMAKE_LINKER})
-        endif()
-        if(DEFINED HALO_LLD_LINKER_FLAG AND NOT HALO_LLD_LINKER_FLAG STREQUAL "")
-            # Avoid duplicates: only add if current flags don't already contain it.
-            foreach(_lf_var CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS)
-                if(NOT "${${_lf_var}}" MATCHES "${HALO_LLD_LINKER_FLAG}")
-                    set(${_lf_var} "${${_lf_var}} ${HALO_LLD_LINKER_FLAG}")
-                endif()
-            endforeach()
-            list(APPEND _opt_flags
-                -DCMAKE_EXE_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS}
-                -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
-                -DCMAKE_MODULE_LINKER_FLAGS=${CMAKE_MODULE_LINKER_FLAGS}
-            )
-        endif()
+    # libc++ configuration for cross-platform consistency
+    # Use the same libc++ flags detected by the main project
+    # Create base variables that components can extend by appending their own flags
+    set(HALO_CMAKE_C_FLAGS_BASE "")
+    set(HALO_CMAKE_CXX_FLAGS_BASE "")
+    set(HALO_CMAKE_EXE_LINKER_FLAGS_BASE "")
+    set(HALO_CMAKE_SHARED_LINKER_FLAGS_BASE "")
+    set(HALO_CMAKE_MODULE_LINKER_FLAGS_BASE "")
+    
+    # Initialize base flags with existing CMAKE flags (including those set by FindLinker.cmake)
+    if(DEFINED CMAKE_C_FLAGS AND CMAKE_C_FLAGS)
+        set(HALO_CMAKE_C_FLAGS_BASE "${CMAKE_C_FLAGS}")
     endif()
-
-    # Linux mold propagation (only when enabled). Similar approach: pass CMAKE_LINKER and fuse flag.
-    if(UNIX AND NOT APPLE AND HALO_MOLD_ENABLED)
-        if(CMAKE_LINKER)
-            list(APPEND _opt_flags -DCMAKE_LINKER=${CMAKE_LINKER})
-        endif()
-        if(DEFINED HALO_MOLD_LINKER_FLAG AND NOT HALO_MOLD_LINKER_FLAG STREQUAL "")
-            foreach(_lf_var CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS CMAKE_MODULE_LINKER_FLAGS)
-                if(NOT "${${_lf_var}}" MATCHES "${HALO_MOLD_LINKER_FLAG}")
-                    set(${_lf_var} "${${_lf_var}} ${HALO_MOLD_LINKER_FLAG}")
-                endif()
-            endforeach()
-            list(APPEND _opt_flags
-                -DCMAKE_EXE_LINKER_FLAGS=${CMAKE_EXE_LINKER_FLAGS}
-                -DCMAKE_SHARED_LINKER_FLAGS=${CMAKE_SHARED_LINKER_FLAGS}
-                -DCMAKE_MODULE_LINKER_FLAGS=${CMAKE_MODULE_LINKER_FLAGS}
-            )
-        endif()
+    if(DEFINED CMAKE_CXX_FLAGS AND CMAKE_CXX_FLAGS)
+        set(HALO_CMAKE_CXX_FLAGS_BASE "${CMAKE_CXX_FLAGS}")
     endif()
-
-    # Placeholder for future Linux mold integration mirroring the lld pattern above.
-    # if(LINUX AND HALO_MOLD_ENABLED)
-    #   list(APPEND _opt_flags -DCMAKE_LINKER=${CMAKE_LINKER})
-    #   ... similar propagation logic ...
-    # endif()
+    if(DEFINED CMAKE_EXE_LINKER_FLAGS AND CMAKE_EXE_LINKER_FLAGS)
+        set(HALO_CMAKE_EXE_LINKER_FLAGS_BASE "${CMAKE_EXE_LINKER_FLAGS}")
+        message(DEBUG "[thirdparty] Inherited CMAKE_EXE_LINKER_FLAGS: ${CMAKE_EXE_LINKER_FLAGS}")
+    endif()
+    if(DEFINED CMAKE_SHARED_LINKER_FLAGS AND CMAKE_SHARED_LINKER_FLAGS)
+        set(HALO_CMAKE_SHARED_LINKER_FLAGS_BASE "${CMAKE_SHARED_LINKER_FLAGS}")
+        message(DEBUG "[thirdparty] Inherited CMAKE_SHARED_LINKER_FLAGS: ${CMAKE_SHARED_LINKER_FLAGS}")
+    endif()
+    if(DEFINED CMAKE_MODULE_LINKER_FLAGS AND CMAKE_MODULE_LINKER_FLAGS)
+        set(HALO_CMAKE_MODULE_LINKER_FLAGS_BASE "${CMAKE_MODULE_LINKER_FLAGS}")
+        message(DEBUG "[thirdparty] Inherited CMAKE_MODULE_LINKER_FLAGS: ${CMAKE_MODULE_LINKER_FLAGS}")
+    endif()
+    
+    # Unified linker propagation (final): only propagate explicit HALO_LINKER path if provided.
+    if(HALO_LINKER)
+        list(APPEND _opt_flags -DCMAKE_LINKER=${HALO_LINKER})
+    endif()
     
     # --- Ninja Generator Support for faster builds ---
     # Check if Ninja is available and use it for third-party libraries
@@ -1072,11 +1120,6 @@ function(thirdparty_get_optimization_flags output_var)
         thirdparty_get_build_jobs(OUTPUT_MAKE_JOBS _make_jobs)
         list(APPEND _opt_flags -DCMAKE_BUILD_PARALLEL_LEVEL=${_make_jobs})
         message(STATUS "[thirdparty] Ninja not found, using default generator with ${_make_jobs} parallel jobs")
-    endif()
-    
-    # Add Link Time Optimization (LTO) if supported
-    if(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE)
-        list(APPEND _opt_flags -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON)
     endif()
     
     if(APPLE)
@@ -1131,13 +1174,60 @@ function(thirdparty_get_optimization_flags output_var)
             list(LENGTH _cmake_prefix_path _path_count)
             message(DEBUG "[thirdparty] Cache CMAKE_PREFIX_PATH has ${_path_count} paths for ${ARG_COMPONENT}")
             set(_cmake_prefix_path_string "${_cmake_prefix_path}")
-            set(_opt_flags ${_opt_flags} PARENT_SCOPE)
             set(THIRDPARTY_CMAKE_PREFIX_PATH_STRING "${_cmake_prefix_path_string}" PARENT_SCOPE)
         else()
             message(DEBUG "[thirdparty] Cache CMAKE_PREFIX_PATH empty for ${ARG_COMPONENT}")
             set(THIRDPARTY_CMAKE_PREFIX_PATH_STRING "" PARENT_SCOPE)
         endif()
     endif()
+    
+    # ============================================================================
+    # LTO Isolation: Explicitly disable IPO for third-party libraries
+    # ============================================================================
+    # The main project may have CMAKE_INTERPROCEDURAL_OPTIMIZATION=ON with custom
+    # CMAKE_*_COMPILE_OPTIONS_IPO settings. We explicitly disable IPO for third-party
+    # libraries to prevent LTO flag propagation and ensure consistent builds.
+    #
+    # Key points:
+    # 1. CMAKE_INTERPROCEDURAL_OPTIMIZATION, CMAKE_*_COMPILE_OPTIONS_IPO are independent
+    #    from CMAKE_*_FLAGS and CMAKE_*_LINKER_FLAGS
+    # 2. Without explicit settings, child CMake processes could inherit or auto-detect
+    #    different IPO defaults (e.g., -flto=thin on macOS)
+    # 3. We force IPO=OFF to guarantee third-party libraries build without LTO
+    list(APPEND _opt_flags
+        -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF
+    )
+    message(DEBUG "[thirdparty] LTO explicitly disabled for third-party libraries (CMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF)")
+    
+    # Combine and append all CMAKE flags at the end to avoid overrides
+    if(HALO_CMAKE_C_FLAGS_BASE)
+        # Quote as single argument to preserve spaces in composed flags (e.g. "-O3 -DNDEBUG -march=...")
+        list(APPEND _opt_flags "-DCMAKE_C_FLAGS=${HALO_CMAKE_C_FLAGS_BASE}")
+        message(DEBUG "[thirdparty] Combined CMAKE_C_FLAGS: ${HALO_CMAKE_C_FLAGS_BASE}")
+    endif()
+    if(HALO_CMAKE_CXX_FLAGS_BASE)
+        list(APPEND _opt_flags "-DCMAKE_CXX_FLAGS=${HALO_CMAKE_CXX_FLAGS_BASE}")
+        message(DEBUG "[thirdparty] Combined CMAKE_CXX_FLAGS: ${HALO_CMAKE_CXX_FLAGS_BASE}")
+    endif()
+    if(HALO_CMAKE_EXE_LINKER_FLAGS_BASE)
+        list(APPEND _opt_flags "-DCMAKE_EXE_LINKER_FLAGS=${HALO_CMAKE_EXE_LINKER_FLAGS_BASE}")
+        message(DEBUG "[thirdparty] Combined CMAKE_EXE_LINKER_FLAGS: ${HALO_CMAKE_EXE_LINKER_FLAGS_BASE}")
+    endif()
+    if(HALO_CMAKE_SHARED_LINKER_FLAGS_BASE)
+        list(APPEND _opt_flags "-DCMAKE_SHARED_LINKER_FLAGS=${HALO_CMAKE_SHARED_LINKER_FLAGS_BASE}")
+        message(DEBUG "[thirdparty] Combined CMAKE_SHARED_LINKER_FLAGS: ${HALO_CMAKE_SHARED_LINKER_FLAGS_BASE}")
+    endif()
+    if(HALO_CMAKE_MODULE_LINKER_FLAGS_BASE)
+        list(APPEND _opt_flags "-DCMAKE_MODULE_LINKER_FLAGS=${HALO_CMAKE_MODULE_LINKER_FLAGS_BASE}")
+        message(DEBUG "[thirdparty] Combined CMAKE_MODULE_LINKER_FLAGS: ${HALO_CMAKE_MODULE_LINKER_FLAGS_BASE}")
+    endif()
+    
+    # Export base variables to parent scope for components to use
+    set(HALO_CMAKE_C_FLAGS_BASE "${HALO_CMAKE_C_FLAGS_BASE}" PARENT_SCOPE)
+    set(HALO_CMAKE_CXX_FLAGS_BASE "${HALO_CMAKE_CXX_FLAGS_BASE}" PARENT_SCOPE)
+    set(HALO_CMAKE_EXE_LINKER_FLAGS_BASE "${HALO_CMAKE_EXE_LINKER_FLAGS_BASE}" PARENT_SCOPE)
+    set(HALO_CMAKE_SHARED_LINKER_FLAGS_BASE "${HALO_CMAKE_SHARED_LINKER_FLAGS_BASE}" PARENT_SCOPE)
+    set(HALO_CMAKE_MODULE_LINKER_FLAGS_BASE "${HALO_CMAKE_MODULE_LINKER_FLAGS_BASE}" PARENT_SCOPE)
     
     set(${output_var} "${_opt_flags}" PARENT_SCOPE)
 endfunction()
@@ -1558,6 +1648,53 @@ function(thirdparty_build_autotools_library library_name)
         file(MAKE_DIRECTORY "${_work_dir}")
     endif()
 
+    # Always operate in append mode for autotools third-parties:
+    # Do not override autotools-detected *FLAGS at configure time; instead
+    # append project flags during build/install (CFLAGS+= ...). This preserves
+    # feature detection macros (SIMD, crypto extensions, etc.).
+    # Stash project flags for later append.
+    set(_halo_project_cflags   "${CMAKE_C_FLAGS}")
+    set(_halo_project_cxxflags "${CMAKE_CXX_FLAGS}")
+    set(_halo_project_ldflags_raw "${CMAKE_EXE_LINKER_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS} ${CMAKE_MODULE_LINKER_FLAGS}")
+    string(STRIP "${_halo_project_ldflags_raw}" _halo_project_ldflags_raw)
+    
+    # Deduplicate linker flags to avoid duplicate -fuse-ld=mold (or other linker flags)
+    if(_halo_project_ldflags_raw)
+        separate_arguments(_halo_ld_list UNIX_COMMAND "${_halo_project_ldflags_raw}")
+        set(_dedup_halo_ld_list)
+        foreach(_flag IN LISTS _halo_ld_list)
+            list(FIND _dedup_halo_ld_list "${_flag}" _flag_idx)
+            if(_flag_idx EQUAL -1)
+                list(APPEND _dedup_halo_ld_list "${_flag}")
+            endif()
+        endforeach()
+        string(JOIN " " _halo_project_ldflags ${_dedup_halo_ld_list})
+        string(STRIP "${_halo_project_ldflags}" _halo_project_ldflags)
+        # Secondary pass: collapse multiple -fuse-ld= occurrences to a single one (keep first)
+        if(_halo_project_ldflags MATCHES "-fuse-ld=")
+            separate_arguments(_halo_ld_tokens UNIX_COMMAND "${_halo_project_ldflags}")
+            set(_seen_fuse FALSE)
+            set(_final_ld_tokens)
+            foreach(_t IN LISTS _halo_ld_tokens)
+                if(_t MATCHES "^-fuse-ld=")
+                    if(NOT _seen_fuse)
+                        list(APPEND _final_ld_tokens "${_t}")
+                        set(_seen_fuse TRUE)
+                    else()
+                        # skip duplicate linker selection flag
+                    endif()
+                else()
+                    list(APPEND _final_ld_tokens "${_t}")
+                endif()
+            endforeach()
+            string(JOIN " " _halo_project_ldflags ${_final_ld_tokens})
+            string(STRIP "${_halo_project_ldflags}" _halo_project_ldflags)
+        endif()
+        message(DEBUG "[thirdparty_build_autotools_library] Sanitized LDFLAGS for ${library_name}: ${_halo_project_ldflags}")
+    else()
+        set(_halo_project_ldflags "")
+    endif()
+
     # --- Configure Step ---
     if(NOT EXISTS "${_work_dir}/Makefile")
         message(STATUS "[thirdparty_build_autotools_library] Configuring ${library_name}...")
@@ -1574,48 +1711,80 @@ function(thirdparty_build_autotools_library library_name)
             endif()
         endif()
 
-        # Construct configure command
-        # Propagate accelerated linker (lld/mold) to autotools projects via env:
-        #   * LD: path to linker executable chosen by FindLinker.cmake
-        #   * LDFLAGS: include -fuse-ld flag if supported to keep compiler driver consistent
-        set(_env_export)
-        if(HALO_LINKER_EXECUTABLE)
-            list(APPEND _env_export "LD=${HALO_LINKER_EXECUTABLE}")
-        endif()
-        set(_fuse_flag)
-        if(HALO_LLD_ENABLED AND HALO_LLD_LINKER_FLAG)
-            set(_fuse_flag "${HALO_LLD_LINKER_FLAG}")
-        elseif(HALO_MOLD_ENABLED AND HALO_MOLD_LINKER_FLAG)
-            set(_fuse_flag "${HALO_MOLD_LINKER_FLAG}")
-        endif()
-        if(_fuse_flag)
-            list(APPEND _env_export "LDFLAGS=${_fuse_flag} ${LDFLAGS}")
-        endif()
-        if(_env_export)
-            list(JOIN _env_export " " _env_string)
-            message(STATUS "[thirdparty_build_autotools_library] Linker env for ${library_name}: ${_env_string}")
-        endif()
+        # Construct configure command with comprehensive linker support
         set(_configure_script "${_source_dir}/${ARGS_CONFIGURE_SCRIPT_NAME}")
         set(_configure_args --prefix=${_install_dir} ${ARGS_CONFIGURE_ARGS})
         # For logging: produce a readable command line
         list(JOIN _configure_args " " _configure_args_string)
-
-        if(_env_export)
-            message(STATUS "[thirdparty_build_autotools_library] Configure command: ${_env_string} ${_configure_script} ${_configure_args_string}")
-            # Use cmake -E env to inject environment variables for this process only
-            execute_process(
-                COMMAND ${CMAKE_COMMAND} -E env ${_env_export} ${_configure_script} ${_configure_args}
-                WORKING_DIRECTORY "${_work_dir}"
-                RESULT_VARIABLE _configure_result
-            )
-        else()
-            message(STATUS "[thirdparty_build_autotools_library] Configure command: ${_configure_script} ${_configure_args_string}")
-            execute_process(
-                COMMAND ${_configure_script} ${_configure_args}
-                WORKING_DIRECTORY "${_work_dir}"
-                RESULT_VARIABLE _configure_result
-            )
+        
+        set(_linker_env)
+        if(CMAKE_C_COMPILER)
+            list(APPEND _linker_env "CC=${CMAKE_C_COMPILER}")
         endif()
+        if(CMAKE_CXX_COMPILER)
+            list(APPEND _linker_env "CXX=${CMAKE_CXX_COMPILER}")
+        endif()
+        if(HALO_LINKER)
+            list(APPEND _linker_env "LD=${HALO_LINKER}")
+        endif()
+
+        set(_auto_CFLAGS   "${CMAKE_C_FLAGS}")
+        set(_auto_CXXFLAGS "${CMAKE_CXX_FLAGS}")
+        set(_auto_LDFLAGS_RAW "${CMAKE_EXE_LINKER_FLAGS} ${CMAKE_SHARED_LINKER_FLAGS} ${CMAKE_MODULE_LINKER_FLAGS}")
+        string(STRIP "${_auto_LDFLAGS_RAW}" _auto_LDFLAGS_RAW)
+        if(_auto_LDFLAGS_RAW)
+            separate_arguments(_auto_ld_list UNIX_COMMAND "${_auto_LDFLAGS_RAW}")
+            set(_dedup_ld_list)
+            set(_fuse_values)
+            set(_fuse_positions)
+            set(_idx 0)
+            foreach(_f IN LISTS _auto_ld_list)
+                if(_f MATCHES "^-fuse-ld=.*")
+                    list(APPEND _fuse_values "${_f}")
+                    list(APPEND _fuse_positions "${_idx}:${_f}")
+                endif()
+                if(_f STREQUAL "--start-group" OR _f STREQUAL "--end-group")
+                    list(APPEND _dedup_ld_list "${_f}")
+                else()
+                    list(FIND _dedup_ld_list "${_f}" _exist_idx)
+                    if(_exist_idx EQUAL -1)
+                        list(APPEND _dedup_ld_list "${_f}")
+                    endif()
+                endif()
+                math(EXPR _idx "${_idx} + 1")
+            endforeach()
+            if(_fuse_values)
+                set(_unique_fuse)
+                foreach(_v IN LISTS _fuse_values)
+                    list(FIND _unique_fuse "${_v}" _u_idx)
+                    if(_u_idx EQUAL -1)
+                        list(APPEND _unique_fuse "${_v}")
+                    endif()
+                endforeach()
+                list(LENGTH _unique_fuse _fuse_len)
+                if(_fuse_len GREATER 1)
+                    message(FATAL_ERROR "[thirdparty_build_autotools_library] Multiple distinct -fuse-ld detected in aggregated linker flags (positions=${_fuse_positions}); using first occurrence order after dedup: ${_unique_fuse}")
+                endif()
+            endif()
+            string(JOIN " " _auto_LDFLAGS ${_dedup_ld_list})
+        else()
+            set(_auto_LDFLAGS "")
+        endif()
+
+        string(STRIP "${_auto_CFLAGS}"   _auto_CFLAGS)
+        string(STRIP "${_auto_CXXFLAGS}" _auto_CXXFLAGS)
+        string(STRIP "${_auto_LDFLAGS}"  _auto_LDFLAGS)
+
+        message(STATUS "[thirdparty_build_autotools_library] (append mode) Allow autotools to set its own *FLAGS for ${library_name}; project flags will be appended at build/install")
+
+        list(JOIN _linker_env " " _env_string)
+        message(STATUS "[thirdparty_build_autotools_library] Configure env: ${_env_string}")
+        message(STATUS "[thirdparty_build_autotools_library] Configure command: ${_env_string} ${_configure_script} ${_configure_args_string}")
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E env ${_linker_env} ${_configure_script} ${_configure_args}
+            WORKING_DIRECTORY "${_work_dir}"
+            RESULT_VARIABLE _configure_result
+        )
         if(NOT _configure_result EQUAL 0)
             message(FATAL_ERROR "Failed to configure ${library_name}")
         endif()
@@ -1632,11 +1801,36 @@ function(thirdparty_build_autotools_library library_name)
     set(PARALLEL_JOBS "-j${_make_jobs}")
 
     message(STATUS "[thirdparty_build_autotools_library] Building ${library_name}...")
-    execute_process(
-        COMMAND make ${PARALLEL_JOBS} ${ARGS_MAKE_ARGS}
-        WORKING_DIRECTORY "${_work_dir}"
-        RESULT_VARIABLE _build_result
-    )
+    # Compose append arguments if in append mode
+    set(_append_flag_args)
+    if(_halo_project_cflags)
+        # Pass flags without surrounding quotes to allow make to split them into distinct arguments.
+        # Quoting caused clang to treat combined fragments as a single (invalid) library name.
+        list(APPEND _append_flag_args "CFLAGS+=${_halo_project_cflags}")
+    endif()
+    if(_halo_project_cxxflags)
+        list(APPEND _append_flag_args "CXXFLAGS+=${_halo_project_cxxflags}")
+    endif()
+    if(_halo_project_ldflags)
+        list(APPEND _append_flag_args "LDFLAGS+=${_halo_project_ldflags}")
+    endif()
+    if(_append_flag_args)
+        message(STATUS "[thirdparty_build_autotools_library] Appending project flags at build: ${_append_flag_args}")
+    endif()
+
+    if(HALO_LINKER AND _linker_env)
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E env ${_linker_env} make ${PARALLEL_JOBS} ${_append_flag_args} ${ARGS_MAKE_ARGS}
+            WORKING_DIRECTORY "${_work_dir}"
+            RESULT_VARIABLE _build_result
+        )
+    else()
+        execute_process(
+            COMMAND make ${PARALLEL_JOBS} ${_append_flag_args} ${ARGS_MAKE_ARGS}
+            WORKING_DIRECTORY "${_work_dir}"
+            RESULT_VARIABLE _build_result
+        )
+    endif()
     if(NOT _build_result EQUAL 0)
         message(FATAL_ERROR "Failed to build ${library_name}")
     endif()
@@ -1651,11 +1845,29 @@ function(thirdparty_build_autotools_library library_name)
     endif()
 
     message(STATUS "[thirdparty_build_autotools_library] Installing ${library_name}...")
-    execute_process(
-        COMMAND make ${ARGS_INSTALL_ARGS}
-        WORKING_DIRECTORY "${_work_dir}"
-        RESULT_VARIABLE _install_result
-    )
+    set(_append_install_flag_args)
+    if(_halo_project_cflags)
+        list(APPEND _append_install_flag_args "CFLAGS+=${_halo_project_cflags}")
+    endif()
+    if(_halo_project_cxxflags)
+        list(APPEND _append_install_flag_args "CXXFLAGS+=${_halo_project_cxxflags}")
+    endif()
+    if(_halo_project_ldflags)
+        list(APPEND _append_install_flag_args "LDFLAGS+=${_halo_project_ldflags}")
+    endif()
+    if(HALO_LINKER AND _linker_env)
+        execute_process(
+            COMMAND ${CMAKE_COMMAND} -E env ${_linker_env} make ${ARGS_INSTALL_ARGS} ${_append_install_flag_args}
+            WORKING_DIRECTORY "${_work_dir}"
+            RESULT_VARIABLE _install_result
+        )
+    else()
+        execute_process(
+            COMMAND make ${ARGS_INSTALL_ARGS} ${_append_install_flag_args}
+            WORKING_DIRECTORY "${_work_dir}"
+            RESULT_VARIABLE _install_result
+        )
+    endif()
     if(NOT _install_result EQUAL 0)
         message(FATAL_ERROR "Failed to install ${library_name}")
     else()
@@ -1764,3 +1976,32 @@ function(thirdparty_configure_ninja_optimization cmake_args_var)
     # Set the modified args back to the variable
     set(${cmake_args_var} ${_args} PARENT_SCOPE)
 endfunction()
+
+# --- Safe flag combination utility ------------------------------------------
+# thirdparty_combine_flags(<out_var> [FRAGMENTS frag1 frag2 ...])
+# Joins non-empty flag fragments with single spaces, trims leading/trailing
+# whitespace, and avoids creating an empty string (returns empty if all empty).
+# Future extension point: de-duplicate include directories or -D macros.
+function(thirdparty_combine_flags out_var)
+    set(options)
+    set(oneValueArgs)
+    set(multiValueArgs FRAGMENTS)
+    cmake_parse_arguments(PARSE_ARGV 1 ARG "${options}" "${oneValueArgs}" "${multiValueArgs}")
+    set(_parts)
+    foreach(_f IN LISTS ARG_FRAGMENTS)
+        if(_f)
+            string(STRIP "${_f}" _clean)
+            if(NOT _clean STREQUAL "")
+                list(APPEND _parts "${_clean}")
+            endif()
+        endif()
+    endforeach()
+    if(_parts)
+        string(JOIN " " _joined ${_parts})
+        string(STRIP "${_joined}" _joined)
+        set(${out_var} "${_joined}" PARENT_SCOPE)
+    else()
+        set(${out_var} "" PARENT_SCOPE)
+    endif()
+endfunction()
+

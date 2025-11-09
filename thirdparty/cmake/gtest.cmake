@@ -18,3 +18,10 @@ thirdparty_build_cmake_library("gtest"
 )
 
 find_package(GTest CONFIG REQUIRED)
+
+thirdparty_map_imported_config(
+    GTest::gtest
+    GTest::gtest_main
+    GTest::gmock
+    GTest::gmock_main
+)

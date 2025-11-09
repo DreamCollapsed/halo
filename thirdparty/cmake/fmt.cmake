@@ -15,3 +15,5 @@ thirdparty_build_cmake_library("fmt"
 )
 
 find_package(fmt CONFIG REQUIRED)
+
+thirdparty_map_imported_config(fmt::fmt)

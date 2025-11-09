@@ -1,31 +1,20 @@
 # mvfst (QUIC) third-party integration
 # Reference: https://github.com/facebook/mvfst
 
-thirdparty_setup_directories("mvfst")
+# jemalloc CXX flags: only set on Apple platforms to avoid header conflicts on Linux
+if(APPLE)
+    # On macOS map allocator symbols via jemalloc prefix compat header.
+    # Include both the directory and the compatibility header.
+    set(_MVFST_JEMALLOC_FLAGS "-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
+else()
+    # On Linux, avoid jemalloc include directory to prevent posix_memalign exception spec conflicts.
+    set(_MVFST_JEMALLOC_FLAGS "")
+endif()
 
-thirdparty_get_optimization_flags(_opt_flags COMPONENT mvfst)
-list(APPEND _opt_flags
-    -DCMAKE_INSTALL_PREFIX=${MVFST_INSTALL_DIR}
+# Combine base libc++ flags + jemalloc flags
+thirdparty_combine_flags(_MVFST_COMBINED_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_MVFST_JEMALLOC_FLAGS}")
 
-    -DCMAKE_POLICY_DEFAULT_CMP0167=OLD
-
-    -DCMAKE_MODULE_PATH=${MVFST_SOURCE_DIR}/build/fbcode_builder/CMake
-
-    # OpenSSL
-    -DOPENSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
-    -DOPENSSL_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/openssl/include
-    -DOPENSSL_SSL_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
-    -DOPENSSL_CRYPTO_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
-
-    # Sodium
-    -Dsodium_DIR=${THIRDPARTY_INSTALL_DIR}/libsodium
-    -Dsodium_USE_STATIC_LIBS=ON
-
-    # jemalloc
-    -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
-)
-
-# Acquire mvfst source first so we can patch files deterministically.
+# Acquire mvfst source first for patching
 thirdparty_acquire_source("mvfst" _mvfst_srcdir)
 
 # Overwrite quic/common/Expected.h in the vendor source tree before configuring/building.
@@ -155,19 +144,30 @@ constexpr ::nonstd::unexpected_type<typename std::decay<E>::type> make_unexpecte
 #endif // _WIN32
 ]=])
 
-# Configure, build and install mvfst with the patched source
-thirdparty_cmake_configure("${_mvfst_srcdir}" "${MVFST_BUILD_DIR}"
-    VALIDATION_FILES
-        "${MVFST_BUILD_DIR}/Makefile"
-        "${MVFST_BUILD_DIR}/build.ninja"
+# Use thirdparty_build_cmake_library for standardized build process
+thirdparty_build_cmake_library("mvfst"
     CMAKE_ARGS
-        ${_opt_flags}
-)
+        -DCMAKE_POLICY_DEFAULT_CMP0167=OLD
+        -DCMAKE_MODULE_PATH=${MVFST_SOURCE_DIR}/build/fbcode_builder/CMake
 
-thirdparty_cmake_install("${MVFST_BUILD_DIR}" "${MVFST_INSTALL_DIR}"
+        # OpenSSL
+        -DOPENSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
+        -DOPENSSL_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/openssl/include
+        -DOPENSSL_SSL_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
+        -DOPENSSL_CRYPTO_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
+
+        # Sodium
+        -Dsodium_DIR=${THIRDPARTY_INSTALL_DIR}/libsodium
+        -Dsodium_USE_STATIC_LIBS=ON
+
+        # Combined CXX flags (includes libc++ + jemalloc)
+        -DCMAKE_CXX_FLAGS=${_MVFST_COMBINED_CXX_FLAGS}
+
     VALIDATION_FILES
-        "${MVFST_INSTALL_DIR}/lib/libmvfst_transport.a"
-        "${MVFST_INSTALL_DIR}/lib/cmake/mvfst/mvfst-config.cmake"
+        ${THIRDPARTY_INSTALL_DIR}/mvfst/lib/libmvfst_transport.a
+        ${THIRDPARTY_INSTALL_DIR}/mvfst/lib/cmake/mvfst/mvfst-config.cmake
 )
 
 halo_find_package(mvfst CONFIG QUIET REQUIRED)
+
+thirdparty_map_imported_config(mvfst::mvfst_transport)

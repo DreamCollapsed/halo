@@ -25,6 +25,8 @@ thirdparty_build_cmake_library("protobuf"
 
 find_package(protobuf CONFIG REQUIRED)
 
+thirdparty_map_imported_config(protobuf::libprotobuf protobuf::libprotoc)
+
 set(PROTOC_EXECUTABLE_PATH "${THIRDPARTY_INSTALL_DIR}/protobuf/bin/protoc" CACHE INTERNAL "Path to project protoc executable")
 if(EXISTS "${PROTOC_EXECUTABLE_PATH}")
     get_filename_component(PROTOC_BIN_DIR "${PROTOC_EXECUTABLE_PATH}" DIRECTORY)

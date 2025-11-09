@@ -12,3 +12,5 @@ thirdparty_build_cmake_library("fast-float"
 )
 
 find_package(FastFloat CONFIG REQUIRED)
+
+thirdparty_map_imported_config(FastFloat::fast_float)

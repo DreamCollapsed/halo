@@ -7,7 +7,6 @@ thirdparty_build_autotools_library("libsodium"
     CONFIGURE_ARGS
         --enable-static
         --disable-shared
-        --enable-minimal
         --disable-debug
         --disable-dependency-tracking
         --with-pic

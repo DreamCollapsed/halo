@@ -4,6 +4,36 @@
 // pulls AsyncDataCache.h and triggers a unique_ptr<SsdCache> instantiation that
 // fails due to forward declaration) and instead include the umbrella Memory.h
 // plus the specific vector/type headers we need.
+
+// Workaround for libstdc++ (GCC's standard library on Linux) missing __int128
+// hash support. This is needed by Folly F14 containers used internally by
+// Velox. Note: macOS with libc++ (Clang's standard library) doesn't need this
+// workaround as it provides __int128 hash support out of the box.
+#include <cstdint>
+#include <functional>
+#include <type_traits>
+
+// Only define __int128 hash specializations for libstdc++ (not libc++)
+#if defined(__GLIBCXX__) && !defined(_LIBCPP_VERSION)
+namespace std {
+template <>
+struct hash<__int128> {
+  size_t operator()(__int128 value) const noexcept {
+    return std::hash<uint64_t>{}(static_cast<uint64_t>(value)) ^
+           (std::hash<uint64_t>{}(static_cast<uint64_t>(value >> 64)) << 1);
+  }
+};
+
+template <>
+struct hash<unsigned __int128> {
+  size_t operator()(unsigned __int128 value) const noexcept {
+    return std::hash<uint64_t>{}(static_cast<uint64_t>(value)) ^
+           (std::hash<uint64_t>{}(static_cast<uint64_t>(value >> 64)) << 1);
+  }
+};
+}  // namespace std
+#endif  // __GLIBCXX__ && !_LIBCPP_VERSION
+
 #include <gtest/gtest.h>
 #include <velox/common/caching/SsdCache.h>
 #include <velox/common/memory/Memory.h>

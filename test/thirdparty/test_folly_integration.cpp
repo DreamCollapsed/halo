@@ -1,4 +1,31 @@
 #include <folly/FBString.h>
+
+#include <type_traits>
+
+// Provide missing std::make_unsigned specializations for __int128 when using
+// libstdc++.
+// __int128 is a compiler extension; libstdc++ omits make_unsigned for it.
+// Adding these locally enables folly hashing tests without polluting other
+// translation units.
+#if defined(__GLIBCXX__) && defined(__SIZEOF_INT128__)
+namespace std {
+template <>
+struct make_unsigned<__int128> {
+  using type = unsigned __int128;
+};
+template <>
+struct make_unsigned<unsigned __int128> {
+  using type = unsigned __int128;
+};
+}  // namespace std
+static_assert(std::is_same_v<typename std::make_unsigned<__int128>::type,
+                             unsigned __int128>,
+              "make_unsigned<__int128> should map to unsigned __int128");
+static_assert(
+    std::is_same_v<typename std::make_unsigned<unsigned __int128>::type,
+                   unsigned __int128>,
+    "make_unsigned<unsigned __int128> should map to unsigned __int128");
+#endif
 #include <folly/folly-config.h>
 #include <folly/hash/Hash.h>
 #include <gtest/gtest.h>

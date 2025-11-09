@@ -2,3 +2,4 @@
 	path = velox
 	url = https://github.com/facebookincubator/velox.git
 	ignore = all
+	branch = main

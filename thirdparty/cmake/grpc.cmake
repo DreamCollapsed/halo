@@ -30,6 +30,28 @@ thirdparty_build_cmake_library("grpc"
         -Dre2_DIR=${THIRDPARTY_INSTALL_DIR}/re2/lib/cmake/re2
         -DOpenSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
         -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
+    FILE_REPLACEMENTS
+        "src/core/credentials/transport/tls/tls_security_connector.cc"
+        "absl::bind_front(&ChannelPendingVerifierRequest::OnVerifyDone, this,
+                       true),"
+        "[this](absl::Status status) {
+          this->OnVerifyDone(true, std::move(status));
+        },"
+        "src/core/credentials/transport/tls/tls_security_connector.cc"
+        "absl::bind_front(&ServerPendingVerifierRequest::OnVerifyDone, this, true),"
+        "[this](absl::Status status) {
+          this->OnVerifyDone(true, std::move(status));
+        },"
+        "src/core/resolver/dns/native/dns_resolver.cc"
+        "absl::bind_front(&NativeClientChannelDNSResolver::OnResolved, this),"
+        "[this](absl::StatusOr<std::vector<grpc_resolved_address>> addresses_or) {
+          this->OnResolved(std::move(addresses_or));
+        },"
+        "src/core/xds/grpc/xds_certificate_provider.cc"
+        "absl::bind_front(&XdsCertificateProvider::WatchStatusCallback, this))"
+        "[this](std::string cert_name, bool root_being_watched, bool identity_being_watched) {
+          this->WatchStatusCallback(std::move(cert_name), root_being_watched, identity_being_watched);
+        })"
     VALIDATION_FILES
         "${THIRDPARTY_INSTALL_DIR}/grpc/lib/libgrpc.a"
         "${THIRDPARTY_INSTALL_DIR}/grpc/lib/libgrpc++.a"
@@ -38,6 +60,14 @@ thirdparty_build_cmake_library("grpc"
 )
 
 halo_find_package(gRPC CONFIG REQUIRED)
+
+thirdparty_map_imported_config(
+    gRPC::grpc
+    gRPC::grpc++
+    gRPC::grpc_unsecure
+    gRPC::gpr
+    gRPC::address_sorting
+)
 
 set(GRPC_CPP_PLUGIN_EXECUTABLE_PATH "${THIRDPARTY_INSTALL_DIR}/grpc/bin/grpc_cpp_plugin" CACHE INTERNAL "Path to project grpc_cpp_plugin executable")
 if(EXISTS "${GRPC_CPP_PLUGIN_EXECUTABLE_PATH}")

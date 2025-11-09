@@ -16,3 +16,5 @@ thirdparty_build_cmake_library("re2"
 )
 
 halo_find_package(re2 CONFIG REQUIRED)
+
+thirdparty_map_imported_config(re2::re2)

@@ -15,10 +15,7 @@ thirdparty_build_cmake_library("lz4"
 )
 
 find_package(lz4 CONFIG REQUIRED)
-if(TARGET lz4::lz4_static AND NOT TARGET LZ4::lz4_static)
-    add_library(LZ4::lz4_static ALIAS lz4::lz4_static)
-endif()
-if(TARGET lz4::lz4 AND NOT TARGET LZ4::lz4)
-    add_library(LZ4::lz4 ALIAS lz4::lz4)
-endif()
+
+thirdparty_map_imported_config(LZ4::lz4_static LZ4::lz4)
+
 message(DEBUG "lz4 found and imported: ${LZ4_INSTALL_DIR}")

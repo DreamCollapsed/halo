@@ -32,3 +32,10 @@ thirdparty_build_cmake_library("libevent"
 )
 
 find_package(Libevent CONFIG QUIET REQUIRED COMPONENTS core extra openssl pthreads)
+
+thirdparty_map_imported_config(
+    libevent::core
+    libevent::extra
+    libevent::openssl
+    libevent::pthreads
+)

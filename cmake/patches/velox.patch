@@ -11,6 +11,31 @@ index 2d65b3d17..21ec6d1bd 100644
  find_library(SNAPPY_LIBRARY_DEBUG snappyd PATHS ${SNAPPY_LIBRARYDIR})
  
  find_path(SNAPPY_INCLUDE_DIR snappy.h PATHS ${SNAPPY_INCLUDEDIR})
+diff --git a/CMake/Findzstd.cmake b/CMake/Findzstd.cmake
+index ed3a73081..a84ea680c 100644
+--- a/CMake/Findzstd.cmake
++++ b/CMake/Findzstd.cmake
+@@ -23,8 +23,8 @@
+ include(FindPackageHandleStandardArgs)
+ include(SelectLibraryConfigurations)
+ 
+-find_library(ZSTD_LIBRARY_RELEASE zstd PATHS $ZSTD_LIBRARYDIR})
+-find_library(ZSTD_LIBRARY_DEBUG zstdd PATHS ${ZSTD_LIBRARYDIR})
++find_library(ZSTD_LIBRARY_RELEASE zstd PATHS ${ZSTD_LIBRARYDIR})
++find_library(ZSTD_LIBRARY_DEBUG zstd PATHS ${ZSTD_LIBRARYDIR})
+ 
+ find_path(ZSTD_INCLUDE_DIR zstd.h PATHS ${ZSTD_INCLUDEDIR})
+ 
+@@ -46,6 +46,8 @@ if(NOT TARGET zstd::zstd)
+   set_target_properties(zstd::zstd PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${ZSTD_INCLUDE_DIR}")
+   set_target_properties(
+     zstd::zstd
+-    PROPERTIES IMPORTED_LINK_INTERFACE_LANGUAGES "C" IMPORTED_LOCATION "${ZSTD_LIBRARIES}"
++    PROPERTIES
++      IMPORTED_LINK_INTERFACE_LANGUAGES "C"
++      IMPORTED_LOCATION "${ZSTD_LIBRARY}"
+   )
+ endif()
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 577a06b7c..f443c2185 100644
 --- a/CMakeLists.txt
@@ -989,14 +1014,15 @@ delta 28
 gcmX@x!gR5PX+w(%i-MAp!sIrSCNN_&m#MQa0E})3bN~PV
 
 diff --git a/velox/external/tzdb/tzdb_list_private.h b/velox/external/tzdb/tzdb_list_private.h
-index 9fa8dbab56b851ddc6a4c8b21654b565dd43719d..aef3acb8e325b048921051a04a351a6b36c7121c 100644
+index 9fa8dbab56b851ddc6a4c8b21654b565dd43719d..ea30ecb95bc2b05c3e93793f1137e0968c2d563b 100644
 GIT binary patch
-delta 58
-zcmew_x=L)rJ|^wb;>^5sh2oMFE34enlGF-oE+moCyv)MV)cBnI<ZNp$t_i`L1)1Nm
-F0|1up6@LH#
+delta 74
+zcmew_+9kH(731V?CeF!^7&|84=aSb~sOI7-EzZnKS12w?v9ii7ElI7gMiwc}%PcHS
+UjnBzX&bH>_nh?BMkog@u02w(N{{R30
 
-delta 16
-YcmZ1__Fr_vKBmb@%z>M&m_M)s06Yi=bpQYW
+delta 52
+zcmeAY`!BlT731XJj17|&*d)Z2GxL&jN>fr5Y;sFWQY-AZlvDFkGSenkGO12>Vh-Fa
+I#r%OC00+|&aR2}S
 
 diff --git a/velox/functions/prestosql/geospatial/GeometryUtils.h b/velox/functions/prestosql/geospatial/GeometryUtils.h
 index af32c0ae6..cd0d16486 100644
@@ -1041,6 +1067,125 @@ index 451ce15c8..a0451c5c0 100644
    request->set_session_id(sessionId_);
    request->set_allocated_user_context(context);
    request->set_allocated_plan(plan);
+diff --git a/velox/type/DecimalUtil.h b/velox/type/DecimalUtil.h
+index 581c776f7..d86d6893e 100644
+--- a/velox/type/DecimalUtil.h
++++ b/velox/type/DecimalUtil.h
+@@ -28,6 +28,58 @@
+ 
+ namespace facebook::velox {
+ 
++// GCC's libstdc++ does not provide std::to_chars overloads for 128-bit
++// integers. Using std::to_chars with int128_t/uint128_t leads to ambiguous
++// calls among the existing integral overload set. Provide lightweight
++// helpers to serialize 128-bit integers into a character buffer without
++// heap allocation. Interface mimics std::to_chars returning {ptr, errc}.
++namespace detail {
++struct ToChars128Helper {
++  static inline std::pair<char*, std::errc> toCharsUnsigned(
++      char* first,
++      char* last,
++      uint128_t value) {
++    if (first >= last) {
++      return {first, std::errc::value_too_large};
++    }
++    // Write digits in reverse into a scratch area (reuse end of provided
++    // buffer) then move them to the front. We rely on caller supplying
++    // sufficiently large buffer (DecimalUtil already estimates max size).
++    char* write = last;
++    do {
++      if (write == first) {
++        return {first, std::errc::value_too_large};
++      }
++      auto digit = static_cast<unsigned>(value % 10);
++      *--write = static_cast<char>('0' + digit);
++      value /= 10;
++    } while (value != 0);
++    // Move digits to beginning.
++    size_t len = static_cast<size_t>(last - write);
++    // Overlap-safe move (write <= first < last). Use memmove.
++    std::memmove(first, write, len);
++    return {first + len, std::errc()};
++  }
++
++  static inline std::pair<char*, std::errc> toCharsSigned(
++      char* first,
++      char* last,
++      int128_t value) {
++    if (first >= last) {
++      return {first, std::errc::value_too_large};
++    }
++    bool negative = value < 0;
++    uint128_t unsignedValue = negative ? static_cast<uint128_t>(-value)
++                                       : static_cast<uint128_t>(value);
++    if (negative) {
++      *first++ = '-';
++    }
++    auto [ptr, ec] = toCharsUnsigned(first, last, unsignedValue);
++    return {ptr, ec};
++  }
++};
++} // namespace detail
++
+ /// A static class that holds helper functions for DECIMAL type.
+ class DecimalUtil {
+  public:
+@@ -356,10 +408,24 @@ class DecimalUtil {
+         *writePosition++ = '-';
+         unscaledValue = -unscaledValue;
+       }
+-      auto [position, errorCode] = std::to_chars(
+-          writePosition,
+-          writePosition + maxSize,
+-          unscaledValue / DecimalUtil::kPowersOfTen[scale]);
++      // Serialize the integral part. Use custom 128-bit implementation when
++      // needed to avoid ambiguous std::to_chars resolution.
++      std::pair<char*, std::errc> resultPair;
++      if constexpr (sizeof(T) > sizeof(uint64_t)) { // int128_t path
++        resultPair = detail::ToChars128Helper::toCharsUnsigned(
++            writePosition,
++            writePosition + maxSize,
++            static_cast<uint128_t>(
++                unscaledValue / DecimalUtil::kPowersOfTen[scale]));
++      } else {
++        auto stdResult = std::to_chars(
++            writePosition,
++            writePosition + maxSize,
++            unscaledValue / DecimalUtil::kPowersOfTen[scale]);
++        resultPair = {stdResult.ptr, stdResult.ec};
++      }
++      auto position = resultPair.first;
++      auto errorCode = resultPair.second;
+       VELOX_DCHECK_EQ(
+           errorCode,
+           std::errc(),
+@@ -375,14 +441,21 @@ class DecimalUtil {
+         std::memset(writePosition, '0', numLeadingZeros);
+         writePosition += numLeadingZeros;
+         // Append remaining fraction digits.
+-        auto result =
+-            std::to_chars(writePosition, writePosition + maxSize, fraction);
++        std::pair<char*, std::errc> fracResult;
++        if constexpr (sizeof(T) > sizeof(uint64_t)) { // 128-bit path
++          fracResult = detail::ToChars128Helper::toCharsUnsigned(
++              writePosition, writePosition + maxSize, fraction);
++        } else {
++          auto stdFrac =
++              std::to_chars(writePosition, writePosition + maxSize, static_cast<uint64_t>(fraction));
++          fracResult = {stdFrac.ptr, stdFrac.ec};
++        }
+         VELOX_DCHECK_EQ(
+-            result.ec,
++            fracResult.second,
+             std::errc(),
+             "Failed to cast decimal to varchar: {}",
+-            std::make_error_code(result.ec).message());
+-        writePosition = result.ptr;
++            std::make_error_code(fracResult.second).message());
++        writePosition = fracResult.first;
+       }
+     }
+     return writePosition - startPosition;
 diff --git a/velox/vector/ConstantVector.h b/velox/vector/ConstantVector.h
 index c63b06add..f6db0ad80 100644
 --- a/velox/vector/ConstantVector.h

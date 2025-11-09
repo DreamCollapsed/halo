@@ -1,6 +1,16 @@
 # Facebook Thrift (fbthrift) integration for Halo
 # Simplified via thirdparty_build_cmake_library helper.
 
+# jemalloc CXX flags: only set on Apple platforms to avoid header conflicts on Linux
+if(APPLE)
+    set(_FBTHRIFT_JEMALLOC_FLAGS "-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
+else()
+    set(_FBTHRIFT_JEMALLOC_FLAGS "")
+endif()
+
+# Combine base libc++ + fbthrift jemalloc flags
+thirdparty_combine_flags(_FBTHRIFT_COMBINED_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_FBTHRIFT_JEMALLOC_FLAGS}")
+
 thirdparty_build_cmake_library("fbthrift"
     CMAKE_ARGS
         -DFBTHRIFT_BUILD_TESTS=OFF
@@ -15,8 +25,7 @@ thirdparty_build_cmake_library("fbthrift"
         -DOPENSSL_SSL_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libssl.a
         -DOPENSSL_CRYPTO_LIBRARY=${THIRDPARTY_INSTALL_DIR}/openssl/lib/libcrypto.a
 
-        # Jemalloc
-        -DCMAKE_CXX_FLAGS=-I${THIRDPARTY_INSTALL_DIR}/jemalloc/include\ -include\ ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h
+        -DCMAKE_CXX_FLAGS=${_FBTHRIFT_COMBINED_CXX_FLAGS}
     FILE_REPLACEMENTS
         thrift/compiler/ast/ast_visitor.h
         "#pragma once"
@@ -29,4 +38,6 @@ thirdparty_build_cmake_library("fbthrift"
         ${THIRDPARTY_INSTALL_DIR}/fbthrift/include/thrift/lib/cpp2/Thrift.h
 )
 
-halo_find_package(fbthrift CONFIG REQUIRED)
+halo_find_package(FBThrift CONFIG REQUIRED)
+
+thirdparty_map_imported_config(FBThrift::thriftcpp2)

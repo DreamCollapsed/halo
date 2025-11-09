@@ -17,3 +17,5 @@ thirdparty_build_cmake_library("rapidjson"
 )
 
 find_package(RapidJSON CONFIG REQUIRED)
+
+thirdparty_map_imported_config(RapidJSON)

@@ -17,3 +17,5 @@ thirdparty_build_cmake_library("cares"
 )
 
 find_package(c-ares CONFIG REQUIRED)
+
+thirdparty_map_imported_config(c-ares::cares)

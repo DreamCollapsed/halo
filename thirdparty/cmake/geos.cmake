@@ -28,3 +28,5 @@ thirdparty_build_cmake_library("geos"
 )
 
 find_package(GEOS CONFIG REQUIRED)
+
+thirdparty_map_imported_config(GEOS::geos GEOS::geos_c)

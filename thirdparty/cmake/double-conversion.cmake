@@ -10,3 +10,5 @@ thirdparty_build_cmake_library("double-conversion"
 )
 
 find_package(double-conversion CONFIG REQUIRED)
+
+thirdparty_map_imported_config(double-conversion::double-conversion)

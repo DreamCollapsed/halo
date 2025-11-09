@@ -116,3 +116,5 @@ thirdparty_build_autotools_library(openssl
 )
 
 find_package(OpenSSL CONFIG REQUIRED HINTS "${OPENSSL_INSTALL_DIR}/lib/cmake/OpenSSL" NO_DEFAULT_PATH)
+
+thirdparty_map_imported_config(OpenSSL::SSL OpenSSL::Crypto)

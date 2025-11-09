@@ -8,18 +8,24 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <vector>
 
 // Fizz TLS Library Integration Tests
 class FizzIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Set up event base for async operations
-    eventBase = std::make_unique<folly::EventBase>();
+    event_base_ = std::make_unique<folly::EventBase>();
   }
 
-  void TearDown() override { eventBase.reset(); }
+  void TearDown() override { event_base_.reset(); }
 
-  std::unique_ptr<folly::EventBase> eventBase;
+  [[nodiscard]] folly::EventBase* EventBaseForTest() const {
+    return event_base_.get();
+  }
+
+ private:
+  std::unique_ptr<folly::EventBase> event_base_;
 };
 
 TEST_F(FizzIntegrationTest, BasicLibraryLinking) {
@@ -32,10 +38,11 @@ TEST_F(FizzIntegrationTest, CertificateVerifierCreation) {
   // Test certificate verifier functionality - basic API availability
   // Note: We're just testing that the class exists and can be instantiated
   try {
-    auto verifier = fizz::DefaultCertificateVerifier::createFromCAFile(
-        fizz::VerificationContext::Server,
-        ""  // Empty CA file path for basic creation test
-    );
+    [[maybe_unused]] auto verifier =
+        fizz::DefaultCertificateVerifier::createFromCAFile(
+            fizz::VerificationContext::Server,
+            ""  // Empty CA file path for basic creation test
+        );
     // If we get here without exception, the API is available
     SUCCEED();
   } catch (...) {
@@ -46,34 +53,34 @@ TEST_F(FizzIntegrationTest, CertificateVerifierCreation) {
 
 TEST_F(FizzIntegrationTest, ClientContextCreation) {
   // Test client context creation and basic configuration
-  auto clientContext = std::make_shared<fizz::client::FizzClientContext>();
-  EXPECT_NE(clientContext, nullptr);
+  auto client_context = std::make_shared<fizz::client::FizzClientContext>();
+  EXPECT_NE(client_context, nullptr);
 
   // Test setting supported versions
   std::vector<fizz::ProtocolVersion> versions = {
       fizz::ProtocolVersion::tls_1_3};
-  clientContext->setSupportedVersions(versions);
+  client_context->setSupportedVersions(versions);
 
   // Test getting supported versions
-  auto supportedVersions = clientContext->getSupportedVersions();
-  EXPECT_FALSE(supportedVersions.empty());
-  EXPECT_EQ(supportedVersions[0], fizz::ProtocolVersion::tls_1_3);
+  auto supported_versions = client_context->getSupportedVersions();
+  EXPECT_FALSE(supported_versions.empty());
+  EXPECT_EQ(supported_versions[0], fizz::ProtocolVersion::tls_1_3);
 }
 
 TEST_F(FizzIntegrationTest, ServerContextCreation) {
   // Test server context creation and basic configuration
-  auto serverContext = std::make_shared<fizz::server::FizzServerContext>();
-  EXPECT_NE(serverContext, nullptr);
+  auto server_context = std::make_shared<fizz::server::FizzServerContext>();
+  EXPECT_NE(server_context, nullptr);
 
   // Test setting supported versions
   std::vector<fizz::ProtocolVersion> versions = {
       fizz::ProtocolVersion::tls_1_3};
-  serverContext->setSupportedVersions(versions);
+  server_context->setSupportedVersions(versions);
 
   // Test getting supported versions
-  auto supportedVersions = serverContext->getSupportedVersions();
-  EXPECT_FALSE(supportedVersions.empty());
-  EXPECT_EQ(supportedVersions[0], fizz::ProtocolVersion::tls_1_3);
+  auto supported_versions = server_context->getSupportedVersions();
+  EXPECT_FALSE(supported_versions.empty());
+  EXPECT_EQ(supported_versions[0], fizz::ProtocolVersion::tls_1_3);
 }
 
 TEST_F(FizzIntegrationTest, CipherSuiteSupport) {
@@ -86,9 +93,9 @@ TEST_F(FizzIntegrationTest, CipherSuiteSupport) {
   context->setSupportedCiphers(ciphers);
 
   // Test getting supported cipher suites
-  auto supportedCiphers = context->getSupportedCiphers();
-  EXPECT_FALSE(supportedCiphers.empty());
-  EXPECT_GE(supportedCiphers.size(), 1);
+  auto supported_ciphers = context->getSupportedCiphers();
+  EXPECT_FALSE(supported_ciphers.empty());
+  EXPECT_GE(supported_ciphers.size(), 1);
 }
 
 TEST_F(FizzIntegrationTest, SignatureSchemeSupport) {
@@ -101,9 +108,9 @@ TEST_F(FizzIntegrationTest, SignatureSchemeSupport) {
   context->setSupportedSigSchemes(schemes);
 
   // Test getting supported signature schemes
-  auto supportedSchemes = context->getSupportedSigSchemes();
-  EXPECT_FALSE(supportedSchemes.empty());
-  EXPECT_GE(supportedSchemes.size(), 1);
+  auto supported_schemes = context->getSupportedSigSchemes();
+  EXPECT_FALSE(supported_schemes.empty());
+  EXPECT_GE(supported_schemes.size(), 1);
 }
 
 TEST_F(FizzIntegrationTest, FizzHeadersAvailable) {
@@ -127,21 +134,21 @@ TEST_F(FizzIntegrationTest, ExtensionSupport) {
   context->setSupportedGroups(groups);
 
   // Test getting supported groups
-  auto supportedGroups = context->getSupportedGroups();
-  EXPECT_FALSE(supportedGroups.empty());
-  EXPECT_GE(supportedGroups.size(), 1);
+  auto supported_groups = context->getSupportedGroups();
+  EXPECT_FALSE(supported_groups.empty());
+  EXPECT_GE(supported_groups.size(), 1);
 }
 
 TEST_F(FizzIntegrationTest, EventBaseIntegration) {
   // Test that fizz works with folly EventBase
-  EXPECT_NE(eventBase, nullptr);
+  EXPECT_NE(EventBaseForTest(), nullptr);
 
   // Test creating fizz client with event base
-  auto clientContext = std::make_shared<fizz::client::FizzClientContext>();
-  EXPECT_NE(clientContext, nullptr);
+  auto client_context = std::make_shared<fizz::client::FizzClientContext>();
+  EXPECT_NE(client_context, nullptr);
 
   // Verify event base is still valid after fizz context creation
-  EXPECT_FALSE(eventBase->isRunning());
+  EXPECT_FALSE(EventBaseForTest()->isRunning());
 }
 
 TEST_F(FizzIntegrationTest, TLS13SpecificFeatures) {
@@ -154,15 +161,15 @@ TEST_F(FizzIntegrationTest, TLS13SpecificFeatures) {
   context->setSupportedVersions(versions);
 
   // Verify TLS 1.3 support
-  auto supportedVersions = context->getSupportedVersions();
-  bool hasTls13 = false;
-  for (const auto& version : supportedVersions) {
+  auto supported_versions = context->getSupportedVersions();
+  bool has_tls13 = false;
+  for (const auto& version : supported_versions) {
     if (version == fizz::ProtocolVersion::tls_1_3) {
-      hasTls13 = true;
+      has_tls13 = true;
       break;
     }
   }
-  EXPECT_TRUE(hasTls13);
+  EXPECT_TRUE(has_tls13);
 }
 
 int main(int argc, char** argv) {

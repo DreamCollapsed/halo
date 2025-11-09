@@ -173,6 +173,13 @@ if(APPLE)
     endif()
 endif()
 
+if(APPLE)
+    add_compile_options(
+        $<$<CONFIG:Debug>:-Wno-gnu-zero-variadic-macro-arguments>
+        $<$<CONFIG:Debug>:-Wno-gnu-statement-expression>
+    )
+endif()
+
 # Force static libraries for the entire project and all third-party libraries
 # This CACHE FORCE ensures all subprojects use static libraries
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
@@ -383,18 +390,6 @@ set(THIRDPARTY_EXECUTABLE_PATHS "" CACHE INTERNAL "Collected third-party executa
 add_subdirectory(thirdparty)
 
 message(STATUS "[  Halo Embedded Code  ] Velox integration")
-if(UNIX AND NOT APPLE)
-    include(CheckCXXSourceCompiles)
-    set(CMAKE_REQUIRED_FLAGS "-stdlib=libstdc++")
-    check_cxx_source_compiles("#include <cstddef>\n#ifndef __GLIBCXX__\n#error not libstdc++\n#endif\nint main(){return 0;}" _USING_GLIBCXX)
-    if(_USING_GLIBCXX)
-        add_compile_options(
-            -Wno-gnu-zero-variadic-macro-arguments
-            -Wno-gnu-case-range
-            -Wno-gnu-statement-expression
-        )
-    endif()
-endif()
 
 include(cmake/Velox.cmake)
 add_subdirectory(velox)

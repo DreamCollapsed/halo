@@ -1,5 +1,7 @@
 #include <gtest/gtest.h>
 
+#include <array>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -9,26 +11,26 @@ class FlexIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Set up test environment
-    test_dir = std::filesystem::temp_directory_path() / "flex_test";
-    std::filesystem::create_directories(test_dir);
+    test_dir_ = std::filesystem::temp_directory_path() / "flex_test";
+    std::filesystem::create_directories(test_dir_);
 
     // Use CMake-provided flex executable path if available
 #ifdef FLEX_EXECUTABLE_PATH
-    flex_path = FLEX_EXECUTABLE_PATH;
+    flex_path_ = FLEX_EXECUTABLE_PATH;
 #endif
 
     // Create a simple lexer file for testing
-    lexer_file = test_dir / "test.l";
-    createTestLexer();
+    lexer_file_ = test_dir_ / "test.l";
+    CreateTestLexer();
   }
 
   void TearDown() override {
     // Clean up test files
-    std::filesystem::remove_all(test_dir);
+    std::filesystem::remove_all(test_dir_);
   }
 
-  void createTestLexer() {
-    std::ofstream file(lexer_file);
+  void CreateTestLexer() {
+    std::ofstream file(lexer_file_);
     file << R"FLEX(
 %{
 #include <stdio.h>
@@ -68,27 +70,36 @@ int main(void) {
     file.close();
   }
 
-  std::filesystem::path test_dir;
-  std::filesystem::path lexer_file;
-  std::string flex_path;
+  [[nodiscard]] const std::filesystem::path& TestDir() const {
+    return test_dir_;
+  }
+  [[nodiscard]] const std::filesystem::path& LexerFile() const {
+    return lexer_file_;
+  }
+  [[nodiscard]] const std::string& FlexPath() const { return flex_path_; }
+
+ private:
+  std::filesystem::path test_dir_;
+  std::filesystem::path lexer_file_;
+  std::string flex_path_{"flex"};
 };
 
 // Test flex executable availability and version
 TEST_F(FlexIntegrationTest, FlexVersionTest) {
   // Test that flex executable is available
-  std::string version_command = flex_path + " --version > /dev/null 2>&1";
+  std::string version_command = FlexPath() + " --version > /dev/null 2>&1";
   int result = std::system(version_command.c_str());
   EXPECT_EQ(result, 0) << "flex executable should be available";
 
   // Test that we can get version information
-  std::string popen_command = flex_path + " --version 2>/dev/null";
+  std::string popen_command = FlexPath() + " --version 2>/dev/null";
   FILE* pipe = popen(popen_command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[256];
+  std::array<char, 256> buffer{};
   std::string version_output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    version_output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    version_output += buffer.data();
   }
   pclose(pipe);
 
@@ -100,19 +111,19 @@ TEST_F(FlexIntegrationTest, FlexVersionTest) {
 // Test flex help output
 TEST_F(FlexIntegrationTest, FlexHelpTest) {
   // Test that flex shows help when called with --help
-  std::string help_command = flex_path + " --help > /dev/null 2>&1";
+  std::string help_command = FlexPath() + " --help > /dev/null 2>&1";
   int result = std::system(help_command.c_str());
   EXPECT_EQ(result, 0) << "flex --help should work";
 
   // Capture help output
-  std::string popen_help_command = flex_path + " --help 2>/dev/null";
+  std::string popen_help_command = FlexPath() + " --help 2>/dev/null";
   FILE* pipe = popen(popen_help_command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[256];
+  std::array<char, 256> buffer{};
   std::string help_output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    help_output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    help_output += buffer.data();
   }
   pclose(pipe);
 
@@ -127,21 +138,21 @@ TEST_F(FlexIntegrationTest, FlexHelpTest) {
 
 // Test basic lexer generation
 TEST_F(FlexIntegrationTest, BasicLexerGenerationTest) {
-  ASSERT_TRUE(std::filesystem::exists(lexer_file))
+  ASSERT_TRUE(std::filesystem::exists(LexerFile()))
       << "Test lexer file should exist";
 
   // Test that flex can generate lexer without errors
-  std::string command = flex_path +
-                        " --outfile=" + (test_dir / "lex.yy.c").string() + " " +
-                        lexer_file.string() + " 2>&1";
+  std::string command = FlexPath() +
+                        " --outfile=" + (TestDir() / "lex.yy.c").string() +
+                        " " + LexerFile().string() + " 2>&1";
 
   FILE* pipe = popen(command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[256];
+  std::array<char, 256> buffer{};
   std::string output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    output += buffer.data();
   }
   int result = pclose(pipe);
 
@@ -150,28 +161,28 @@ TEST_F(FlexIntegrationTest, BasicLexerGenerationTest) {
                        << output;
 
   // Check that output file was generated
-  EXPECT_TRUE(std::filesystem::exists(test_dir / "lex.yy.c"))
+  EXPECT_TRUE(std::filesystem::exists(TestDir() / "lex.yy.c"))
       << "Flex should generate C source file";
 }
 
 // Test flex with different output formats
 TEST_F(FlexIntegrationTest, OutputFormatsTest) {
-  ASSERT_TRUE(std::filesystem::exists(lexer_file))
+  ASSERT_TRUE(std::filesystem::exists(LexerFile()))
       << "Test lexer file should exist";
 
   // Test header file generation
   std::string header_command =
-      flex_path + " --header-file=" + (test_dir / "lex.yy.h").string() +
-      " --outfile=" + (test_dir / "header_test.c").string() + " " +
-      lexer_file.string() + " 2>&1";
+      FlexPath() + " --header-file=" + (TestDir() / "lex.yy.h").string() +
+      " --outfile=" + (TestDir() / "header_test.c").string() + " " +
+      LexerFile().string() + " 2>&1";
 
   FILE* pipe = popen(header_command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[256];
+  std::array<char, 256> buffer{};
   std::string output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    output += buffer.data();
   }
   int result = pclose(pipe);
 
@@ -179,14 +190,14 @@ TEST_F(FlexIntegrationTest, OutputFormatsTest) {
                        << output;
 
   // Check that header file was generated
-  EXPECT_TRUE(std::filesystem::exists(test_dir / "lex.yy.h"))
+  EXPECT_TRUE(std::filesystem::exists(TestDir() / "lex.yy.h"))
       << "Flex should generate header file";
 }
 
 // Test flex error handling with invalid lexer
 TEST_F(FlexIntegrationTest, ErrorHandlingTest) {
   // Create an invalid lexer file
-  std::filesystem::path invalid_lexer = test_dir / "invalid.l";
+  std::filesystem::path invalid_lexer = TestDir() / "invalid.l";
   std::ofstream file(invalid_lexer);
   file << R"FLEX(
 %{
@@ -208,15 +219,15 @@ int yywrap(void) {
   file.close();
 
   // Test that flex reports errors for invalid lexer
-  std::string command = flex_path + " " + invalid_lexer.string() + " 2>&1";
+  std::string command = FlexPath() + " " + invalid_lexer.string() + " 2>&1";
 
   FILE* pipe = popen(command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[256];
+  std::array<char, 256> buffer{};
   std::string output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    output += buffer.data();
   }
   int result = pclose(pipe);
 
@@ -235,21 +246,21 @@ int yywrap(void) {
   // Only show error details in verbose mode or when test fails
   if (::testing::Test::HasFailure()) {
     std::cout << "Expected flex error output (test validation): " << output
-              << std::endl;
+              << "\n";
   }
 }
 
 // Test flex feature support
 TEST_F(FlexIntegrationTest, FeatureSupportTest) {
   // Test that flex supports expected features by checking help output
-  std::string help_command = flex_path + " --help 2>/dev/null";
+  std::string help_command = FlexPath() + " --help 2>/dev/null";
   FILE* pipe = popen(help_command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[1024];
+  std::array<char, 1024> buffer{};
   std::string help_output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    help_output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    help_output += buffer.data();
   }
   pclose(pipe);
 

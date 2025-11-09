@@ -18,6 +18,7 @@ add_module_test(thirdparty_boost
         thirdparty
         integration
     TIMEOUT 30
+    SERIAL
 )
 
 # Bison integration test
@@ -554,6 +555,7 @@ add_module_test(thirdparty_openmp
         parallel
         thirdparty
         integration
+    SERIAL
 )
 
 # libunwind integration test

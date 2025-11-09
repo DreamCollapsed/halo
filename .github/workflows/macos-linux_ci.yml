@@ -85,9 +85,9 @@ jobs:
         if: steps.has_cfg.outputs.found != 'true'
         run: echo "No .clang-format found; skipping format check."
 
-  configure-deps:
-    name: Configure-${{ matrix.os }}-${{ matrix.build_type }}
-    concurrency: configure-${{ matrix.os }}-${{ matrix.build_type }}
+  thirdparty-construct:
+    name: Thirdparty-${{ matrix.os }}-${{ matrix.build_type }}
+    concurrency: ConstructThirdparty-${{ matrix.os }}-${{ matrix.build_type }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 360
     needs: lint-format
@@ -102,21 +102,44 @@ jobs:
         with:
           lfs: true
 
+      - name: Probe thirdparty cache
+        id: thirdparty-cache-probe
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            thirdparty/builds
+            thirdparty/installed
+            thirdparty/src
+          key: thirdparty-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+          lookup-only: true
+
+      - name: Determine construct thirdparty skip
+        id: construct-thirdparty-skip
+        env:
+          CACHE_HIT: ${{ steps.thirdparty-cache-probe.outputs.cache-hit }}
+        run: |
+          if [ "$CACHE_HIT" = "true" ]; then
+            echo "Thirdparty cache hit detected; skipping configure steps."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Thirdparty cache miss; configure steps will run."
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install dependencies (macOS)
-        if: startsWith(matrix.os, 'macos')
+        if: steps.construct-thirdparty-skip.outputs.skip != 'true' && startsWith(matrix.os, 'macos')
         run: |
           set -euxo pipefail
           echo "brew --version:" && brew --version
           brew update
           # Hard fail if any of these cannot be installed (no fallbacks)
-          brew install llvm@20 lld@20 cmake ccache autoconf automake libtool
+          brew install llvm@20 lld@20 cmake autoconf automake libtool
           brew list --versions llvm@20
           brew list --versions lld@20
           brew list --versions cmake
-          brew list --versions ccache
 
       - name: Verify toolchain integrity (macOS)
-        if: startsWith(matrix.os, 'macos')
+        if: steps.construct-thirdparty-skip.outputs.skip != 'true' && startsWith(matrix.os, 'macos')
         run: |
           set -euxo pipefail
           HOMEBREW_PREFIX=$(brew --prefix)
@@ -128,7 +151,7 @@ jobs:
           if [ ! -d "$LLVM_PREFIX" ]; then
             echo "ERROR: LLVM@20 directory not found at $LLVM_PREFIX"
             echo "Reinstalling llvm@20..."
-            brew uninstall --ignore-dependencies llvm@20 || true
+            brew uninstall --ignore-dependencies llvm@20
             brew install llvm@20
           fi
           
@@ -153,7 +176,7 @@ jobs:
           echo "Toolchain verification successful!"
 
       - name: Set compiler environment (macOS)
-        if: startsWith(matrix.os, 'macos')
+        if: steps.construct-thirdparty-skip.outputs.skip != 'true' && startsWith(matrix.os, 'macos')
         run: |
           set -euo pipefail
           HOMEBREW_PREFIX=$(brew --prefix)
@@ -172,10 +195,10 @@ jobs:
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
           echo "Configured macOS toolchain:";
           "$CCBIN" --version
-          "$LLD_BIN" --version || true
+          "$LLD_BIN" --version
 
       - name: Install dependencies (Linux)
-        if: startsWith(matrix.os, 'ubuntu')
+        if: steps.construct-thirdparty-skip.outputs.skip != 'true' && startsWith(matrix.os, 'ubuntu')
         run: |
           # Add LLVM repository first, then single update
           wget --tries=3 --timeout=30 -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
@@ -184,7 +207,7 @@ jobs:
           sudo apt-get -o Acquire::Retries=3 install -y \
             wget gnupg lsb-release software-properties-common \
             clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 \
-            ninja-build ccache autoconf automake libtool gettext gettext-base autopoint \
+            ninja-build autoconf automake libtool gettext gettext-base autopoint \
             build-essential pkg-config libopenblas-dev liblapack-dev libblas-dev
           
           # Install latest GCC and libstdc++ development files
@@ -296,7 +319,7 @@ jobs:
           rm "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
 
       - name: Set compiler environment (Linux)
-        if: startsWith(matrix.os, 'ubuntu')
+        if: steps.construct-thirdparty-skip.outputs.skip != 'true' && startsWith(matrix.os, 'ubuntu')
         run: |
           # Try versioned binaries in /usr/bin first (more reliable), then fall back to LLVM directory
           if [ -x "/usr/bin/clang-20" ]; then
@@ -351,54 +374,8 @@ jobs:
           "$CC_PATH" --version
           "$CXX_PATH" --version
 
-      - name: Restore thirdparty downloads cache
-        id: downloads-cache-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: thirdparty/downloads
-          key: downloads-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
-          restore-keys: |
-            downloads-
-
-      - name: Restore FULL thirdparty state
-        id: thirdparty-full-restore
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            thirdparty/builds
-            thirdparty/installed
-            thirdparty/src
-          key: thirdparty-full-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
-          restore-keys: |
-            thirdparty-full-${{ runner.os }}-${{ matrix.build_type }}-
-            thirdparty-full-${{ runner.os }}-
-
-      - name: Setup ccache
-        run: |
-          if [ "${{ runner.os }}" = "macOS" ]; then
-            CCACHE_DIR="$HOME/Library/Caches/ccache-configure"
-          else
-            CCACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ccache-configure"
-          fi
-          mkdir -p "$CCACHE_DIR"
-          echo "CCACHE_DIR=$CCACHE_DIR" >> $GITHUB_ENV
-          echo "CCACHE_MAXSIZE=2G" >> $GITHUB_ENV
-          echo "CCACHE_COMPRESS=true" >> $GITHUB_ENV
-          echo "CCACHE_COMPRESSLEVEL=1" >> $GITHUB_ENV
-          echo "CCACHE_SLOPPINESS=pch_defines,time_macros,include_file_mtime,include_file_ctime" >> $GITHUB_ENV
-          echo "CCACHE_NOHASHDIR=true" >> $GITHUB_ENV
-
-      - name: Restore ccache
-        id: ccache-restore-configure
-        uses: actions/cache/restore@v4
-        with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-configure-${{ runner.os }}-${{ matrix.build_type }}
-          restore-keys: |
-            ccache-configure-${{ runner.os }}-${{ matrix.build_type }}-
-            ccache-configure-${{ runner.os }}-
-
       - name: Cmake Configure (${{ matrix.build_type }})
+        if: steps.construct-thirdparty-skip.outputs.skip != 'true'
         run: |
           # Verify environment variables before CMake
           echo "Environment check before CMake:"
@@ -406,10 +383,6 @@ jobs:
           echo "CXX=$CXX"
           echo "LDFLAGS=$LDFLAGS"
 
-          echo "== ccache stats (before configure) =="
-          command -v ccache >/dev/null 2>&1 && ccache -s || true
-          command -v ccache >/dev/null 2>&1 && ccache -z || true
-          
           # Test compiler functionality
           echo "Testing compilers:"
           echo 'int main(){return 0;}' | $CC -x c - -o /tmp/test_cc_$$ || echo "CC test failed"
@@ -420,66 +393,25 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_C_COMPILER=$CC \
-            -DCMAKE_CXX_COMPILER=$CXX \
-            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER=$CXX
           
           echo "CMake configure completed, build directory ready for main compilation"
 
-          echo "== ccache stats (after configure) =="
-          command -v ccache >/dev/null 2>&1 && ccache -s || true
-
-      - name: Delete existing ccache key
-        if: success() && steps.ccache-restore-configure.outputs.cache-hit == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          KEY="ccache-configure-${{ runner.os }}-${{ matrix.build_type }}"
-          echo "[ccache-configure-delete] DELETE by key=$KEY"
-          BASE_API="https://api.github.com"
-          OWNER="${{ github.repository_owner }}"
-          REPO="${{ github.event.repository.name }}"
-          authHeader="Authorization: Bearer $GITHUB_TOKEN"
-          acceptHeader="Accept: application/vnd.github+json"
-          versionHeader="X-GitHub-Api-Version: $GH_API_VERSION"
-          # Single DELETE by key (official API returns 200 with JSON body containing total_count)
-          response=$(curl -sS -w "\n%{http_code}" -X DELETE \
-            -H "$authHeader" -H "$acceptHeader" -H "$versionHeader" \
-            "$BASE_API/repos/$OWNER/$REPO/actions/caches?key=$KEY") || { echo '[ccache-configure-delete] ERROR: request failed'; exit 1; }
-          code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | sed '$d')
-          if [ "$code" != "200" ]; then
-            echo "[ccache-configure-delete] ERROR: HTTP $code (expected 200)" >&2
-            echo "$body" >&2
-            exit 1
-          fi
-          count=$(echo "$body" | jq -r '.total_count // -1' 2>/dev/null || echo -1)
-          if [ "$count" -lt 1 ]; then
-            echo "[ccache-configure-delete] ERROR: total_count=$count (expected >=1)" >&2
-            echo "$body" >&2
-            exit 1
-          fi
-          echo "[ccache-configure-delete] Deleted entries: $count"
-
-      - name: Save updated ccache
-        if: success() && matrix.os == 'ubuntu-latest'
+      - name: Save thirdparty cache
+        if: success() && steps.thirdparty-cache-probe.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: ${{ env.CCACHE_DIR }}
-          key: ccache-configure-${{ runner.os }}-${{ matrix.build_type }}
+          path: |
+            thirdparty/builds
+            thirdparty/installed
+            thirdparty/src
+          key: thirdparty-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
 
-      - name: Save thirdparty downloads cache
-        if: success() && steps.downloads-cache-restore.outputs.cache-hit != 'true' && matrix.os == 'macos-latest' && matrix.build_type == 'Release'
-        uses: actions/cache/save@v4
-        with:
-          path: thirdparty/downloads
-          key: downloads-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
-      
-      - name: Create compressed artifact tarball
+      - name: Create compressed thirdparty artifact tarball
+        if: success() && steps.construct-thirdparty-skip.outputs.skip != 'true'
         run: |
           set -euo pipefail
-          TAR=build-stage-${{ matrix.os }}-${{ matrix.build_type }}.tar.gz
+          TAR=thirdparty-artifact-${{ runner.os }}-${{ matrix.build_type }}.tar.gz
           echo "Creating compressed artifact: $TAR"
           # Use pigz if available for faster compression
           COMPRESS_CMD="tar -czf"
@@ -487,33 +419,26 @@ jobs:
             echo "Using pigz for parallel compression"
             COMPRESS_CMD="tar -I pigz -cf"
           fi
-          $COMPRESS_CMD "$TAR" build thirdparty/installed thirdparty/builds thirdparty/src
+          $COMPRESS_CMD "$TAR" thirdparty/installed thirdparty/builds thirdparty/src
           ls -lh "$TAR"
 
-      - name: Save FULL thirdparty state
-        if: success() && steps.thirdparty-full-restore.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            thirdparty/builds
-            thirdparty/installed
-            thirdparty/src
-          key: thirdparty-full-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
-
-      - name: Upload configured build & thirdparty artifacts
+      - name: Upload thirdparty artifacts
+        if: success() && steps.construct-thirdparty-skip.outputs.skip != 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: build-stage-artifacts-${{ matrix.os }}-${{ matrix.build_type }}
-          path: build-stage-${{ matrix.os }}-${{ matrix.build_type }}.tar.gz
+          name: thirdparty-artifact-stored-${{ runner.os }}-${{ matrix.build_type }}
+          path: thirdparty-artifact-${{ runner.os }}-${{ matrix.build_type }}.tar.gz
           if-no-files-found: error
           retention-days: 1
 
-  build-test:
-    name: Build-${{ matrix.os }}-${{ matrix.build_type }}
+  project-construct-test:
+    name: Project-${{ matrix.os }}-${{ matrix.build_type }}
     concurrency: ccache-${{ matrix.os }}-${{ matrix.build_type }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 360
-    needs: configure-deps
+    env:
+      CCACHE_DIR: ""
+    needs: thirdparty-construct
     strategy:
       fail-fast: false
       matrix:
@@ -522,25 +447,36 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      
-      - name: Download configured build & thirdparty artifacts
+
+      - name: Restore thirdparty cache
+        id: thirdparty-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            thirdparty/builds
+            thirdparty/installed
+            thirdparty/src
+          key: thirdparty-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+
+      - name: Download thirdparty artifact
+        if: steps.thirdparty-cache-restore.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
         with:
-          name: build-stage-artifacts-${{ matrix.os }}-${{ matrix.build_type }}
+          name: thirdparty-artifact-stored-${{ runner.os }}-${{ matrix.build_type }}
           path: .
 
-      - name: Extract build-stage artifact
+      - name: Extract thirdparty artifact
+        if: steps.thirdparty-cache-restore.outputs.cache-hit != 'true'
         run: |
           set -euo pipefail
-          TAR=build-stage-${{ matrix.os }}-${{ matrix.build_type }}.tar.gz
+          TAR=thirdparty-artifact-${{ runner.os }}-${{ matrix.build_type }}.tar.gz
           test -f "$TAR" || { echo "Artifact tarball $TAR not found" >&2; exit 1; }
           echo "Extracting $TAR"
           tar -xzf "$TAR"
           # List key directories
-          du -sh build || true
-          du -sh thirdparty/installed || true
-          du -sh thirdparty/builds || true
-          du -sh thirdparty/src || true
+          du -sh thirdparty/installed
+          du -sh thirdparty/builds
+          du -sh thirdparty/src
 
       - name: Install dependencies (macOS)
         if: startsWith(matrix.os, 'macos')
@@ -728,7 +664,7 @@ jobs:
 
       - name: Setup ccache
         run: |
-          if [ "${{ runner.os }}" = "macOS" ]; then
+          if [ "${{ matrix.os }}" = "macos-latest" ]; then
             CCACHE_DIR="$HOME/Library/Caches/ccache-build"
           else
             CCACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ccache-build"
@@ -747,9 +683,37 @@ jobs:
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-build-${{ runner.os }}-${{ matrix.build_type }}
-          restore-keys: |
-            ccache-build-${{ runner.os }}-${{ matrix.build_type }}-
-            ccache-build-${{ runner.os }}-
+
+      - name: Cmake Configure (${{ matrix.build_type }})
+        run: |
+          # Verify environment variables before CMake
+          echo "Environment check before CMake:"
+          echo "CC=$CC"
+          echo "CXX=$CXX"
+          echo "LDFLAGS=$LDFLAGS"
+
+          echo "== ccache stats (before configure) =="
+          command -v ccache >/dev/null 2>&1 && ccache -s || true
+          command -v ccache >/dev/null 2>&1 && ccache -z || true
+          
+          # Test compiler functionality
+          echo "Testing compilers:"
+          echo 'int main(){return 0;}' | $CC -x c - -o /tmp/test_cc_$$ || echo "CC test failed"
+          echo 'int main(){return 0;}' | $CXX -x c++ - -o /tmp/test_cxx_$$ || echo "CXX test failed"
+          rm -f /tmp/test_*_$$
+          
+          mkdir -p build
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER=$CC \
+            -DCMAKE_CXX_COMPILER=$CXX \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          
+          echo "CMake configure completed, build directory ready for main compilation"
+
+          echo "== ccache stats (after configure) =="
+          command -v ccache >/dev/null 2>&1 && ccache -s || true
 
       - name: Build project
         run: |
@@ -806,59 +770,265 @@ jobs:
           echo "[ccache-build-delete] Deleted entries: $count"
 
       - name: Save updated ccache
-        if: success() && matrix.os == 'ubuntu-latest'
+        if: success()
         uses: actions/cache/save@v4
         with:
           path: ${{ env.CCACHE_DIR }}
           key: ccache-build-${{ runner.os }}-${{ matrix.build_type }}
 
+      - name: Create compressed build artifact tarball (Based on macOS Debug)
+        if: matrix.os == 'macos-latest' && matrix.build_type == 'Debug'
+        run: |
+          set -euo pipefail
+          TAR=build-artifact-${{ runner.os }}-${{ matrix.build_type }}.tar.gz
+          rm -f "$TAR"
+
+          if [ ! -d build ]; then
+            echo "ERROR: build directory missing. Cannot package clang-tidy inputs." >&2
+            exit 1
+          fi
+
+          if [ ! -f build/compile_commands.json ]; then
+            echo "ERROR: build/compile_commands.json missing. Ensure CMAKE_EXPORT_COMPILE_COMMANDS=ON " >&2
+            exit 1
+          fi
+
+          if [ ! -d build/CMakeFiles ]; then
+            echo "ERROR: build/CMakeFiles directory missing; clang-tidy requires generated configuration" >&2
+            exit 1
+          fi
+
+          if [ ! -d velox ]; then
+            echo "ERROR: velox directory missing; expected populated velox tree for clang-tidy includes" >&2
+            exit 1
+          fi
+
+          echo "Packaging build/ and velox/ into $TAR"
+          tar -czf "$TAR" build velox
+          ls -lh "$TAR"
+
       - name: Upload compile database for clang-tidy (macOS Debug only)
         if: matrix.os == 'macos-latest' && matrix.build_type == 'Debug'
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts-macos-latest-Debug
-          path: |
-            build/compile_commands.json
-            build/CMakeFiles/
-            build/*.cmake
-            build/CMakeCache.txt
+          name: build-artifacts-macos-debug
+          path: build-artifact-${{ runner.os }}-${{ matrix.build_type }}.tar.gz
+          if-no-files-found: error
           retention-days: 1
 
   clang-tidy:
-    name: Clang-Tidy Analysis  
+    name: Clang-Tidy Analysis (Based on macOS Debug build)
     runs-on: macos-latest
-    timeout-minutes: 15
-    needs: build-test
+    timeout-minutes: 240
+    needs: project-construct-test
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
 
-      - name: Download and setup build artifacts
+      - name: Determine changed C/C++ files
+        id: diff
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base_ref="${GITHUB_BASE_REF}"
+          before_sha="${BEFORE_SHA:-}"
+          zero_sha="0000000000000000000000000000000000000000"
+          diff_attempted=0
+
+          rm -f changed_files.txt
+
+          if [ -z "$base_ref" ]; then
+            echo "No GITHUB_BASE_REF detected; treating this as a push event."
+
+            if [ -n "$before_sha" ] && [ "$before_sha" != "$zero_sha" ]; then
+              if ! git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+                echo "Fetching push baseline commit $before_sha"
+                git fetch origin "$before_sha" --depth=2 2>/dev/null || git fetch origin "$before_sha" --depth=2 --filter=blob:none || git fetch origin "$before_sha" || true
+              fi
+
+              if git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+                parent_of_before=$(git show -s --pretty=%P "$before_sha" 2>/dev/null | awk '{print $1}')
+                if [ -z "$parent_of_before" ]; then
+                  echo "Baseline $before_sha is shallow; fetching parent history"
+                  git fetch origin "$before_sha" --depth=64 2>/dev/null || git fetch origin "$before_sha" --depth=64 --filter=blob:none || git fetch origin "$before_sha" || true
+                  parent_of_before=$(git show -s --pretty=%P "$before_sha" 2>/dev/null | awk '{print $1}')
+                fi
+
+                merge_base=$(git merge-base "$before_sha" HEAD || true)
+                if [ -z "$merge_base" ]; then
+                  ref_to_deepen="${GITHUB_REF:-}"
+                  if [ -n "$ref_to_deepen" ]; then
+                    echo "Merge-base unresolved; deepening history for $ref_to_deepen"
+                    if ! git fetch --deepen=64 origin "$ref_to_deepen" 2>/dev/null; then
+                      short_ref=${ref_to_deepen#refs/heads/}
+                      if [ "$short_ref" != "$ref_to_deepen" ]; then
+                        git fetch --deepen=64 origin "$short_ref" 2>/dev/null || true
+                      fi
+                    fi
+                    merge_base=$(git merge-base "$before_sha" HEAD || true)
+                  fi
+                fi
+
+                if [ -z "$merge_base" ] && [ -n "$parent_of_before" ]; then
+                  merge_base="$parent_of_before"
+                  echo "Using parent ($merge_base) of push baseline as comparison base"
+                fi
+
+                if [ -n "$merge_base" ]; then
+                  if [ "$merge_base" = "$before_sha" ]; then
+                    echo "Using push baseline ($before_sha) as comparison base"
+                  else
+                    echo "Using merge-base ($merge_base) derived from push baseline $before_sha"
+                  fi
+                  diff_attempted=1
+                  git diff --name-only "$merge_base" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+                else
+                  echo "Unable to determine merge-base for push baseline $before_sha"
+                  echo "Falling back to direct diff against $before_sha"
+                  diff_attempted=1
+                  git diff --name-only "$before_sha" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+                fi
+              else
+                echo "Push baseline $before_sha unavailable locally after fetch attempt."
+              fi
+            fi
+
+            if git rev-parse HEAD^ >/dev/null 2>&1; then
+              prev_sha=$(git rev-parse HEAD^)
+              if [ ! -s changed_files.txt ]; then
+                echo "Using HEAD^ ($prev_sha) as comparison base"
+                diff_attempted=1
+                git diff --name-only "$prev_sha" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+              fi
+            fi
+
+            if [ ! -s changed_files.txt ]; then
+              if [ "$diff_attempted" -eq 0 ]; then
+                echo "No committed base available; falling back to full scan."
+                git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
+              else
+                echo "No changed C/C++ files detected after diff comparisons; skipping clang-tidy."
+                : > changed_files.txt
+              fi
+            fi
+          else
+            git fetch origin "$base_ref" --depth=1
+            git diff --name-only "origin/$base_ref" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+            if [ ! -s changed_files.txt ]; then
+              echo "No changed C/C++ files relative to PR base; skipping clang-tidy."
+              : > changed_files.txt
+            fi
+          fi
+
+          echo "Files to analyze:"
+          cat changed_files.txt
+          COUNT=$(wc -l < changed_files.txt | tr -d ' ')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Restore thirdparty cache
+        if: steps.diff.outputs.count != '0'
+        id: clang-tidy-thirdparty-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            thirdparty/builds
+            thirdparty/installed
+            thirdparty/src
+          key: thirdparty-${{ runner.os }}-Debug-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+
+      - name: Download thirdparty artifact
+        if: steps.diff.outputs.count != '0' && steps.clang-tidy-thirdparty-cache.outputs.cache-hit != 'true'
         uses: actions/download-artifact@v4
         with:
-          name: build-artifacts-macos-latest-Debug
-          path: build
+          name: thirdparty-artifact-stored-${{ runner.os }}-Debug
+          path: .
+
+      - name: Extract thirdparty artifact
+        if: steps.diff.outputs.count != '0' && steps.clang-tidy-thirdparty-cache.outputs.cache-hit != 'true'
+        run: |
+          set -euo pipefail
+          TAR=thirdparty-artifact-${{ runner.os }}-Debug.tar.gz
+          test -f "$TAR" || { echo "Artifact tarball $TAR not found" >&2; exit 1; }
+          echo "Extracting $TAR"
+          tar -xzf "$TAR"
+          # List key directories
+          du -sh thirdparty/installed
+          du -sh thirdparty/builds
+          du -sh thirdparty/src
+
+      - name: Clean build directory
+        if: steps.diff.outputs.count != '0'
+        run: rm -rf build
+
+      - name: Download build artifacts
+        if: steps.diff.outputs.count != '0'
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts-macos-debug
+          path: .
+          merge-multiple: true
+
+      - name: Extract clang-tidy deps build artifact
+        if: steps.diff.outputs.count != '0'
+        run: |
+          set -euo pipefail
+          TAR=$(ls build-artifact-*-Debug.tar.gz 2>/dev/null | head -n1 || true)
+          if [ -z "$TAR" ]; then
+            echo "ERROR: clang-tidy build artifact tarball not found in workspace" >&2
+            ls -la
+            exit 1
+          fi
+          echo "Extracting $TAR"
+          rm -rf build velox
+          tar -xzf "$TAR"
+          if [ ! -d build ]; then
+            echo "ERROR: build directory missing after extracting $TAR" >&2
+            exit 1
+          fi
+          if [ ! -d velox ]; then
+            echo "ERROR: velox directory missing after extracting $TAR" >&2
+            exit 1
+          fi
 
       - name: Verify compile database and setup
+        if: steps.diff.outputs.count != '0'
         run: |
-          # Verify required files exist
+          # Verify required files exist in the workspace root after artifact extraction
+          if [ ! -d "build" ]; then
+            echo "ERROR: Expected build directory in workspace after artifact download"
+            ls -a || true
+            exit 1
+          fi
           if [ ! -f "build/compile_commands.json" ]; then
-            echo "ERROR: compile_commands.json not found in build artifacts!"
+            echo "ERROR: compile_commands.json not found at build/compile_commands.json"
+            ls build || true
             exit 1
           fi
+
           if [ ! -d "build/CMakeFiles" ]; then
-            echo "ERROR: CMakeFiles directory not found in build artifacts!"
+            echo "ERROR: build/CMakeFiles directory missing after artifact extraction"
+            ls build || true
             exit 1
           fi
-          
+
+          if [ ! -d "velox" ]; then
+            echo "ERROR: velox directory missing after artifact extraction"
+            ls -a || true
+            exit 1
+          fi
+
+          if ! ls build/*.cmake >/dev/null 2>&1; then
+            echo "WARNING: No top-level CMake *.cmake files found in build/; clang-tidy may miss config"
+          fi
+
           echo "Build artifacts verified successfully"
-          ls -la build/
-          
-          # Link compile_commands.json to project root  
-          ln -sf build/compile_commands.json .
-          echo "Using compile_commands.json from build directory"
+          ls build
 
       - name: Install clang-tidy
+        if: steps.diff.outputs.count != '0'
         run: |
           set -euxo pipefail
           brew update
@@ -867,71 +1037,61 @@ jobs:
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
           "$LLVM_PREFIX/bin/clang-tidy" --version
 
-      - name: Determine changed C/C++ files
-        id: diff
-        run: |
-          base_ref="${GITHUB_BASE_REF}"
-          if [ -z "$base_ref" ]; then
-            # Not a PR: analyze all tracked sources
-            git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
-          else
-            git fetch origin "$base_ref" --depth=1 || true
-            git diff --name-only "origin/$base_ref" HEAD | grep -E '\\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
-            if [ ! -s changed_files.txt ]; then
-              echo "No changed C/C++ files; falling back to all.";
-              git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
-            fi
-          fi
-          echo "Files to analyze:";
-          cat changed_files.txt
-          COUNT=$(wc -l < changed_files.txt | tr -d ' ')
-          echo "count=$COUNT" >> $GITHUB_OUTPUT
-
       - name: Run clang-tidy
         if: steps.diff.outputs.count != '0'
         run: |
-          set -e
-          python3 - <<'PY'
-          import os
-          import subprocess
-          
-          files = [l.strip() for l in open('changed_files.txt') if l.strip()]
-          if not files:
-            print('No files to analyze.')
-            raise SystemExit(0)
-          
-          BATCH_SIZE = 80
-          had_issue = False
-          
-          for i in range(0, len(files), BATCH_SIZE):
-            chunk = files[i:i+BATCH_SIZE]
-            print(f"Analyzing batch {i//BATCH_SIZE+1}: {len(chunk)} files")
-            # Use versioned clang-tidy if available, else fallback to clang-tidy in PATH
-            tidy = None
-            for name in ("clang-tidy-20", "clang-tidy"):
-              if subprocess.run(["bash","-c",f"command -v {name}"], stdout=subprocess.DEVNULL).returncode == 0:
-                tidy = name
-                break
-            if tidy is None:
-              print("clang-tidy not found", flush=True)
-              had_issue = True
-              break
-            cmd = [tidy, "-p", "build"] + chunk
-            res = subprocess.run(
-              cmd,
-              stdout=subprocess.PIPE,
-              stderr=subprocess.STDOUT,
-              text=True,
-            )
-            print(res.stdout)
-            if res.returncode != 0:
-              had_issue = True
-          
-          if had_issue:
-            raise SystemExit(1)
-          else:
-            print("clang-tidy passed")
-          PY
+          set -euo pipefail
+
+          if [ ! -s changed_files.txt ]; then
+            echo "No files to analyze."
+            exit 0
+          fi
+
+          FILES=()
+          while IFS= read -r line; do
+            [ -n "$line" ] && FILES+=("$line")
+          done < changed_files.txt
+
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No files to analyze."
+            exit 0
+          fi
+
+          CORES=$(command -v nproc >/dev/null 2>&1 && nproc || sysctl -n hw.ncpu)
+          echo "Detected $CORES cores for parallel clang-tidy"
+
+          TIDY_BIN=$(command -v clang-tidy-20 || command -v clang-tidy || true)
+          if [ -z "$TIDY_BIN" ]; then
+            echo "ERROR: clang-tidy binary not found" >&2
+            exit 1
+          fi
+
+          RUN_TIDY=$(command -v run-clang-tidy-20 || command -v run-clang-tidy || command -v run-clang-tidy.py || true)
+          if [ -z "$RUN_TIDY" ]; then
+            echo "ERROR: run-clang-tidy script not found" >&2
+            exit 1
+          fi
+
+          BATCH_SIZE=80
+          had_issue=0
+          batch_index=1
+          total=${#FILES[@]}
+
+          for ((i=0; i<total; i+=BATCH_SIZE)); do
+            CHUNK=("${FILES[@]:i:BATCH_SIZE}")
+            echo "Running run-clang-tidy batch ${batch_index} on ${#CHUNK[@]} files"
+            if ! "$RUN_TIDY" -p build -j "$CORES" -clang-tidy-binary "$TIDY_BIN" "${CHUNK[@]}"; then
+              had_issue=1
+            fi
+            batch_index=$((batch_index + 1))
+          done
+
+          if [ "$had_issue" -ne 0 ]; then
+            echo "clang-tidy reported issues" >&2
+            exit 1
+          else
+            echo "clang-tidy passed"
+          fi
 
       - name: No C/C++ sources
         if: steps.diff.outputs.count == '0'

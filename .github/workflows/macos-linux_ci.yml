@@ -1,0 +1,938 @@
+name: CI (macOS + Linux)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Optional reason / context for manual run"
+        required: false
+        default: "manual trigger"
+
+permissions:
+  contents: read
+  actions: write
+
+env:
+  GH_API_VERSION: "2022-11-28"
+  CMAKE_REQUESTED_VERSION: "latest"
+
+jobs:
+  lint-format:
+    name: Lint / Format
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect .clang-format
+        id: has_cfg
+        run: |
+          if [ -f .clang-format ]; then echo "found=true" >> $GITHUB_OUTPUT; else echo "found=false" >> $GITHUB_OUTPUT; fi
+
+      - name: Install clang-format (macOS)
+        run: |
+          set -euxo pipefail
+          brew update
+          brew install llvm@20
+          LLVM_PREFIX=$(brew --prefix)/opt/llvm@20
+          echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
+          "$LLVM_PREFIX/bin/clang-format" --version
+
+      - name: Run clang-format diff (dry-run)
+        if: steps.has_cfg.outputs.found == 'true'
+        run: |
+          echo "Checking formatting..."
+          # Define directories/patterns to ignore (customize as needed)
+          IGNORE_PATTERNS=(
+            ':!thirdparty/*'
+            ':!build/*'
+            ':!velox/*'
+            ':!**/third_party/*'
+            ':!**/external/*'
+            ':!**/deps/*'
+          )
+          
+          # Gather C/C++ sources excluding ignored patterns
+          FILES=$(git ls-files "${IGNORE_PATTERNS[@]}" '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx')
+          if [ -z "$FILES" ]; then echo "No C/C++ files to check (after exclusions)"; exit 0; fi
+          
+          echo "Files to check (excluding ignored directories):"
+          echo "$FILES" | head -10  # Show first 10 files
+          [ $(echo "$FILES" | wc -l) -gt 10 ] && echo "... and $(( $(echo "$FILES" | wc -l) - 10 )) more files"
+          
+          FAIL=0
+          for f in $FILES; do
+            if ! clang-format -style=file "$f" | diff -u "$f" - > /dev/null; then
+              echo "Needs formatting: $f"
+              clang-format -style=file "$f" | diff -u "$f" - || true
+              FAIL=1
+            fi
+          done
+          
+          if [ $FAIL -eq 1 ]; then
+            echo "Formatting issues detected. Run: clang-format -i <files>" >&2
+            exit 1
+          else
+            echo "Formatting OK"
+          fi
+
+      - name: Skip notice (no .clang-format)
+        if: steps.has_cfg.outputs.found != 'true'
+        run: echo "No .clang-format found; skipping format check."
+
+  configure-deps:
+    name: Configure-${{ matrix.os }}-${{ matrix.build_type }}
+    concurrency: configure-${{ matrix.os }}-${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 360
+    needs: lint-format
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        build_type: [Release, Debug]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          set -euxo pipefail
+          echo "brew --version:" && brew --version
+          brew update
+          # Hard fail if any of these cannot be installed (no fallbacks)
+          brew install llvm@20 lld@20 cmake ccache autoconf automake libtool
+          brew list --versions llvm@20
+          brew list --versions lld@20
+          brew list --versions cmake
+          brew list --versions ccache
+
+      - name: Verify toolchain integrity (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          set -euxo pipefail
+          HOMEBREW_PREFIX=$(brew --prefix)
+          LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm@20"
+          LLD_PREFIX="$HOMEBREW_PREFIX/opt/lld@20"
+          
+          # Verify LLVM installation integrity
+          echo "=== Verifying LLVM 20 installation ==="
+          if [ ! -d "$LLVM_PREFIX" ]; then
+            echo "ERROR: LLVM@20 directory not found at $LLVM_PREFIX"
+            echo "Reinstalling llvm@20..."
+            brew uninstall --ignore-dependencies llvm@20 || true
+            brew install llvm@20
+          fi
+          
+          # Test compiler functionality
+          CLANG_BIN="$LLVM_PREFIX/bin/clang"
+          CLANGXX_BIN="$LLVM_PREFIX/bin/clang++"
+          
+          echo "Testing C compiler..."
+          echo 'int main(){return 0;}' | "$CLANG_BIN" -x c - -o /tmp/test_c || {
+            echo "ERROR: C compiler test failed"
+            brew reinstall llvm@20
+            echo 'int main(){return 0;}' | "$CLANG_BIN" -x c - -o /tmp/test_c
+          }
+          
+          echo "Testing C++ compiler..."
+          echo 'int main(){return 0;}' | "$CLANGXX_BIN" -x c++ - -o /tmp/test_cxx || {
+            echo "ERROR: C++ compiler test failed"
+            brew reinstall llvm@20
+            echo 'int main(){return 0;}' | "$CLANGXX_BIN" -x c++ - -o /tmp/test_cxx
+          }
+          
+          echo "Toolchain verification successful!"
+
+      - name: Set compiler environment (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          set -euo pipefail
+          HOMEBREW_PREFIX=$(brew --prefix)
+          LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm@20"
+          LLD_PREFIX="$HOMEBREW_PREFIX/opt/lld@20"
+          CCBIN="$LLVM_PREFIX/bin/clang"
+            
+          CXXBIN="$LLVM_PREFIX/bin/clang++"
+          LLD_BIN="$LLD_PREFIX/bin/ld.lld"
+          # Enforce presence (no fallbacks allowed)
+          test -x "$CCBIN" || { echo "Missing clang at $CCBIN" >&2; exit 1; }
+          test -x "$CXXBIN" || { echo "Missing clang++ at $CXXBIN" >&2; exit 1; }
+          test -x "$LLD_BIN" || { echo "Missing ld.lld at $LLD_BIN" >&2; exit 1; }
+          echo "CC=$CCBIN" >> $GITHUB_ENV
+          echo "CXX=$CXXBIN" >> $GITHUB_ENV
+          echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
+          echo "Configured macOS toolchain:";
+          "$CCBIN" --version
+          "$LLD_BIN" --version || true
+
+      - name: Install dependencies (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          # Add LLVM repository first, then single update
+          wget --tries=3 --timeout=30 -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y \
+            wget gnupg lsb-release software-properties-common \
+            clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 \
+            ninja-build ccache autoconf automake libtool gettext gettext-base autopoint \
+            build-essential pkg-config libopenblas-dev liblapack-dev libblas-dev
+          
+          # Install latest GCC and libstdc++ development files
+          # build-essential provides g++ and libstdc++, but we explicitly install for clarity
+          echo "Ensuring GCC toolchain for Clang with libstdc++..."
+          sudo apt-get install -y g++
+          
+          # Verify GCC and libstdc++ are available
+          echo "Verifying GCC toolchain:"
+          g++ --version
+          GCC_VERSION=$(g++ -dumpversion | cut -d. -f1)
+          echo "Detected GCC major version: $GCC_VERSION"
+          
+          # Verify C++ standard library headers exist
+          if [ -d "/usr/include/c++/$GCC_VERSION" ]; then
+            echo "Found libstdc++ headers at: /usr/include/c++/$GCC_VERSION"
+            ls -la /usr/include/c++/$GCC_VERSION | head -5
+          elif [ -d "/usr/include/c++" ]; then
+            echo "Found libstdc++ headers at: /usr/include/c++"
+            ls -la /usr/include/c++/
+          else
+            echo "ERROR: Could not find libstdc++ headers"
+            exit 1
+          fi
+          
+          # Also verify architecture-specific headers
+          if [ -d "/usr/include/x86_64-linux-gnu/c++/$GCC_VERSION" ]; then
+            echo "Found arch-specific headers at: /usr/include/x86_64-linux-gnu/c++/$GCC_VERSION"
+            ls -la /usr/include/x86_64-linux-gnu/c++/$GCC_VERSION | head -5
+          fi
+
+          # Robust CMake version resolution (handles API failures / rate limits / HTML responses)
+          set -euo pipefail
+          REQUESTED="${CMAKE_REQUESTED_VERSION:-latest}"
+          echo "Requested CMake version: $REQUESTED"
+          resolve_cmake_version() {
+            local req="$1"
+            if [ "$req" != "latest" ]; then
+              echo "$req"
+              return 0
+            fi
+            local authHeader="" http_code resp tag
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              authHeader="Authorization: Bearer $GITHUB_TOKEN"
+            fi
+            echo "[cmake-version] Query releases/latest (authenticated=${authHeader:+yes}${authHeader:+=no})" >&2
+            # Simple retry loop (3 attempts, 3s sleep) if parsing fails
+            for attempt in 1 2 3; do
+              resp=$(curl -sSL -w '\n%{http_code}' --retry 3 \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: ${GH_API_VERSION:-2022-11-28}" \
+                ${authHeader:+ -H "$authHeader"} \
+                "https://api.github.com/repos/Kitware/CMake/releases/latest" || true)
+              http_code=$(echo "$resp" | tail -n1)
+              body=$(echo "$resp" | sed '$d')
+              if [ "$http_code" != "200" ]; then
+                echo "[cmake-version] releases/latest HTTP $http_code (attempt $attempt)" >&2
+                echo "$body" | head -5 >&2
+              fi
+              tag=$(echo "$body" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": "v?([^\"]+)".*/\1/')
+              if [ -n "$tag" ]; then
+                echo "$tag"
+                return 0
+              fi
+              if [ $attempt -lt 3 ]; then
+                echo "[cmake-version] Parse failed (attempt $attempt); sleeping 3s before retry" >&2
+                sleep 3
+              fi
+            done
+            echo "[cmake-version] Primary parse failed; fallback to /tags endpoint" >&2
+            resp=$(curl -sSL --retry 3 -H "Accept: application/vnd.github+json" ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/Kitware/CMake/tags?per_page=10" || true)
+            tag=$(echo "$resp" | grep -E '"name": "v?[0-9]+\.[0-9]+\.[0-9]+"' | sed -E 's/.*"name": "v?([0-9]+\.[0-9]+\.[0-9]+)".*/\1/' | sort -V | tail -1)
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            echo "[cmake-version] Fallback to git ls-remote (tags)" >&2
+            if command -v git >/dev/null 2>&1; then
+              tag=$(git ls-remote --tags https://github.com/Kitware/CMake.git | \
+                grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | \
+                cut -d/ -f3 | sed 's/^v//' | sort -V | tail -1 || true)
+            fi
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            # Final hard fallback: use a pinned known-good version (update periodically)
+            echo "[cmake-version] All resolution strategies failed; using pinned fallback 3.30.4" >&2
+            echo "3.30.4"
+          }
+          CM_VER=$(resolve_cmake_version "$REQUESTED")
+          echo "Using CMake version: $CM_VER"
+          ARCHIVE="cmake-$CM_VER-linux-x86_64.tar.gz"
+          URL="https://github.com/Kitware/CMake/releases/download/v$CM_VER/$ARCHIVE"
+          echo "Downloading $URL"
+          curl -fsSL --retry 3 "$URL" -o "$ARCHIVE" || { echo "Failed to download CMake $CM_VER" >&2; exit 1; }
+          sudo tar -C /opt -xzf "$ARCHIVE" || { echo "Failed to extract CMake" >&2; exit 1; }
+          rm "$ARCHIVE"
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/cmake /usr/local/bin/cmake
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/ctest /usr/local/bin/ctest || true
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/cpack /usr/local/bin/cpack || true
+          cmake --version
+
+          echo "Installing mold from GitHub releases..."
+          MOLD_VERSION="2.40.4"
+          wget --tries=3 --timeout=30 -q "https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
+          sudo tar -C /usr/local --strip-components=1 -xzf "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
+          rm "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
+
+      - name: Set compiler environment (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          # Try versioned binaries in /usr/bin first (more reliable), then fall back to LLVM directory
+          if [ -x "/usr/bin/clang-20" ]; then
+            CC_PATH="/usr/bin/clang-20"
+          elif [ -x "/usr/lib/llvm-20/bin/clang" ]; then
+            CC_PATH="/usr/lib/llvm-20/bin/clang"
+          else
+            echo "ERROR: No suitable clang-20 compiler found"
+            exit 1
+          fi
+          
+          if [ -x "/usr/bin/clang++-20" ]; then
+            CXX_PATH="/usr/bin/clang++-20"
+          elif [ -x "/usr/lib/llvm-20/bin/clang++" ]; then
+            CXX_PATH="/usr/lib/llvm-20/bin/clang++"
+          else
+            echo "ERROR: No suitable clang++-20 compiler found"
+            exit 1
+          fi
+          
+          # Verify compilers are functional
+          echo "Testing compiler functionality:"
+          echo "CC: $CC_PATH"
+          echo "CXX: $CXX_PATH"
+          
+          # Test basic compilation
+          echo 'int main(){return 0;}' | "$CC_PATH" -x c - -o /tmp/test_cc_$$ || {
+            echo "ERROR: C compiler test failed"
+            exit 1
+          }
+          echo 'int main(){return 0;}' | "$CXX_PATH" -x c++ - -o /tmp/test_cxx_$$ || {
+            echo "ERROR: C++ compiler test failed"  
+            exit 1
+          }
+          rm -f /tmp/test_*_$$
+          
+          echo "CC=$CC_PATH" >> $GITHUB_ENV
+          echo "CXX=$CXX_PATH" >> $GITHUB_ENV
+          
+          # Verify mold linker is available (CMake FindLinker.cmake will configure it)
+          MOLD_PATH=$(command -v mold || echo /usr/local/bin/mold)
+          if [ -x "$MOLD_PATH" ]; then
+            echo "Mold linker available at: $MOLD_PATH"
+            "$MOLD_PATH" --version
+          fi
+          
+          # Add LLVM tools to PATH
+          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
+          echo "PATH=/usr/lib/llvm-20/bin:$PATH" >> $GITHUB_ENV
+          
+          # Verify final setup
+          "$CC_PATH" --version
+          "$CXX_PATH" --version
+
+      - name: Restore thirdparty downloads cache
+        id: downloads-cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: thirdparty/downloads
+          key: downloads-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+          restore-keys: |
+            downloads-
+
+      - name: Restore FULL thirdparty state
+        id: thirdparty-full-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            thirdparty/builds
+            thirdparty/installed
+            thirdparty/src
+          key: thirdparty-full-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+          restore-keys: |
+            thirdparty-full-${{ runner.os }}-${{ matrix.build_type }}-
+            thirdparty-full-${{ runner.os }}-
+
+      - name: Setup ccache
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            CCACHE_DIR="$HOME/Library/Caches/ccache-configure"
+          else
+            CCACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ccache-configure"
+          fi
+          mkdir -p "$CCACHE_DIR"
+          echo "CCACHE_DIR=$CCACHE_DIR" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=2G" >> $GITHUB_ENV
+          echo "CCACHE_COMPRESS=true" >> $GITHUB_ENV
+          echo "CCACHE_COMPRESSLEVEL=1" >> $GITHUB_ENV
+          echo "CCACHE_SLOPPINESS=pch_defines,time_macros,include_file_mtime,include_file_ctime" >> $GITHUB_ENV
+          echo "CCACHE_NOHASHDIR=true" >> $GITHUB_ENV
+
+      - name: Restore ccache
+        id: ccache-restore-configure
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-configure-${{ runner.os }}-${{ matrix.build_type }}
+          restore-keys: |
+            ccache-configure-${{ runner.os }}-${{ matrix.build_type }}-
+            ccache-configure-${{ runner.os }}-
+
+      - name: Cmake Configure (${{ matrix.build_type }})
+        run: |
+          # Verify environment variables before CMake
+          echo "Environment check before CMake:"
+          echo "CC=$CC"
+          echo "CXX=$CXX"
+          echo "LDFLAGS=$LDFLAGS"
+
+          echo "== ccache stats (before configure) =="
+          command -v ccache >/dev/null 2>&1 && ccache -s || true
+          command -v ccache >/dev/null 2>&1 && ccache -z || true
+          
+          # Test compiler functionality
+          echo "Testing compilers:"
+          echo 'int main(){return 0;}' | $CC -x c - -o /tmp/test_cc_$$ || echo "CC test failed"
+          echo 'int main(){return 0;}' | $CXX -x c++ - -o /tmp/test_cxx_$$ || echo "CXX test failed"
+          rm -f /tmp/test_*_$$
+          
+          mkdir -p build
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_C_COMPILER=$CC \
+            -DCMAKE_CXX_COMPILER=$CXX \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          
+          echo "CMake configure completed, build directory ready for main compilation"
+
+          echo "== ccache stats (after configure) =="
+          command -v ccache >/dev/null 2>&1 && ccache -s || true
+
+      - name: Delete existing ccache key
+        if: success() && steps.ccache-restore-configure.outputs.cache-hit == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          KEY="ccache-configure-${{ runner.os }}-${{ matrix.build_type }}"
+          echo "[ccache-configure-delete] DELETE by key=$KEY"
+          BASE_API="https://api.github.com"
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          authHeader="Authorization: Bearer $GITHUB_TOKEN"
+          acceptHeader="Accept: application/vnd.github+json"
+          versionHeader="X-GitHub-Api-Version: $GH_API_VERSION"
+          # Single DELETE by key (official API returns 200 with JSON body containing total_count)
+          response=$(curl -sS -w "\n%{http_code}" -X DELETE \
+            -H "$authHeader" -H "$acceptHeader" -H "$versionHeader" \
+            "$BASE_API/repos/$OWNER/$REPO/actions/caches?key=$KEY") || { echo '[ccache-configure-delete] ERROR: request failed'; exit 1; }
+          code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          if [ "$code" != "200" ]; then
+            echo "[ccache-configure-delete] ERROR: HTTP $code (expected 200)" >&2
+            echo "$body" >&2
+            exit 1
+          fi
+          count=$(echo "$body" | jq -r '.total_count // -1' 2>/dev/null || echo -1)
+          if [ "$count" -lt 1 ]; then
+            echo "[ccache-configure-delete] ERROR: total_count=$count (expected >=1)" >&2
+            echo "$body" >&2
+            exit 1
+          fi
+          echo "[ccache-configure-delete] Deleted entries: $count"
+
+      - name: Save updated ccache
+        if: success() && matrix.os == 'ubuntu-latest'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-configure-${{ runner.os }}-${{ matrix.build_type }}
+
+      - name: Save thirdparty downloads cache
+        if: success() && steps.downloads-cache-restore.outputs.cache-hit != 'true' && matrix.os == 'macos-latest' && matrix.build_type == 'Release'
+        uses: actions/cache/save@v4
+        with:
+          path: thirdparty/downloads
+          key: downloads-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+      
+      - name: Create compressed artifact tarball
+        run: |
+          set -euo pipefail
+          TAR=build-stage-${{ matrix.os }}-${{ matrix.build_type }}.tar.gz
+          echo "Creating compressed artifact: $TAR"
+          # Use pigz if available for faster compression
+          COMPRESS_CMD="tar -czf"
+          if command -v pigz >/dev/null 2>&1; then
+            echo "Using pigz for parallel compression"
+            COMPRESS_CMD="tar -I pigz -cf"
+          fi
+          $COMPRESS_CMD "$TAR" build thirdparty/installed thirdparty/builds thirdparty/src
+          ls -lh "$TAR"
+
+      - name: Save FULL thirdparty state
+        if: success() && steps.thirdparty-full-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            thirdparty/builds
+            thirdparty/installed
+            thirdparty/src
+          key: thirdparty-full-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+
+      - name: Upload configured build & thirdparty artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-stage-artifacts-${{ matrix.os }}-${{ matrix.build_type }}
+          path: build-stage-${{ matrix.os }}-${{ matrix.build_type }}.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  build-test:
+    name: Build-${{ matrix.os }}-${{ matrix.build_type }}
+    concurrency: ccache-${{ matrix.os }}-${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 360
+    needs: configure-deps
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        build_type: [Release, Debug]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Download configured build & thirdparty artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-stage-artifacts-${{ matrix.os }}-${{ matrix.build_type }}
+          path: .
+
+      - name: Extract build-stage artifact
+        run: |
+          set -euo pipefail
+          TAR=build-stage-${{ matrix.os }}-${{ matrix.build_type }}.tar.gz
+          test -f "$TAR" || { echo "Artifact tarball $TAR not found" >&2; exit 1; }
+          echo "Extracting $TAR"
+          tar -xzf "$TAR"
+          # List key directories
+          du -sh build || true
+          du -sh thirdparty/installed || true
+          du -sh thirdparty/builds || true
+          du -sh thirdparty/src || true
+
+      - name: Install dependencies (macOS)
+        if: startsWith(matrix.os, 'macos')
+        run: |
+          set -euxo pipefail
+          brew update
+          brew install llvm@20 ccache
+          LLVM_PREFIX=$(brew --prefix)/opt/llvm@20
+          echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
+          echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
+          echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          wget --tries=3 --timeout=30 -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          sudo apt-get -o Acquire::Retries=3 update
+          sudo apt-get -o Acquire::Retries=3 install -y \
+            wget gnupg lsb-release software-properties-common \
+            clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 \
+            ninja-build ccache autoconf automake libtool gettext gettext-base autopoint \
+            build-essential pkg-config libopenblas-dev liblapack-dev libblas-dev
+          
+          # Install latest GCC and libstdc++ development files
+          echo "Ensuring GCC toolchain for Clang with libstdc++..."
+          sudo apt-get install -y g++
+          
+          # Verify GCC and libstdc++ are available
+          echo "Verifying GCC toolchain:"
+          g++ --version
+          GCC_VERSION=$(g++ -dumpversion | cut -d. -f1)
+          echo "Detected GCC major version: $GCC_VERSION"
+          
+          # Verify C++ standard library headers exist
+          if [ -d "/usr/include/c++/$GCC_VERSION" ]; then
+            echo "Found libstdc++ headers at: /usr/include/c++/$GCC_VERSION"
+            ls -la /usr/include/c++/$GCC_VERSION | head -5
+          elif [ -d "/usr/include/c++" ]; then
+            echo "Found libstdc++ headers at: /usr/include/c++"
+            ls -la /usr/include/c++/
+          else
+            echo "ERROR: Could not find libstdc++ headers"
+            exit 1
+          fi
+          
+          # Also verify architecture-specific headers
+          if [ -d "/usr/include/x86_64-linux-gnu/c++/$GCC_VERSION" ]; then
+            echo "Found arch-specific headers at: /usr/include/x86_64-linux-gnu/c++/$GCC_VERSION"
+            ls -la /usr/include/x86_64-linux-gnu/c++/$GCC_VERSION | head -5
+          fi
+
+          set -euo pipefail
+          REQUESTED="${CMAKE_REQUESTED_VERSION:-latest}"
+          echo "Requested CMake version: $REQUESTED"
+          resolve_cmake_version() {
+            local req="$1"
+            if [ "$req" != "latest" ]; then
+              echo "$req"
+              return 0
+            fi
+            local authHeader="" http_code resp tag
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              authHeader="Authorization: Bearer $GITHUB_TOKEN"
+            fi
+            echo "[cmake-version] Query releases/latest (authenticated=${authHeader:+yes}${authHeader:+=no})" >&2
+            # Simple retry loop (3 attempts, 3s sleep) if parsing fails
+            for attempt in 1 2 3; do
+              resp=$(curl -sSL -w '\n%{http_code}' --retry 3 \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: ${GH_API_VERSION:-2022-11-28}" \
+                ${authHeader:+ -H "$authHeader"} \
+                "https://api.github.com/repos/Kitware/CMake/releases/latest" || true)
+              http_code=$(echo "$resp" | tail -n1)
+              body=$(echo "$resp" | sed '$d')
+              if [ "$http_code" != "200" ]; then
+                echo "[cmake-version] releases/latest HTTP $http_code (attempt $attempt)" >&2
+                echo "$body" | head -5 >&2
+              fi
+              tag=$(echo "$body" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": "v?([^\"]+)".*/\1/')
+              if [ -n "$tag" ]; then
+                echo "$tag"
+                return 0
+              fi
+              if [ $attempt -lt 3 ]; then
+                echo "[cmake-version] Parse failed (attempt $attempt); sleeping 3s before retry" >&2
+                sleep 3
+              fi
+            done
+            echo "[cmake-version] Primary parse failed; fallback to /tags endpoint" >&2
+            resp=$(curl -sSL --retry 3 -H "Accept: application/vnd.github+json" ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/Kitware/CMake/tags?per_page=10" || true)
+            tag=$(echo "$resp" | grep -E '"name": "v?[0-9]+\.[0-9]+\.[0-9]+"' | sed -E 's/.*"name": "v?([0-9]+\.[0-9]+\.[0-9]+)".*/\1/' | sort -V | tail -1)
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            echo "[cmake-version] Fallback to git ls-remote (tags)" >&2
+            if command -v git >/dev/null 2>&1; then
+              tag=$(git ls-remote --tags https://github.com/Kitware/CMake.git | \
+                grep -E 'refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$' | \
+                cut -d/ -f3 | sed 's/^v//' | sort -V | tail -1 || true)
+            fi
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            echo "[cmake-version] All resolution strategies failed; using pinned fallback 3.30.4" >&2
+            echo "3.30.4"
+          }
+          CM_VER=$(resolve_cmake_version "$REQUESTED")
+          echo "Using CMake version: $CM_VER"
+          ARCHIVE="cmake-$CM_VER-linux-x86_64.tar.gz"
+          URL="https://github.com/Kitware/CMake/releases/download/v$CM_VER/$ARCHIVE"
+          echo "Downloading $URL"
+          curl -fsSL --retry 3 "$URL" -o "$ARCHIVE" || { echo "Failed to download CMake $CM_VER" >&2; exit 1; }
+          sudo tar -C /opt -xzf "$ARCHIVE" || { echo "Failed to extract CMake" >&2; exit 1; }
+          rm "$ARCHIVE"
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/cmake /usr/local/bin/cmake
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/ctest /usr/local/bin/ctest || true
+          sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/cpack /usr/local/bin/cpack || true
+          cmake --version
+
+          echo "Installing mold from GitHub releases..."
+          MOLD_VERSION="2.40.4"
+          wget --tries=3 --timeout=30 -q "https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
+          sudo tar -C /usr/local --strip-components=1 -xzf "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
+          rm "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
+
+      - name: Set compiler environment (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          # Try versioned binaries in /usr/bin first (more reliable), then fall back to LLVM directory
+          if [ -x "/usr/bin/clang-20" ]; then
+            CC_PATH="/usr/bin/clang-20"
+          elif [ -x "/usr/lib/llvm-20/bin/clang" ]; then
+            CC_PATH="/usr/lib/llvm-20/bin/clang"
+          else
+            echo "ERROR: No suitable clang-20 compiler found"
+            exit 1
+          fi
+          
+          if [ -x "/usr/bin/clang++-20" ]; then
+            CXX_PATH="/usr/bin/clang++-20"
+          elif [ -x "/usr/lib/llvm-20/bin/clang++" ]; then
+            CXX_PATH="/usr/lib/llvm-20/bin/clang++"
+          else
+            echo "ERROR: No suitable clang++-20 compiler found"
+            exit 1
+          fi
+          
+          # Verify compilers are functional
+          echo "Testing compiler functionality:"
+          echo "CC: $CC_PATH"
+          echo "CXX: $CXX_PATH"
+          
+          # Test basic compilation
+          echo 'int main(){return 0;}' | "$CC_PATH" -x c - -o /tmp/test_cc_$$ || {
+            echo "ERROR: C compiler test failed"
+            exit 1
+          }
+          echo 'int main(){return 0;}' | "$CXX_PATH" -x c++ - -o /tmp/test_cxx_$$ || {
+            echo "ERROR: C++ compiler test failed"  
+            exit 1
+          }
+          rm -f /tmp/test_*_$$
+          
+          echo "CC=$CC_PATH" >> $GITHUB_ENV
+          echo "CXX=$CXX_PATH" >> $GITHUB_ENV
+          
+          # Verify mold linker is available (CMake FindLinker.cmake will configure it)
+          MOLD_PATH=$(command -v mold || echo /usr/local/bin/mold)
+          if [ -x "$MOLD_PATH" ]; then
+            echo "Mold linker available at: $MOLD_PATH"
+            "$MOLD_PATH" --version
+          fi
+          
+          # Add LLVM tools to PATH
+          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
+          echo "PATH=/usr/lib/llvm-20/bin:$PATH" >> $GITHUB_ENV
+          
+          # Verify final setup
+          "$CC_PATH" --version
+          "$CXX_PATH" --version
+
+      - name: Setup ccache
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            CCACHE_DIR="$HOME/Library/Caches/ccache-build"
+          else
+            CCACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/ccache-build"
+          fi
+          mkdir -p "$CCACHE_DIR"
+          echo "CCACHE_DIR=$CCACHE_DIR" >> $GITHUB_ENV
+          echo "CCACHE_MAXSIZE=1G" >> $GITHUB_ENV  # build phase uses 1G as requested
+          echo "CCACHE_COMPRESS=true" >> $GITHUB_ENV
+          echo "CCACHE_COMPRESSLEVEL=1" >> $GITHUB_ENV
+          echo "CCACHE_SLOPPINESS=pch_defines,time_macros,include_file_mtime,include_file_ctime" >> $GITHUB_ENV
+          echo "CCACHE_NOHASHDIR=true" >> $GITHUB_ENV
+
+      - name: Restore ccache
+        id: ccache-restore-build
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-build-${{ runner.os }}-${{ matrix.build_type }}
+          restore-keys: |
+            ccache-build-${{ runner.os }}-${{ matrix.build_type }}-
+            ccache-build-${{ runner.os }}-
+
+      - name: Build project
+        run: |
+          set -euo pipefail
+          echo "== ccache stats (before build) =="
+          command -v ccache >/dev/null 2>&1 && ccache -s || true
+          # Detect cores
+          CORES=$(command -v nproc >/dev/null 2>&1 && nproc || sysctl -n hw.ncpu)
+          echo "Building with $CORES parallel jobs"
+          ninja -C build -j$CORES
+          echo "== ccache stats (after build) =="
+          command -v ccache >/dev/null 2>&1 && ccache -s || true
+
+      - name: Run tests
+        run: |
+          # Detect CPU cores
+          CORES=$(command -v nproc >/dev/null 2>&1 && nproc || sysctl -n hw.ncpu)
+          echo "Running tests with $CORES parallel jobs"
+          ctest --test-dir build -j$CORES --output-on-failure
+
+      - name: Run halo executable
+        run: ./build/halo || (echo "halo run failed" && exit 1)
+
+      - name: Delete existing ccache key
+        if: success() && steps.ccache-restore-build.outputs.cache-hit == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          KEY="ccache-build-${{ runner.os }}-${{ matrix.build_type }}"
+          echo "[ccache-build-delete] DELETE by key=$KEY"
+          BASE_API="https://api.github.com"
+          OWNER="${{ github.repository_owner }}"
+          REPO="${{ github.event.repository.name }}"
+          authHeader="Authorization: Bearer $GITHUB_TOKEN"
+          acceptHeader="Accept: application/vnd.github+json"
+          versionHeader="X-GitHub-Api-Version: $GH_API_VERSION"
+          response=$(curl -sS -w "\n%{http_code}" -X DELETE \
+            -H "$authHeader" -H "$acceptHeader" -H "$versionHeader" \
+            "$BASE_API/repos/$OWNER/$REPO/actions/caches?key=$KEY") || { echo '[ccache-build-delete] ERROR: request failed'; exit 1; }
+          code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          if [ "$code" != "200" ]; then
+            echo "[ccache-build-delete] ERROR: HTTP $code (expected 200)" >&2
+            echo "$body" >&2
+            exit 1
+          fi
+          count=$(echo "$body" | jq -r '.total_count // -1' 2>/dev/null || echo -1)
+          if [ "$count" -lt 1 ]; then
+            echo "[ccache-build-delete] ERROR: total_count=$count (expected >=1)" >&2
+            echo "$body" >&2
+            exit 1
+          fi
+          echo "[ccache-build-delete] Deleted entries: $count"
+
+      - name: Save updated ccache
+        if: success() && matrix.os == 'ubuntu-latest'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-build-${{ runner.os }}-${{ matrix.build_type }}
+
+      - name: Upload compile database for clang-tidy (macOS Debug only)
+        if: matrix.os == 'macos-latest' && matrix.build_type == 'Debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-macos-latest-Debug
+          path: |
+            build/compile_commands.json
+            build/CMakeFiles/
+            build/*.cmake
+            build/CMakeCache.txt
+          retention-days: 1
+
+  clang-tidy:
+    name: Clang-Tidy Analysis  
+    runs-on: macos-latest
+    timeout-minutes: 15
+    needs: build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download and setup build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts-macos-latest-Debug
+          path: build
+
+      - name: Verify compile database and setup
+        run: |
+          # Verify required files exist
+          if [ ! -f "build/compile_commands.json" ]; then
+            echo "ERROR: compile_commands.json not found in build artifacts!"
+            exit 1
+          fi
+          if [ ! -d "build/CMakeFiles" ]; then
+            echo "ERROR: CMakeFiles directory not found in build artifacts!"
+            exit 1
+          fi
+          
+          echo "Build artifacts verified successfully"
+          ls -la build/
+          
+          # Link compile_commands.json to project root  
+          ln -sf build/compile_commands.json .
+          echo "Using compile_commands.json from build directory"
+
+      - name: Install clang-tidy
+        run: |
+          set -euxo pipefail
+          brew update
+          brew install llvm@20
+          LLVM_PREFIX=$(brew --prefix)/opt/llvm@20  
+          echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
+          "$LLVM_PREFIX/bin/clang-tidy" --version
+
+      - name: Determine changed C/C++ files
+        id: diff
+        run: |
+          base_ref="${GITHUB_BASE_REF}"
+          if [ -z "$base_ref" ]; then
+            # Not a PR: analyze all tracked sources
+            git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
+          else
+            git fetch origin "$base_ref" --depth=1 || true
+            git diff --name-only "origin/$base_ref" HEAD | grep -E '\\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+            if [ ! -s changed_files.txt ]; then
+              echo "No changed C/C++ files; falling back to all.";
+              git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
+            fi
+          fi
+          echo "Files to analyze:";
+          cat changed_files.txt
+          COUNT=$(wc -l < changed_files.txt | tr -d ' ')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
+
+      - name: Run clang-tidy
+        if: steps.diff.outputs.count != '0'
+        run: |
+          set -e
+          python3 - <<'PY'
+          import os
+          import subprocess
+          
+          files = [l.strip() for l in open('changed_files.txt') if l.strip()]
+          if not files:
+            print('No files to analyze.')
+            raise SystemExit(0)
+          
+          BATCH_SIZE = 80
+          had_issue = False
+          
+          for i in range(0, len(files), BATCH_SIZE):
+            chunk = files[i:i+BATCH_SIZE]
+            print(f"Analyzing batch {i//BATCH_SIZE+1}: {len(chunk)} files")
+            # Use versioned clang-tidy if available, else fallback to clang-tidy in PATH
+            tidy = None
+            for name in ("clang-tidy-20", "clang-tidy"):
+              if subprocess.run(["bash","-c",f"command -v {name}"], stdout=subprocess.DEVNULL).returncode == 0:
+                tidy = name
+                break
+            if tidy is None:
+              print("clang-tidy not found", flush=True)
+              had_issue = True
+              break
+            cmd = [tidy, "-p", "build"] + chunk
+            res = subprocess.run(
+              cmd,
+              stdout=subprocess.PIPE,
+              stderr=subprocess.STDOUT,
+              text=True,
+            )
+            print(res.stdout)
+            if res.returncode != 0:
+              had_issue = True
+          
+          if had_issue:
+            raise SystemExit(1)
+          else:
+            print("clang-tidy passed")
+          PY
+
+      - name: No C/C++ sources
+        if: steps.diff.outputs.count == '0'
+        run: echo "No C/C++ files to analyze."

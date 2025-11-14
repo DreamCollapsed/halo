@@ -208,7 +208,7 @@ jobs:
             wget gnupg lsb-release software-properties-common \
             clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 \
             ninja-build autoconf automake libtool gettext gettext-base autopoint \
-            build-essential pkg-config libopenblas-dev liblapack-dev libblas-dev
+            build-essential pkgconf libopenblas-dev liblapack-dev libblas-dev
           
           # Install latest GCC and libstdc++ development files
           # build-essential provides g++ and libstdc++, but we explicitly install for clarity
@@ -393,7 +393,8 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_C_COMPILER=$CC \
-            -DCMAKE_CXX_COMPILER=$CXX
+            -DCMAKE_CXX_COMPILER=$CXX \
+            ${{ startsWith(matrix.os, 'ubuntu') && '-DPKG_CONFIG_EXECUTABLE=pkgconf' || '' }}
           
           echo "CMake configure completed, build directory ready for main compilation"
 
@@ -499,7 +500,7 @@ jobs:
             wget gnupg lsb-release software-properties-common \
             clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 \
             ninja-build ccache autoconf automake libtool gettext gettext-base autopoint \
-            build-essential pkg-config libopenblas-dev liblapack-dev libblas-dev
+            build-essential pkgconf libopenblas-dev liblapack-dev libblas-dev
           
           # Install latest GCC and libstdc++ development files
           echo "Ensuring GCC toolchain for Clang with libstdc++..."
@@ -708,7 +709,8 @@ jobs:
             -DCMAKE_C_COMPILER=$CC \
             -DCMAKE_CXX_COMPILER=$CXX \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            ${{ startsWith(matrix.os, 'ubuntu') && '-DPKG_CONFIG_EXECUTABLE=pkgconf' || '' }}
           
           echo "CMake configure completed, build directory ready for main compilation"
 

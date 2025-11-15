@@ -130,6 +130,9 @@ function(boost_configure_and_build)
         if(CMAKE_C_COMPILER)
             list(APPEND _bootstrap_env "CC=${CMAKE_C_COMPILER}")
         endif()
+        if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PKG_CONFIG_EXECUTABLE)
+            list(APPEND _bootstrap_env "PKG_CONFIG=${PKG_CONFIG_EXECUTABLE}")
+        endif()
 
         if(_bootstrap_env)
             execute_process(
@@ -167,6 +170,11 @@ function(boost_configure_and_build)
     if(DEFINED HALO_LINKER AND HALO_LINKER AND EXISTS "${HALO_LINKER}")
         list(APPEND _build_env "LD=${HALO_LINKER}")
         message(STATUS "[boost] Set explicit linker environment: LD=${HALO_LINKER}")
+    endif()
+    
+    if(PKG_CONFIG_EXECUTABLE)
+        list(APPEND _build_env "PKG_CONFIG=${PKG_CONFIG_EXECUTABLE}")
+        message(STATUS "[boost] Setting PKG_CONFIG environment: ${PKG_CONFIG_EXECUTABLE}")
     endif()
 
     # Print environment variables for debugging

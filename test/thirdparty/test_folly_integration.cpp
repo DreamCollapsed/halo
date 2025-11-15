@@ -1,7 +1,5 @@
-// NOLINTBEGIN(readability-duplicate-include)
 #include <folly/FBString.h>
 #include <folly/hash/Hash.h>
-// NOLINTEND(readability-duplicate-include)
 
 // Provide missing std::make_unsigned specializations for __int128 when using
 // libstdc++.

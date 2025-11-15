@@ -245,7 +245,7 @@ endif()
 # Applied only on non-Apple UNIX platforms (Linux). macOS is unaffected because
 # we intentionally allow the platform default libc++ there.
 # --------------------------------------------------------------------------------
-if(UNIX AND NOT APPLE AND TARGET LLVM::LLVM_HEADERS)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND TARGET LLVM::LLVM_HEADERS)
     get_target_property(_halo_llvm_header_includes LLVM::LLVM_HEADERS INTERFACE_INCLUDE_DIRECTORIES)
     if(_halo_llvm_header_includes)
         set(_halo_llvm_filtered_dir "${THIRDPARTY_BUILD_DIR}/arrow/llvm_headers_filtered")

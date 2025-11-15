@@ -7,7 +7,7 @@ thirdparty_setup_directories("faiss")
 set(_openmp_dir "${THIRDPARTY_INSTALL_DIR}/llvm-project")
 
 # On Linux with libstdc++, use the filtered include directory to avoid conflicts
-if(UNIX AND NOT APPLE)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(_openmp_include_dir "${_openmp_dir}/include_filtered")
 else()
     set(_openmp_include_dir "${_openmp_dir}/include")

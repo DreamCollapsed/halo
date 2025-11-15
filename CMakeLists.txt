@@ -18,7 +18,7 @@ endif()
 # On Linux, when using Clang with libstdc++ (GCC's standard library),
 # we must prevent Clang from including its own libc++ headers which conflict with libstdc++.
 # We need to properly configure --gcc-toolchain to point to the actual GCC installation.
-if(UNIX AND NOT APPLE)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set(_gcc_toolchain_candidates "/usr" "/usr/local")
   set(_gcc_toolchain_root "")
 
@@ -86,7 +86,7 @@ get_filename_component(COMPILER_ROOT "${COMPILER_BIN_DIR}/.." ABSOLUTE)
 # do nothing (portable fallback). This avoids maintenance of multiple cache
 # options while ensuring consistency across main and third-party builds.
 # ----------------------------------------------------------------------------
-if(UNIX AND NOT APPLE)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     set(_halo_arch_flag "")
 
@@ -240,6 +240,16 @@ include(cmake/modules/FindLinker.cmake)
 linker_configure()
 linker_add_selfcheck()
 
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  find_program(PKG_CONFIG_EXECUTABLE NAMES pkgconf pkg-config)
+  if(NOT PKG_CONFIG_EXECUTABLE)
+    message(WARNING "Neither pkgconf nor pkg-config found. Some dependencies may not be detected correctly.")
+  else()
+    message(STATUS "Using pkg-config executable: ${PKG_CONFIG_EXECUTABLE}")
+  endif()
+else()
+  message(STATUS "Apple platform detected, skipping pkg-config search.")
+endif()
 # -----------------------------------------------------------------------------
 # Compiler feature / warning flag probes (performed once)
 # -----------------------------------------------------------------------------

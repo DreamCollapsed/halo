@@ -28,13 +28,118 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Determine changed C/C++ files
+        id: diff
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          base_ref="${GITHUB_BASE_REF}"
+          before_sha="${BEFORE_SHA:-}"
+          zero_sha="0000000000000000000000000000000000000000"
+          diff_attempted=0
+
+          rm -f changed_files.txt
+
+          if [ -z "$base_ref" ]; then
+            echo "No GITHUB_BASE_REF detected; treating this as a push event."
+
+            if [ -n "$before_sha" ] && [ "$before_sha" != "$zero_sha" ]; then
+              if ! git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+                echo "Fetching push baseline commit $before_sha"
+                git fetch origin "$before_sha" --depth=2 2>/dev/null || git fetch origin "$before_sha" --depth=2 --filter=blob:none || git fetch origin "$before_sha" || true
+              fi
+
+              if git cat-file -e "${before_sha}^{commit}" 2>/dev/null; then
+                parent_of_before=$(git show -s --pretty=%P "$before_sha" 2>/dev/null | awk '{print $1}')
+                if [ -z "$parent_of_before" ]; then
+                  echo "Baseline $before_sha is shallow; fetching parent history"
+                  git fetch origin "$before_sha" --depth=64 2>/dev/null || git fetch origin "$before_sha" --depth=64 --filter=blob:none || git fetch origin "$before_sha" || true
+                  parent_of_before=$(git show -s --pretty=%P "$before_sha" 2>/dev/null | awk '{print $1}')
+                fi
+
+                merge_base=$(git merge-base "$before_sha" HEAD || true)
+                if [ -z "$merge_base" ]; then
+                  ref_to_deepen="${GITHUB_REF:-}"
+                  if [ -n "$ref_to_deepen" ]; then
+                    echo "Merge-base unresolved; deepening history for $ref_to_deepen"
+                    if ! git fetch --deepen=64 origin "$ref_to_deepen" 2>/dev/null; then
+                      short_ref=${ref_to_deepen#refs/heads/}
+                      if [ "$short_ref" != "$ref_to_deepen" ]; then
+                        git fetch --deepen=64 origin "$short_ref" 2>/dev/null || true
+                      fi
+                    fi
+                    merge_base=$(git merge-base "$before_sha" HEAD || true)
+                  fi
+                fi
+
+                if [ -z "$merge_base" ] && [ -n "$parent_of_before" ]; then
+                  merge_base="$parent_of_before"
+                  echo "Using parent ($merge_base) of push baseline as comparison base"
+                fi
+
+                if [ -n "$merge_base" ]; then
+                  if [ "$merge_base" = "$before_sha" ]; then
+                    echo "Using push baseline ($before_sha) as comparison base"
+                  else
+                    echo "Using merge-base ($merge_base) derived from push baseline $before_sha"
+                  fi
+                  diff_attempted=1
+                  git diff --name-only "$merge_base" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+                else
+                  echo "Unable to determine merge-base for push baseline $before_sha"
+                  echo "Falling back to direct diff against $before_sha"
+                  diff_attempted=1
+                  git diff --name-only "$before_sha" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+                fi
+              else
+                echo "Push baseline $before_sha unavailable locally after fetch attempt."
+              fi
+            fi
+
+            if git rev-parse HEAD^ >/dev/null 2>&1; then
+              prev_sha=$(git rev-parse HEAD^)
+              if [ ! -s changed_files.txt ]; then
+                echo "Using HEAD^ ($prev_sha) as comparison base"
+                diff_attempted=1
+                git diff --name-only "$prev_sha" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+              fi
+            fi
+
+            if [ ! -s changed_files.txt ]; then
+              if [ "$diff_attempted" -eq 0 ]; then
+                echo "No committed base available; falling back to full scan."
+                git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
+              else
+                echo "No changed C/C++ files detected after diff comparisons; skipping clang-format."
+                : > changed_files.txt
+              fi
+            fi
+          else
+            git fetch origin "$base_ref" --depth=1
+            git diff --name-only "origin/$base_ref" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+            if [ ! -s changed_files.txt ]; then
+              echo "No changed C/C++ files relative to PR base; skipping clang-format."
+              : > changed_files.txt
+            fi
+          fi
+
+          echo "Files to analyze:"
+          cat changed_files.txt
+          COUNT=$(wc -l < changed_files.txt | tr -d ' ')
+          echo "count=$COUNT" >> $GITHUB_OUTPUT
 
       - name: Detect .clang-format
+        if: steps.diff.outputs.count != '0'
         id: has_cfg
         run: |
           if [ -f .clang-format ]; then echo "found=true" >> $GITHUB_OUTPUT; else echo "found=false" >> $GITHUB_OUTPUT; fi
 
       - name: Install clang-format (macOS)
+        if: steps.diff.outputs.count != '0'
         run: |
           set -euxo pipefail
           brew update
@@ -43,37 +148,76 @@ jobs:
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
           "$LLVM_PREFIX/bin/clang-format" --version
 
-      - name: Run clang-format diff (dry-run)
-        if: steps.has_cfg.outputs.found == 'true'
+      - name: Run clang-format diff
+        if: steps.diff.outputs.count != '0' && steps.has_cfg.outputs.found == 'true'
         run: |
+          set -euo pipefail
           echo "Checking formatting..."
-          # Define directories/patterns to ignore (customize as needed)
-          IGNORE_PATTERNS=(
-            ':!thirdparty/*'
-            ':!build/*'
-            ':!velox/*'
-            ':!**/third_party/*'
-            ':!**/external/*'
-            ':!**/deps/*'
+          # Define directories/patterns to ignore (simple prefixes used by the check)
+          IGNORE_PREFIXES=(
+            "thirdparty/"
+            "build/"
+            "velox/"
           )
-          
-          # Gather C/C++ sources excluding ignored patterns
-          FILES=$(git ls-files "${IGNORE_PATTERNS[@]}" '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx')
-          if [ -z "$FILES" ]; then echo "No C/C++ files to check (after exclusions)"; exit 0; fi
-          
-          echo "Files to check (excluding ignored directories):"
-          echo "$FILES" | head -10  # Show first 10 files
-          [ $(echo "$FILES" | wc -l) -gt 10 ] && echo "... and $(( $(echo "$FILES" | wc -l) - 10 )) more files"
-          
+
+          # Ensure changed_files.txt exists
+          if [ ! -f changed_files.txt ]; then
+            echo "changed_files.txt not found; nothing to check"
+            exit 0
+          fi
+
+          # Read changed_files.txt and build list of files to check
+          FILES=()
+          while IFS= read -r f || [ -n "$f" ]; do
+            [ -z "$f" ] && continue
+            f="${f#./}"
+
+            # Skip if matches any ignore prefix
+            skip=false
+            for p in "${IGNORE_PREFIXES[@]}"; do
+              if [[ "$f" == "$p"* ]] || [[ "$f" == *"/$p"* ]]; then
+                skip=true
+                break
+              fi
+            done
+            [ "$skip" = true ] && continue
+
+            # Only consider standard C/C++ extensions
+            case "$f" in
+              *.c|*.cc|*.cpp|*.cxx|*.h|*.hpp|*.hh|*.hxx) ;;
+              *) continue ;;
+            esac
+
+            if [ -f "$f" ]; then
+              FILES+=("$f")
+            else
+              echo "Skipping absent file: $f"
+            fi
+          done < changed_files.txt
+
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "No C/C++ files to check (after exclusions)."
+            exit 0
+          fi
+
+          echo "Files to check (first 10 shown):"
+          for i in "${!FILES[@]}"; do
+            if [ $i -ge 10 ]; then break; fi
+            echo "  ${FILES[$i]}"
+          done
+          if [ ${#FILES[@]} -gt 10 ]; then
+            echo "... and $(( ${#FILES[@]} - 10 )) more files"
+          fi
+
           FAIL=0
-          for f in $FILES; do
+          for f in "${FILES[@]}"; do
             if ! clang-format -style=file "$f" | diff -u "$f" - > /dev/null; then
               echo "Needs formatting: $f"
               clang-format -style=file "$f" | diff -u "$f" - || true
               FAIL=1
             fi
           done
-          
+
           if [ $FAIL -eq 1 ]; then
             echo "Formatting issues detected. Run: clang-format -i <files>" >&2
             exit 1
@@ -82,7 +226,7 @@ jobs:
           fi
 
       - name: Skip notice (no .clang-format)
-        if: steps.has_cfg.outputs.found != 'true'
+        if: steps.diff.outputs.count != '0' && steps.has_cfg.outputs.found != 'true'
         run: echo "No .clang-format found; skipping format check."
 
   thirdparty-construct:
@@ -133,9 +277,8 @@ jobs:
           echo "brew --version:" && brew --version
           brew update
           # Hard fail if any of these cannot be installed (no fallbacks)
-          brew install llvm@20 lld@20 cmake autoconf automake libtool
+          brew install llvm@20 cmake autoconf automake libtool
           brew list --versions llvm@20
-          brew list --versions lld@20
           brew list --versions cmake
 
       - name: Verify toolchain integrity (macOS)
@@ -144,7 +287,6 @@ jobs:
           set -euxo pipefail
           HOMEBREW_PREFIX=$(brew --prefix)
           LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm@20"
-          LLD_PREFIX="$HOMEBREW_PREFIX/opt/lld@20"
           
           # Verify LLVM installation integrity
           echo "=== Verifying LLVM 20 installation ==="
@@ -181,21 +323,17 @@ jobs:
           set -euo pipefail
           HOMEBREW_PREFIX=$(brew --prefix)
           LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm@20"
-          LLD_PREFIX="$HOMEBREW_PREFIX/opt/lld@20"
           CCBIN="$LLVM_PREFIX/bin/clang"
             
           CXXBIN="$LLVM_PREFIX/bin/clang++"
-          LLD_BIN="$LLD_PREFIX/bin/ld.lld"
           # Enforce presence (no fallbacks allowed)
           test -x "$CCBIN" || { echo "Missing clang at $CCBIN" >&2; exit 1; }
           test -x "$CXXBIN" || { echo "Missing clang++ at $CXXBIN" >&2; exit 1; }
-          test -x "$LLD_BIN" || { echo "Missing ld.lld at $LLD_BIN" >&2; exit 1; }
           echo "CC=$CCBIN" >> $GITHUB_ENV
           echo "CXX=$CXXBIN" >> $GITHUB_ENV
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
           echo "Configured macOS toolchain:";
           "$CCBIN" --version
-          "$LLD_BIN" --version
 
       - name: Install dependencies (Linux)
         if: steps.construct-thirdparty-skip.outputs.skip != 'true' && startsWith(matrix.os, 'ubuntu')
@@ -1023,6 +1161,7 @@ jobs:
             exit 1
           fi
           echo "Extracting $TAR"
+          git submodule deinit -f velox || true
           rm -rf build velox
           tar -xzf "$TAR"
           if [ ! -d build ]; then

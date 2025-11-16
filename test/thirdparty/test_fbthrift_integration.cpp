@@ -35,7 +35,7 @@ TEST(FbthriftIntegration, SimpleSerialization) {
   // availability of serializer template)
   apache::thrift::CompactProtocolWriter writer;
   folly::IOBufQueue queue;
-  writer.setOutput(&queue, /*copy*/ true);
+  writer.setOutput(&queue, /*maxGrowth*/ 1U);
   writer.writeString(input);
   auto buf = queue.move();
   apache::thrift::CompactProtocolReader reader;
@@ -67,10 +67,10 @@ TEST(FbthriftIntegration, ErrorPath) {
 TEST(FbthriftIntegration, LargeStringSerialization) {
   std::string large(1 << 16, 'x');  // 64KB
   apache::thrift::CompactProtocolWriter writer;
-  folly::IOBufQueue q;
-  writer.setOutput(&q, true);
+  folly::IOBufQueue buffer_queue;
+  writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
   writer.writeString(large);
-  auto buf = q.move();
+  auto buf = buffer_queue.move();
   apache::thrift::CompactProtocolReader reader;
   reader.setInput(buf.get());
   std::string out;
@@ -80,93 +80,96 @@ TEST(FbthriftIntegration, LargeStringSerialization) {
 
 // Idempotency of ensureFollyInit under concurrency (race test)
 TEST(FbthriftIntegration, ConcurrentEnsureInit) {
-  constexpr int kThreads = 16;
+  constexpr int THREAD_COUNT = 16;
   std::vector<std::thread> threads;
-  threads.reserve(kThreads);
-  for (int i = 0; i < kThreads; ++i) {
+  threads.reserve(THREAD_COUNT);
+  for (int i = 0; i < THREAD_COUNT; ++i) {
     threads.emplace_back([]() {});
   }
-  for (auto& t : threads) t.join();
+  for (auto& thread : threads) {
+    thread.join();
+  }
   SUCCEED();
 }
 
 // String serialization roundtrip test with various edge cases
 TEST(FbthriftIntegration, StringSerializationRoundTrip) {
-  std::vector<std::string> cases = {"",
-                                    "f",
-                                    "fo",
-                                    "foo",
-                                    "foobar",
-                                    std::string(1, '\0'),
-                                    std::string(2, '\0'),
-                                    std::string(3, '\0')};
+  std::vector<std::string> test_cases = {"",
+                                         "f",
+                                         "fo",
+                                         "foo",
+                                         "foobar",
+                                         std::string(1, '\0'),
+                                         std::string(2, '\0'),
+                                         std::string(3, '\0')};
 
-  for (auto& s : cases) {
+  for (const auto& test_value : test_cases) {
     apache::thrift::CompactProtocolWriter writer;
-    folly::IOBufQueue q;
-    writer.setOutput(&q, true);
-    writer.writeString(s);
-    auto buf = q.move();
+    folly::IOBufQueue buffer_queue;
+    writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
+    writer.writeString(test_value);
+    auto buf = buffer_queue.move();
 
     apache::thrift::CompactProtocolReader reader;
     reader.setInput(buf.get());
     std::string result;
     reader.readString(result);
-    EXPECT_EQ(result, s);
+    EXPECT_EQ(result, test_value);
   }
 
   // Test with random data
   for (int i = 0; i < 32; ++i) {
     size_t len = folly::Random::rand32() % 256;
-    std::string s;
-    s.resize(len);
-    for (size_t j = 0; j < len; ++j)
-      s[j] = static_cast<char>(folly::Random::rand32() & 0xFF);
+    std::string random_value;
+    random_value.resize(len);
+    for (size_t j = 0; j < len; ++j) {
+      random_value[j] = static_cast<char>(folly::Random::rand32() & 0xFF);
+    }
 
     apache::thrift::CompactProtocolWriter writer;
-    folly::IOBufQueue q;
-    writer.setOutput(&q, true);
-    writer.writeString(s);
-    auto buf = q.move();
+    folly::IOBufQueue buffer_queue;
+    writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
+    writer.writeString(random_value);
+    auto buf = buffer_queue.move();
 
     apache::thrift::CompactProtocolReader reader;
     reader.setInput(buf.get());
     std::string result;
     reader.readString(result);
-    EXPECT_EQ(result, s);
+    EXPECT_EQ(result, random_value);
   }
 }
 
 // Multi-protocol serialization tests to exercise different protocol paths
 TEST(FbthriftIntegration, MultiProtocolSerialization) {
-  std::string testData = "MultiProtocol测试数据";
+  std::string test_data = "MultiProtocol测试数据";
 
   // Test BinaryProtocol
   {
     apache::thrift::BinaryProtocolWriter writer;
-    folly::IOBufQueue q;
-    writer.setOutput(&q, true);
-    writer.writeString(testData);
-    auto buf = q.move();
+    folly::IOBufQueue buffer_queue;
+    writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
+    writer.writeString(test_data);
+    auto buf = buffer_queue.move();
     apache::thrift::BinaryProtocolReader reader;
     reader.setInput(buf.get());
     std::string out;
     reader.readString(out);
-    EXPECT_EQ(out, testData) << "BinaryProtocol roundtrip failed";
+    EXPECT_EQ(out, test_data) << "BinaryProtocol roundtrip failed";
   }
 
   // Test JSONProtocol
   {
     apache::thrift::JSONProtocolWriter writer;
-    folly::IOBufQueue q;
-    writer.setOutput(&q, true);
-    writer.writeString(testData);
-    auto buf = q.move();
+    folly::IOBufQueue buffer_queue;
+    writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
+    writer.writeString(test_data);
+    auto buf = buffer_queue.move();
     apache::thrift::JSONProtocolReader reader;
     reader.setInput(buf.get());
     std::string out;
     reader.readString(out);
-    EXPECT_EQ(out, testData) << "JSONProtocol roundtrip failed";
+    EXPECT_EQ(out, test_data) << "JSONProtocol roundtrip failed";
   }
 }
 
@@ -190,8 +193,8 @@ TEST(FbthriftIntegration, ProtocolExceptionHandling) {
   // Test truncated binary protocol
   try {
     apache::thrift::BinaryProtocolReader reader;
-    std::string truncated =
-        "\x00\x00\x00\x10";  // Claims 16 bytes but only has 4
+    std::string truncated = std::string{
+        '\x00', '\x00', '\x00', '\x10'};  // Claims 16 bytes but only has 4
     auto buf = folly::IOBuf::copyBuffer(truncated);
     reader.setInput(buf.get());
     std::string out;
@@ -206,27 +209,27 @@ TEST(FbthriftIntegration, ProtocolExceptionHandling) {
 // Stress test with mixed protocols and large data
 TEST(FbthriftIntegration, ProtocolStressTest) {
   // Generate varied test data
-  std::vector<std::string> testCases;
-  testCases.push_back("");  // empty
-  testCases.push_back("simple");
-  testCases.push_back(std::string(1024, 'A'));  // 1KB
-  testCases.push_back("Unicode: 你好世界 🌍");
+  std::vector<std::string> test_cases;
+  test_cases.emplace_back("");  // empty
+  test_cases.emplace_back("simple");
+  test_cases.emplace_back(1024, 'A');  // 1KB
+  test_cases.emplace_back("Unicode: 你好世界 🌍");
 
   // Binary data with all byte values
-  std::string binaryData;
+  std::string binary_data;
   for (int i = 0; i < 256; ++i) {
-    binaryData.push_back(static_cast<char>(i));
+    binary_data.push_back(static_cast<char>(i));
   }
-  testCases.push_back(binaryData);
+  test_cases.emplace_back(binary_data);
 
-  for (const auto& data : testCases) {
+  for (const auto& data : test_cases) {
     // Compact Protocol
     {
       apache::thrift::CompactProtocolWriter writer;
-      folly::IOBufQueue q;
-      writer.setOutput(&q, true);
+      folly::IOBufQueue buffer_queue;
+      writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
       writer.writeString(data);
-      auto buf = q.move();
+      auto buf = buffer_queue.move();
       apache::thrift::CompactProtocolReader reader;
       reader.setInput(buf.get());
       std::string out;
@@ -238,10 +241,10 @@ TEST(FbthriftIntegration, ProtocolStressTest) {
     // Binary Protocol
     {
       apache::thrift::BinaryProtocolWriter writer;
-      folly::IOBufQueue q;
-      writer.setOutput(&q, true);
+      folly::IOBufQueue buffer_queue;
+      writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
       writer.writeString(data);
-      auto buf = q.move();
+      auto buf = buffer_queue.move();
       apache::thrift::BinaryProtocolReader reader;
       reader.setInput(buf.get());
       std::string out;
@@ -255,9 +258,9 @@ TEST(FbthriftIntegration, ProtocolStressTest) {
 // Test FBThrift serializer templates for high-level API
 TEST(FbthriftIntegration, SerializerTemplates) {
   // Test with simple types using serializer utilities
-  std::string testString = "Serializer测试";
-  int32_t testInt = 42;
-  double testDouble = 3.14159;
+  std::string test_string = "Serializer测试";
+  int32_t test_int = 42;
+  double test_double = 3.14159;  // NOLINT(modernize-use-std-numbers)
 
   // While we don't have custom structs, we can test basic serialization
   // primitives through protocol writers/readers which are the foundation of
@@ -266,19 +269,22 @@ TEST(FbthriftIntegration, SerializerTemplates) {
   // Test string serialization with all protocols
   std::vector<std::string> protocols = {"Binary", "Compact", "JSON"};
 
-  for (const auto& protocolName : protocols) {
-    if (protocolName == "Binary") {
+  (void)test_int;
+  (void)test_double;
+
+  for (const auto& protocol_name : protocols) {
+    if (protocol_name == "Binary") {
       apache::thrift::BinaryProtocolWriter writer;
-      folly::IOBufQueue q;
-      writer.setOutput(&q, true);
-      writer.writeString(testString);
-      auto buf = q.move();
+      folly::IOBufQueue buffer_queue;
+      writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
+      writer.writeString(test_string);
+      auto buf = buffer_queue.move();
 
       apache::thrift::BinaryProtocolReader reader;
       reader.setInput(buf.get());
       std::string result;
       reader.readString(result);
-      EXPECT_EQ(result, testString) << "Binary protocol string test failed";
+      EXPECT_EQ(result, test_string) << "Binary protocol string test failed";
     }
   }
 }
@@ -304,51 +310,51 @@ TEST(FbthriftIntegration, AsyncCapabilities) {
 
 // Test protocol buffer edge cases and data validation
 TEST(FbthriftIntegration, ProtocolEdgeCases) {
-  std::vector<std::string> edgeCases = {
-      "",                                 // Empty string
-      std::string(1, '\0'),               // Null byte
-      std::string("\x01\x02\x03\x04"),    // Binary data
-      "UTF-8: 测试数据 🚀 ñáéíóú",        // Unicode
-      std::string(65536, 'x'),            // Large string (64KB)
-      "Control chars: \n\r\t\b\f",        // Control characters
-      "Quotes: \"'`",                     // Special characters
-      "JSON-like: {\"key\": \"value\"}",  // JSON-like content
+  std::vector<std::string> edge_cases = {
+      "",                                // Empty string
+      std::string(1, '\0'),              // Null byte
+      std::string("\x01\x02\x03\x04"),   // Binary data
+      "UTF-8: 测试数据 🚀 ñáéíóú",       // Unicode
+      std::string(65536, 'x'),           // Large string (64KB)
+      "Control chars: \n\r\t\b\f",       // Control characters
+      "Quotes: \"'`",                    // Special characters
+      R"(JSON-like: {"key": "value"})",  // JSON-like content
   };
 
-  for (const auto& testCase : edgeCases) {
+  for (const auto& test_case : edge_cases) {
     // Test with CompactProtocol (most efficient)
     {
       apache::thrift::CompactProtocolWriter writer;
-      folly::IOBufQueue q;
-      writer.setOutput(&q, true);
-      writer.writeString(testCase);
-      auto buf = q.move();
+      folly::IOBufQueue buffer_queue;
+      writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
+      writer.writeString(test_case);
+      auto buf = buffer_queue.move();
 
       apache::thrift::CompactProtocolReader reader;
       reader.setInput(buf.get());
       std::string result;
       reader.readString(result);
 
-      EXPECT_EQ(result, testCase)
+      EXPECT_EQ(result, test_case)
           << "CompactProtocol failed for edge case of size: "
-          << testCase.size();
+          << test_case.size();
     }
 
     // Test with JSONProtocol (human readable)
     {
       apache::thrift::JSONProtocolWriter writer;
-      folly::IOBufQueue q;
-      writer.setOutput(&q, true);
-      writer.writeString(testCase);
-      auto buf = q.move();
+      folly::IOBufQueue buffer_queue;
+      writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
+      writer.writeString(test_case);
+      auto buf = buffer_queue.move();
 
       apache::thrift::JSONProtocolReader reader;
       reader.setInput(buf.get());
       std::string result;
       reader.readString(result);
 
-      EXPECT_EQ(result, testCase)
-          << "JSONProtocol failed for edge case of size: " << testCase.size();
+      EXPECT_EQ(result, test_case)
+          << "JSONProtocol failed for edge case of size: " << test_case.size();
     }
   }
 }
@@ -357,11 +363,12 @@ TEST(FbthriftIntegration, ProtocolEdgeCases) {
 TEST(FbthriftIntegration, NumericTypeSerialization) {
   // Test various numeric types
   struct TestCase {
-    int8_t byteVal = -128;
-    int16_t shortVal = -32768;
-    int32_t intVal = -2147483648;
-    int64_t longVal = -9223372036854775807LL - 1;
-    double doubleVal = 3.141592653589793;
+    int8_t byte_value_ = -128;
+    int16_t short_value_ = -32768;
+    int32_t int_value_ = -2147483648;
+    int64_t long_value_ = -9223372036854775807LL - 1;
+    double double_value_ =
+        3.141592653589793;  // NOLINT(modernize-use-std-numbers)
   };
 
   TestCase original;
@@ -369,74 +376,74 @@ TEST(FbthriftIntegration, NumericTypeSerialization) {
   // Test with BinaryProtocol
   {
     apache::thrift::BinaryProtocolWriter writer;
-    folly::IOBufQueue q;
-    writer.setOutput(&q, true);
+    folly::IOBufQueue buffer_queue;
+    writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
 
-    writer.writeByte(original.byteVal);
-    writer.writeI16(original.shortVal);
-    writer.writeI32(original.intVal);
-    writer.writeI64(original.longVal);
-    writer.writeDouble(original.doubleVal);
+    writer.writeByte(original.byte_value_);
+    writer.writeI16(original.short_value_);
+    writer.writeI32(original.int_value_);
+    writer.writeI64(original.long_value_);
+    writer.writeDouble(original.double_value_);
 
-    auto buf = q.move();
+    auto buf = buffer_queue.move();
 
     apache::thrift::BinaryProtocolReader reader;
     reader.setInput(buf.get());
 
     TestCase result;
-    reader.readByte(result.byteVal);
-    reader.readI16(result.shortVal);
-    reader.readI32(result.intVal);
-    reader.readI64(result.longVal);
-    reader.readDouble(result.doubleVal);
+    reader.readByte(result.byte_value_);
+    reader.readI16(result.short_value_);
+    reader.readI32(result.int_value_);
+    reader.readI64(result.long_value_);
+    reader.readDouble(result.double_value_);
 
-    EXPECT_EQ(result.byteVal, original.byteVal);
-    EXPECT_EQ(result.shortVal, original.shortVal);
-    EXPECT_EQ(result.intVal, original.intVal);
-    EXPECT_EQ(result.longVal, original.longVal);
-    EXPECT_DOUBLE_EQ(result.doubleVal, original.doubleVal);
+    EXPECT_EQ(result.byte_value_, original.byte_value_);
+    EXPECT_EQ(result.short_value_, original.short_value_);
+    EXPECT_EQ(result.int_value_, original.int_value_);
+    EXPECT_EQ(result.long_value_, original.long_value_);
+    EXPECT_DOUBLE_EQ(result.double_value_, original.double_value_);
   }
 }
 
 // Test container type handling (lists, sets, maps)
 TEST(FbthriftIntegration, ContainerSerialization) {
   // Test list serialization
-  std::vector<std::string> stringList = {"first", "second", "third", "测试"};
+  std::vector<std::string> string_list = {"first", "second", "third", "测试"};
 
   {
     apache::thrift::CompactProtocolWriter writer;
-    folly::IOBufQueue q;
-    writer.setOutput(&q, true);
+    folly::IOBufQueue buffer_queue;
+    writer.setOutput(&buffer_queue, /*maxGrowth*/ 1U);
 
     // Write list header
     writer.writeListBegin(apache::thrift::protocol::T_STRING,
-                          stringList.size());
-    for (const auto& str : stringList) {
+                          string_list.size());
+    for (const auto& str : string_list) {
       writer.writeString(str);
     }
     writer.writeListEnd();
 
-    auto buf = q.move();
+    auto buf = buffer_queue.move();
 
     apache::thrift::CompactProtocolReader reader;
     reader.setInput(buf.get());
 
-    apache::thrift::protocol::TType elemType;
-    uint32_t size;
-    reader.readListBegin(elemType, size);
+    auto element_type = apache::thrift::protocol::TType{};
+    uint32_t list_size = 0;
+    reader.readListBegin(element_type, list_size);
 
-    EXPECT_EQ(elemType, apache::thrift::protocol::T_STRING);
-    EXPECT_EQ(size, stringList.size());
+    EXPECT_EQ(element_type, apache::thrift::protocol::T_STRING);
+    EXPECT_EQ(list_size, string_list.size());
 
-    std::vector<std::string> resultList;
-    for (uint32_t i = 0; i < size; ++i) {
+    std::vector<std::string> result_list;
+    for (uint32_t i = 0; i < list_size; ++i) {
       std::string item;
       reader.readString(item);
-      resultList.push_back(item);
+      result_list.emplace_back(item);
     }
     reader.readListEnd();
 
-    EXPECT_EQ(resultList, stringList);
+    EXPECT_EQ(result_list, string_list);
   }
 }
 

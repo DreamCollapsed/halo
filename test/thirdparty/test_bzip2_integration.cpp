@@ -29,7 +29,7 @@ TEST_F(Bzip2IntegrationTest, CompressionDecompression) {
   );
 
   std::cout << "Compression result: " << result
-            << ", compressed size: " << compressed_size << std::endl;
+            << ", compressed size: " << compressed_size << '\n';
   EXPECT_EQ(result, BZ_OK) << "Compression failed with error code: " << result;
 
   // Prepare decompression - allocate space for decompressed data
@@ -43,7 +43,7 @@ TEST_F(Bzip2IntegrationTest, CompressionDecompression) {
   );
 
   std::cout << "Decompression result: " << result
-            << ", decompressed size: " << decompressed_size << std::endl;
+            << ", decompressed size: " << decompressed_size << '\n';
   EXPECT_EQ(result, BZ_OK) << "Decompression failed with error code: "
                            << result;
 

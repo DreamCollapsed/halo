@@ -7,12 +7,12 @@
 namespace {
 struct VeloxTestEnvOnce {
   VeloxTestEnvOnce() {
-    using namespace facebook::velox::memory;
+    using facebook::velox::memory::MemoryManager;
     if (!MemoryManager::testInstance()) {
       MemoryManager::initialize(MemoryManager::Options{});
     }
   }
 };
 
-static VeloxTestEnvOnce kVeloxTestEnvOnce;
+const VeloxTestEnvOnce VELOX_TEST_ENV_ONCE;
 }  // namespace

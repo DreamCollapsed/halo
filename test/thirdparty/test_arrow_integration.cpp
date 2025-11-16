@@ -6,79 +6,95 @@
 #include <arrow/json/api.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <memory>
 #include <string>
 #include <vector>
 
-TEST(Thirdparty, arrow_headers_and_types) {
+TEST(Thirdparty, ArrowHeadersAndTypes) {
   // Basic type factory works
-  auto i32 = arrow::int32();
-  ASSERT_NE(i32, nullptr);
-  EXPECT_EQ(i32->id(), arrow::Type::INT32);
+  const auto& int32_type = arrow::int32();
+  ASSERT_NE(int32_type, nullptr);
+  EXPECT_EQ(int32_type->id(), arrow::Type::INT32);
 
   // Array builder smoke test
   arrow::Int32Builder builder;
   ASSERT_TRUE(builder.Append(1).ok());
   ASSERT_TRUE(builder.Append(2).ok());
   ASSERT_TRUE(builder.Append(3).ok());
-  std::shared_ptr<arrow::Array> out;
-  ASSERT_TRUE(builder.Finish(&out).ok());
-  ASSERT_NE(out, nullptr);
-  EXPECT_EQ(out->length(), 3);
-  auto int32_array = std::static_pointer_cast<arrow::Int32Array>(out);
+  std::shared_ptr<arrow::Array> out_array;
+  ASSERT_TRUE(builder.Finish(&out_array).ok());
+  ASSERT_NE(out_array, nullptr);
+  EXPECT_EQ(out_array->length(), 3);
+  auto int32_array = std::dynamic_pointer_cast<arrow::Int32Array>(out_array);
+  ASSERT_NE(int32_array, nullptr);
   EXPECT_EQ(int32_array->Value(0), 1);
 }
 
-TEST(Thirdparty, string_array_with_nulls) {
+TEST(Thirdparty, StringArrayWithNulls) {
   arrow::StringBuilder builder;
   ASSERT_TRUE(builder.Append("hello").ok());
   ASSERT_TRUE(builder.AppendNull().ok());
   ASSERT_TRUE(builder.Append("world").ok());
-  std::shared_ptr<arrow::Array> arr;
-  ASSERT_TRUE(builder.Finish(&arr).ok());
-  auto sarr = std::static_pointer_cast<arrow::StringArray>(arr);
-  ASSERT_EQ(sarr->length(), 3);
-  ASSERT_FALSE(sarr->IsNull(0));
-  ASSERT_TRUE(sarr->IsNull(1));
-  ASSERT_EQ(sarr->GetString(0), "hello");
-  ASSERT_EQ(sarr->GetString(2), "world");
+  std::shared_ptr<arrow::Array> string_array_holder;
+  ASSERT_TRUE(builder.Finish(&string_array_holder).ok());
+  auto string_array =
+      std::dynamic_pointer_cast<arrow::StringArray>(string_array_holder);
+  ASSERT_NE(string_array, nullptr);
+  ASSERT_EQ(string_array->length(), 3);
+  ASSERT_FALSE(string_array->IsNull(0));
+  ASSERT_TRUE(string_array->IsNull(1));
+  ASSERT_EQ(string_array->GetString(0), "hello");
+  ASSERT_EQ(string_array->GetString(2), "world");
 }
 
-TEST(Thirdparty, buffer_builder_roundtrip) {
-  arrow::BufferBuilder bb;
-  const uint8_t data[] = {1, 2, 3, 4, 5};
-  ASSERT_TRUE(bb.Append(data, sizeof(data)).ok());
-  std::shared_ptr<arrow::Buffer> buf;
-  ASSERT_TRUE(bb.Finish(&buf).ok());
-  ASSERT_EQ(buf->size(), 5);
-  ASSERT_EQ(buf->data()[0], 1);
-  ASSERT_EQ(buf->data()[4], 5);
+TEST(Thirdparty, BufferBuilderRoundTrip) {
+  arrow::BufferBuilder buffer_builder;
+  std::array<uint8_t, 5> byte_values = {1, 2, 3, 4, 5};
+  ASSERT_TRUE(
+      buffer_builder
+          .Append(byte_values.data(), static_cast<int64_t>(byte_values.size()))
+          .ok());
+  std::shared_ptr<arrow::Buffer> buffer;
+  ASSERT_TRUE(buffer_builder.Finish(&buffer).ok());
+  ASSERT_EQ(buffer->size(), byte_values.size());
+
+  std::string buffer_contents = buffer->ToString();
+  ASSERT_EQ(buffer_contents.size(), byte_values.size());
+  EXPECT_EQ(static_cast<uint8_t>(buffer_contents.front()), byte_values.front());
+  EXPECT_EQ(static_cast<uint8_t>(buffer_contents.back()), byte_values.back());
 }
 
-TEST(Thirdparty, record_batch_and_slice) {
-  auto f0 = arrow::field("a", arrow::int32());
-  auto f1 = arrow::field("b", arrow::utf8());
-  auto schema = arrow::schema({f0, f1});
+TEST(Thirdparty, RecordBatchAndSlice) {
+  auto field_a = arrow::field("a", arrow::int32());
+  auto field_b = arrow::field("b", arrow::utf8());
+  auto schema = arrow::schema({field_a, field_b});
 
-  arrow::Int32Builder i32b;
-  arrow::StringBuilder sb;
-  ASSERT_TRUE(i32b.Append(10).ok());
-  ASSERT_TRUE(i32b.Append(20).ok());
-  ASSERT_TRUE(sb.Append("x").ok());
-  ASSERT_TRUE(sb.Append("y").ok());
+  arrow::Int32Builder int_builder;
+  arrow::StringBuilder string_builder;
+  ASSERT_TRUE(int_builder.Append(10).ok());
+  ASSERT_TRUE(int_builder.Append(20).ok());
+  ASSERT_TRUE(string_builder.Append("x").ok());
+  ASSERT_TRUE(string_builder.Append("y").ok());
 
-  std::shared_ptr<arrow::Array> a0, a1;
-  ASSERT_TRUE(i32b.Finish(&a0).ok());
-  ASSERT_TRUE(sb.Finish(&a1).ok());
+  std::shared_ptr<arrow::Array> int_array;
+  std::shared_ptr<arrow::Array> string_array;
+  ASSERT_TRUE(int_builder.Finish(&int_array).ok());
+  ASSERT_TRUE(string_builder.Finish(&string_array).ok());
 
-  auto rb = arrow::RecordBatch::Make(schema, /*num_rows=*/2, {a0, a1});
-  ASSERT_EQ(rb->num_rows(), 2);
-  auto rb_slice = rb->Slice(1, 1);
-  ASSERT_EQ(rb_slice->num_rows(), 1);
-  auto col0 = std::static_pointer_cast<arrow::Int32Array>(rb_slice->column(0));
-  auto col1 = std::static_pointer_cast<arrow::StringArray>(rb_slice->column(1));
-  ASSERT_EQ(col0->Value(0), 20);
-  ASSERT_EQ(col1->GetString(0), "y");
+  auto record_batch = arrow::RecordBatch::Make(schema, /*num_rows=*/2,
+                                               {int_array, string_array});
+  ASSERT_EQ(record_batch->num_rows(), 2);
+  auto record_batch_slice = record_batch->Slice(1, 1);
+  ASSERT_EQ(record_batch_slice->num_rows(), 1);
+  auto column0 = std::dynamic_pointer_cast<arrow::Int32Array>(
+      record_batch_slice->column(0));
+  auto column1 = std::dynamic_pointer_cast<arrow::StringArray>(
+      record_batch_slice->column(1));
+  ASSERT_NE(column0, nullptr);
+  ASSERT_NE(column1, nullptr);
+  ASSERT_EQ(column0->Value(0), 20);
+  ASSERT_EQ(column1->GetString(0), "y");
 }
 
 TEST(ArrowIntegration, DoubleArrayOperations) {
@@ -92,7 +108,8 @@ TEST(ArrowIntegration, DoubleArrayOperations) {
   std::shared_ptr<arrow::Array> array;
   ASSERT_TRUE(builder.Finish(&array).ok());
 
-  auto double_array = std::static_pointer_cast<arrow::DoubleArray>(array);
+  auto double_array = std::dynamic_pointer_cast<arrow::DoubleArray>(array);
+  ASSERT_NE(double_array, nullptr);
   ASSERT_EQ(double_array->length(), 5);
 
   // Test individual values
@@ -106,10 +123,10 @@ TEST(ArrowIntegration, DoubleArrayOperations) {
 
 TEST(ArrowIntegration, TableCreationAndFiltering) {
   // Create schema
-  auto f0 = arrow::field("id", arrow::int64());
-  auto f1 = arrow::field("name", arrow::utf8());
-  auto f2 = arrow::field("score", arrow::float64());
-  auto schema = arrow::schema({f0, f1, f2});
+  auto field_id = arrow::field("id", arrow::int64());
+  auto field_name = arrow::field("name", arrow::utf8());
+  auto field_score = arrow::field("score", arrow::float64());
+  auto schema = arrow::schema({field_id, field_name, field_score});
 
   // Build arrays
   arrow::Int64Builder id_builder;
@@ -126,7 +143,9 @@ TEST(ArrowIntegration, TableCreationAndFiltering) {
     ASSERT_TRUE(score_builder.Append(scores[i]).ok());
   }
 
-  std::shared_ptr<arrow::Array> id_array, name_array, score_array;
+  std::shared_ptr<arrow::Array> id_array;
+  std::shared_ptr<arrow::Array> name_array;
+  std::shared_ptr<arrow::Array> score_array;
   ASSERT_TRUE(id_builder.Finish(&id_array).ok());
   ASSERT_TRUE(name_builder.Finish(&name_array).ok());
   ASSERT_TRUE(score_builder.Finish(&score_array).ok());
@@ -148,19 +167,16 @@ TEST(ArrowIntegration, IOMemoryBufferOperations) {
   auto buffer = arrow::Buffer::FromString(test_data);
 
   ASSERT_EQ(buffer->size(), test_data.size());
-  EXPECT_EQ(std::string(reinterpret_cast<const char*>(buffer->data()),
-                        buffer->size()),
-            test_data);
+  std::string buffer_view = buffer->ToString();
+  EXPECT_EQ(buffer_view, test_data);
 
   // Test buffer slicing
   auto slice = arrow::SliceBuffer(buffer, 7, 5);  // "Arrow"
   ASSERT_EQ(slice->size(), 5);
-  EXPECT_EQ(
-      std::string(reinterpret_cast<const char*>(slice->data()), slice->size()),
-      "Arrow");
+  std::string slice_view = slice->ToString();
+  EXPECT_EQ(slice_view, "Arrow");
 
   // Test mutable buffer
-  ASSERT_TRUE(arrow::AllocateBuffer(100).ok());
   auto mutable_buffer_result = arrow::AllocateBuffer(100);
   ASSERT_TRUE(mutable_buffer_result.ok());
   auto mutable_buffer = std::move(mutable_buffer_result).ValueOrDie();
@@ -183,7 +199,8 @@ TEST(ArrowIntegration, ComputeOperations) {
 
   // Test basic array operations without compute functions
   // Verify the array was created correctly
-  auto int32_array = std::static_pointer_cast<arrow::Int32Array>(array);
+  auto int32_array = std::dynamic_pointer_cast<arrow::Int32Array>(array);
+  ASSERT_NE(int32_array, nullptr);
   ASSERT_EQ(int32_array->length(), 5);
 
   // Manually verify values and compute sum
@@ -206,7 +223,8 @@ TEST(ArrowIntegration, ComputeOperations) {
   auto slice = array->Slice(1, 3);  // Elements at indices 1, 2, 3
   ASSERT_EQ(slice->length(), 3);
 
-  auto slice_int32 = std::static_pointer_cast<arrow::Int32Array>(slice);
+  auto slice_int32 = std::dynamic_pointer_cast<arrow::Int32Array>(slice);
+  ASSERT_NE(slice_int32, nullptr);
   EXPECT_EQ(slice_int32->Value(0), 20);  // Index 1 from original
   EXPECT_EQ(slice_int32->Value(1), 30);  // Index 2 from original
   EXPECT_EQ(slice_int32->Value(2), 40);  // Index 3 from original
@@ -214,8 +232,8 @@ TEST(ArrowIntegration, ComputeOperations) {
 
 TEST(ArrowIntegration, IPCStreamingFormat) {
   // Create a simple table
-  auto f0 = arrow::field("numbers", arrow::int32());
-  auto schema = arrow::schema({f0});
+  auto numbers_field = arrow::field("numbers", arrow::int32());
+  auto schema = arrow::schema({numbers_field});
 
   arrow::Int32Builder builder;
   for (int i = 0; i < 10; ++i) {
@@ -230,11 +248,11 @@ TEST(ArrowIntegration, IPCStreamingFormat) {
   // Serialize to IPC format
   auto buffer_output_stream = arrow::io::BufferOutputStream::Create();
   ASSERT_TRUE(buffer_output_stream.ok());
-  auto output_stream = buffer_output_stream.ValueOrDie();
+  const auto& output_stream = buffer_output_stream.ValueOrDie();
 
   auto writer_result = arrow::ipc::MakeStreamWriter(output_stream, schema);
   ASSERT_TRUE(writer_result.ok());
-  auto writer = writer_result.ValueOrDie();
+  const auto& writer = writer_result.ValueOrDie();
 
   ASSERT_TRUE(writer->WriteRecordBatch(*record_batch).ok());
   ASSERT_TRUE(writer->Close().ok());
@@ -242,7 +260,7 @@ TEST(ArrowIntegration, IPCStreamingFormat) {
   // Get the buffer
   auto buffer_result = output_stream->Finish();
   ASSERT_TRUE(buffer_result.ok());
-  auto buffer = buffer_result.ValueOrDie();
+  const auto& buffer = buffer_result.ValueOrDie();
 
   ASSERT_GT(buffer->size(), 0);
 
@@ -250,7 +268,7 @@ TEST(ArrowIntegration, IPCStreamingFormat) {
   auto buffer_reader = std::make_shared<arrow::io::BufferReader>(buffer);
   auto reader_result = arrow::ipc::RecordBatchStreamReader::Open(buffer_reader);
   ASSERT_TRUE(reader_result.ok());
-  auto reader = reader_result.ValueOrDie();
+  const auto& reader = reader_result.ValueOrDie();
 
   std::shared_ptr<arrow::RecordBatch> read_batch;
   ASSERT_TRUE(reader->ReadNext(&read_batch).ok());
@@ -258,7 +276,8 @@ TEST(ArrowIntegration, IPCStreamingFormat) {
   ASSERT_EQ(read_batch->num_rows(), 10);
 
   auto read_array =
-      std::static_pointer_cast<arrow::Int32Array>(read_batch->column(0));
+      std::dynamic_pointer_cast<arrow::Int32Array>(read_batch->column(0));
+  ASSERT_NE(read_array, nullptr);
   for (int i = 0; i < 10; ++i) {
     EXPECT_EQ(read_array->Value(i), i * i);
   }
@@ -280,11 +299,11 @@ Charlie,35,Chicago)";
       arrow::csv::ReadOptions::Defaults(), arrow::csv::ParseOptions::Defaults(),
       arrow::csv::ConvertOptions::Defaults());
   ASSERT_TRUE(csv_reader_result.ok());
-  auto csv_reader = csv_reader_result.ValueOrDie();
+  const auto& csv_reader = csv_reader_result.ValueOrDie();
 
   auto table_result = csv_reader->Read();
   ASSERT_TRUE(table_result.ok());
-  auto table = table_result.ValueOrDie();
+  const auto& table = table_result.ValueOrDie();
 
   ASSERT_EQ(table->num_rows(), 3);
   ASSERT_EQ(table->num_columns(), 3);
@@ -323,18 +342,20 @@ TEST(ArrowIntegration, DictionaryArrays) {
   auto dict_array_result =
       arrow::DictionaryArray::FromArrays(dict_type, index_array, dict_array);
   ASSERT_TRUE(dict_array_result.ok());
-  auto dictionary_array = dict_array_result.ValueOrDie();
+  const auto& dictionary_array = dict_array_result.ValueOrDie();
 
   ASSERT_EQ(dictionary_array->length(), 7);
 
   // Cast to dictionary array to access dictionary
   auto dict_array_cast =
-      std::static_pointer_cast<arrow::DictionaryArray>(dictionary_array);
+      std::dynamic_pointer_cast<arrow::DictionaryArray>(dictionary_array);
+  ASSERT_NE(dict_array_cast, nullptr);
   ASSERT_EQ(dict_array_cast->dictionary()->length(), 3);
 
   // Test dictionary lookup
-  auto string_dict = std::static_pointer_cast<arrow::StringArray>(
+  auto string_dict = std::dynamic_pointer_cast<arrow::StringArray>(
       dict_array_cast->dictionary());
+  ASSERT_NE(string_dict, nullptr);
   EXPECT_EQ(string_dict->GetString(0), "Red");
   EXPECT_EQ(string_dict->GetString(1), "Green");
   EXPECT_EQ(string_dict->GetString(2), "Blue");

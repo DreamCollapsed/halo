@@ -3,8 +3,7 @@
 // Define macro for stacktrace support
 #define BOOST_STACKTRACE_GNU_SOURCE_NOT_REQUIRED
 
-#include <gtest/gtest.h>
-
+#include <array>
 #include <boost/algorithm/string.hpp>
 #include <boost/any.hpp>
 #include <boost/archive/text_iarchive.hpp>
@@ -29,6 +28,7 @@
 #include <boost/json.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/math/constants/constants.hpp>
+#include <boost/mpl/vector.hpp>
 #include <boost/multiprecision/cpp_int.hpp>
 #include <boost/optional.hpp>
 #include <boost/program_options.hpp>
@@ -39,6 +39,8 @@
 #include <boost/thread.hpp>
 #include <boost/timer/timer.hpp>
 #include <boost/type_erasure/any.hpp>
+#include <boost/type_erasure/any_cast.hpp>
+#include <boost/type_erasure/builtin.hpp>
 #include <boost/type_erasure/operators.hpp>
 #include <boost/url.hpp>
 #include <boost/variant.hpp>
@@ -50,6 +52,7 @@
 #include <boost/wave/token_ids.hpp>
 #include <chrono>
 #include <iostream>
+#include <numbers>
 #include <string>
 #include <thread>
 #include <vector>
@@ -79,16 +82,16 @@ TEST_F(BoostIntegrationTest, VersionAndBasic) {
 // Test Boost.System error handling
 TEST_F(BoostIntegrationTest, SystemErrorHandling) {
   // Test error code creation
-  boost::system::error_code ec;
-  EXPECT_FALSE(ec);
-  EXPECT_EQ(ec.value(), 0);
+  boost::system::error_code initial_error_code;
+  EXPECT_FALSE(initial_error_code);
+  EXPECT_EQ(initial_error_code.value(), 0);
 
   // Test error code with value
-  boost::system::error_code ec2(boost::system::errc::invalid_argument,
-                                boost::system::generic_category());
-  EXPECT_TRUE(ec2);
-  EXPECT_NE(ec2.value(), 0);
-  EXPECT_FALSE(ec2.message().empty());
+  boost::system::error_code invalid_argument_error(
+      boost::system::errc::invalid_argument, boost::system::generic_category());
+  EXPECT_TRUE(invalid_argument_error);
+  EXPECT_NE(invalid_argument_error.value(), 0);
+  EXPECT_FALSE(invalid_argument_error.message().empty());
 }
 
 // Test Boost.Filesystem
@@ -118,9 +121,10 @@ TEST_F(BoostIntegrationTest, ChronoOperations) {
   auto end = boost::chrono::steady_clock::now();
 
   auto duration = end - start;
-  auto ms = boost::chrono::duration_cast<boost::chrono::milliseconds>(duration);
-  EXPECT_GE(ms.count(), 10);
-  EXPECT_LT(ms.count(), 100);  // Should be much less than 100ms
+  auto elapsed_milliseconds =
+      boost::chrono::duration_cast<boost::chrono::milliseconds>(duration);
+  EXPECT_GE(elapsed_milliseconds.count(), 10);
+  EXPECT_LT(elapsed_milliseconds.count(), 1000);
 }
 
 // Test Boost.DateTime
@@ -134,11 +138,11 @@ TEST_F(BoostIntegrationTest, DateTimeOperations) {
   EXPECT_FALSE(today.is_not_a_date());
 
   // Test time duration
-  boost::posix_time::time_duration td =
+  boost::posix_time::time_duration time_delta =
       boost::posix_time::hours(2) + boost::posix_time::minutes(30);
-  EXPECT_EQ(td.hours(), 2);
-  EXPECT_EQ(td.minutes(), 30);
-  EXPECT_EQ(td.total_seconds(), 2 * 3600 + 30 * 60);
+  EXPECT_EQ(time_delta.hours(), 2);
+  EXPECT_EQ(time_delta.minutes(), 30);
+  EXPECT_EQ(time_delta.total_seconds(), (2 * 3600) + (30 * 60));
 }
 
 // Test Boost.Regex
@@ -204,22 +208,24 @@ TEST_F(BoostIntegrationTest, ProgramOptionsOperations) {
       "count value");
 
   // Test parsing
-  const char* argv[] = {"program",  "--verbose", "--input",
-                        "test.txt", "--count",   "42"};
-  int argc = sizeof(argv) / sizeof(argv[0]);
+  std::array<const char*, 6> command_arguments = {
+      "program", "--verbose", "--input", "test.txt", "--count", "42"};
+  int argument_count = static_cast<int>(command_arguments.size());
 
-  boost::program_options::variables_map vm;
+  boost::program_options::variables_map options;
   boost::program_options::store(
-      boost::program_options::parse_command_line(argc, argv, desc), vm);
-  boost::program_options::notify(vm);
+      boost::program_options::parse_command_line(
+          argument_count, command_arguments.data(), desc),
+      options);
+  boost::program_options::notify(options);
 
-  EXPECT_TRUE(vm.count("verbose"));
-  EXPECT_TRUE(vm.count("input"));
-  EXPECT_TRUE(vm.count("count"));
-  EXPECT_FALSE(vm.count("help"));
+  EXPECT_TRUE(options.count("verbose"));
+  EXPECT_TRUE(options.count("input"));
+  EXPECT_TRUE(options.count("count"));
+  EXPECT_FALSE(options.count("help"));
 
-  EXPECT_EQ(vm["input"].as<std::string>(), "test.txt");
-  EXPECT_EQ(vm["count"].as<int>(), 42);
+  EXPECT_EQ(options["input"].as<std::string>(), "test.txt");
+  EXPECT_EQ(options["count"].as<int>(), 42);
 }
 
 // Test Boost.Thread
@@ -234,11 +240,11 @@ TEST_F(BoostIntegrationTest, ThreadOperations) {
     }
   };
 
-  boost::thread t1(worker);
-  boost::thread t2(worker);
+  boost::thread worker_thread_one(worker);
+  boost::thread worker_thread_two(worker);
 
-  t1.join();
-  t2.join();
+  worker_thread_one.join();
+  worker_thread_two.join();
 
   EXPECT_EQ(counter.load(), 20);
 }
@@ -270,16 +276,19 @@ TEST_F(BoostIntegrationTest, FormatOperations) {
   EXPECT_EQ(result, "Hello John, you are 25 years old");
 
   // Test format with different types
+  double pi_approx = std::numbers::pi_v<double>;
   std::string result2 =
-      (boost::format("Value: %1$.2f, Count: %2%") % 3.14159 % 42).str();
+      (boost::format("Value: %1$.2f, Count: %2%") % pi_approx % 42).str();
   EXPECT_EQ(result2, "Value: 3.14, Count: 42");
 }
 
 // Test Boost.IOStreams
 TEST_F(BoostIntegrationTest, IOStreamsOperations) {
   // Test array device
-  const char data[] = "Hello, Boost IOStreams!";
-  boost::iostreams::array_source source(data, sizeof(data) - 1);
+  std::string array_device_data = "Hello, Boost IOStreams!";
+  boost::iostreams::array_source source(
+      array_device_data.data(),
+      static_cast<std::streamsize>(array_device_data.size()));
   boost::iostreams::stream<boost::iostreams::array_source> stream(source);
 
   std::string line;
@@ -330,13 +339,14 @@ TEST_F(BoostIntegrationTest, CoroutineOperations) {
   namespace coro = boost::coroutines2;
 
   // Test generator coroutine
-  auto fibonacci = [](coro::coroutine<int>::push_type& sink) {
-    int a = 0, b = 1;
+  auto fibonacci = [](coro::coroutine<int>::push_type& coroutine_sink) {
+    int previous_value = 0;
+    int current_value = 1;
     while (true) {
-      sink(a);
-      int tmp = a + b;
-      a = b;
-      b = tmp;
+      coroutine_sink(previous_value);
+      int next_value = previous_value + current_value;
+      previous_value = current_value;
+      current_value = next_value;
     }
   };
 
@@ -363,10 +373,11 @@ TEST_F(BoostIntegrationTest, ExceptionOperations) {
 
   // Test exception with diagnostic information
   try {
-    typedef boost::error_info<struct tag_error_code, int> error_code;
-    auto e = boost::enable_error_info(std::runtime_error("Test error"));
-    e << error_code(42);
-    boost::throw_exception(e);
+    using error_code = boost::error_info<struct tag_error_code, int>;
+    auto error_with_info =
+        boost::enable_error_info(std::runtime_error("Test error"));
+    error_with_info << error_code(42);
+    boost::throw_exception(error_with_info);
   } catch (const std::exception& e) {
     EXPECT_STREQ(e.what(), "Test error");
     if (const int* code = boost::get_error_info<
@@ -392,11 +403,11 @@ TEST_F(BoostIntegrationTest, FiberOperations) {
     results.push_back(4);
   };
 
-  boost::fibers::fiber f1(fiber1);
-  boost::fibers::fiber f2(fiber2);
+  boost::fibers::fiber first_fiber(fiber1);
+  boost::fibers::fiber second_fiber(fiber2);
 
-  f1.join();
-  f2.join();
+  first_fiber.join();
+  second_fiber.join();
 
   EXPECT_EQ(results.size(), 4);
   EXPECT_EQ(results[0], 1);
@@ -406,23 +417,23 @@ TEST_F(BoostIntegrationTest, FiberOperations) {
 
 // Test Boost.Graph
 TEST_F(BoostIntegrationTest, GraphOperations) {
-  typedef boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>
-      Graph;
+  using Graph =
+      boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>;
 
-  Graph g(5);
+  Graph graph(5);
 
   // Add edges
-  boost::add_edge(0, 1, g);
-  boost::add_edge(1, 2, g);
-  boost::add_edge(2, 3, g);
-  boost::add_edge(3, 4, g);
-  boost::add_edge(4, 0, g);
+  boost::add_edge(0, 1, graph);
+  boost::add_edge(1, 2, graph);
+  boost::add_edge(2, 3, graph);
+  boost::add_edge(3, 4, graph);
+  boost::add_edge(4, 0, graph);
 
-  EXPECT_EQ(boost::num_vertices(g), 5);
-  EXPECT_EQ(boost::num_edges(g), 5);
+  EXPECT_EQ(boost::num_vertices(graph), 5);
+  EXPECT_EQ(boost::num_edges(graph), 5);
 
   // Test vertex iteration
-  auto vertices = boost::vertices(g);
+  auto vertices = boost::vertices(graph);
   int vertex_count = 0;
   for (auto vi = vertices.first; vi != vertices.second; ++vi) {
     vertex_count++;
@@ -434,11 +445,11 @@ TEST_F(BoostIntegrationTest, GraphOperations) {
 TEST_F(BoostIntegrationTest, JSONOperations) {
   // Test JSON parsing
   std::string json_str = R"({"name": "John", "age": 30, "city": "New York"})";
-  boost::json::value jv = boost::json::parse(json_str);
+  boost::json::value parsed_json = boost::json::parse(json_str);
 
-  EXPECT_EQ(jv.at("name").as_string(), "John");
-  EXPECT_EQ(jv.at("age").as_int64(), 30);
-  EXPECT_EQ(jv.at("city").as_string(), "New York");
+  EXPECT_EQ(parsed_json.at("name").as_string(), "John");
+  EXPECT_EQ(parsed_json.at("age").as_int64(), 30);
+  EXPECT_EQ(parsed_json.at("city").as_string(), "New York");
 
   // Test JSON serialization
   boost::json::object obj;
@@ -473,13 +484,11 @@ TEST_F(BoostIntegrationTest, LogOperations) {
 
 // Test Boost.Math
 TEST_F(BoostIntegrationTest, MathOperations) {
-  using namespace boost::math::constants;
-
   // Test math constants
-  double pi_val = pi<double>();
+  double pi_val = boost::math::constants::pi<double>();
   EXPECT_NEAR(pi_val, 3.141592653589793, 1e-15);
 
-  double e_val = e<double>();
+  double e_val = boost::math::constants::e<double>();
   EXPECT_NEAR(e_val, 2.718281828459045, 1e-15);
 
   // Test basic math operations
@@ -489,25 +498,23 @@ TEST_F(BoostIntegrationTest, MathOperations) {
 
 // Test Boost.Multiprecision
 TEST_F(BoostIntegrationTest, MultiprecisionOperations) {
-  using namespace boost::multiprecision;
-
   // Test big integer arithmetic
-  cpp_int a = 1;
+  boost::multiprecision::cpp_int factorial_result = 1;
   for (int i = 1; i <= 20; ++i) {
-    a *= i;
+    factorial_result *= i;
   }
 
   // 20! = 2432902008176640000
-  cpp_int expected("2432902008176640000");
-  EXPECT_EQ(a, expected);
+  boost::multiprecision::cpp_int expected_factorial("2432902008176640000");
+  EXPECT_EQ(factorial_result, expected_factorial);
 
   // Test arithmetic operations
-  cpp_int b = 123456789;
-  cpp_int c = 987654321;
-  cpp_int result = b * c;
+  boost::multiprecision::cpp_int multiplicand = 123456789;
+  boost::multiprecision::cpp_int multiplier = 987654321;
+  boost::multiprecision::cpp_int product = multiplicand * multiplier;
 
-  cpp_int expected_result("121932631112635269");
-  EXPECT_EQ(result, expected_result);
+  boost::multiprecision::cpp_int expected_product("121932631112635269");
+  EXPECT_EQ(product, expected_product);
 }
 
 // Test Boost.Optional
@@ -541,15 +548,15 @@ TEST_F(BoostIntegrationTest, SerializationOperations) {
   // Serialize to string
   std::ostringstream oss;
   {
-    boost::archive::text_oarchive oa(oss);
-    oa << original_vec;
+    boost::archive::text_oarchive output_archive(oss);
+    output_archive << original_vec;
   }
 
   // Deserialize from string
   std::istringstream iss(oss.str());
   {
-    boost::archive::text_iarchive ia(iss);
-    ia >> restored_vec;
+    boost::archive::text_iarchive input_archive(iss);
+    input_archive >> restored_vec;
   }
 
   EXPECT_EQ(original_vec, restored_vec);
@@ -590,16 +597,19 @@ TEST_F(BoostIntegrationTest, TimerOperations) {
 
 // Test Boost.TypeErasure
 TEST_F(BoostIntegrationTest, TypeErasureOperations) {
-  using namespace boost::type_erasure;
+  using boost::type_erasure::_self;
+  using boost::type_erasure::any;
+  using boost::type_erasure::copy_constructible;
+  using boost::type_erasure::relaxed;
+  using boost::type_erasure::typeid_;
 
-  // Simple type erasure test
-  typedef any<copy_constructible<>> any_type;
+  using any_type =
+      any<boost::mpl::vector<copy_constructible<>, typeid_<_self>, relaxed>>;
 
-  any_type x = 42;
-  any_type y = x;  // Test copy construction
+  any_type original_any = 42;
+  any_type copied_any = original_any;  // Test copy construction
 
-  // Test that type erasure preserves copyability
-  EXPECT_TRUE(true);  // If we reach here, copy construction worked
+  EXPECT_EQ(boost::type_erasure::any_cast<int>(copied_any), 42);
 }
 
 // Test Boost.URL
@@ -648,19 +658,21 @@ TEST_F(BoostIntegrationTest, VariantOperations) {
   EXPECT_NEAR(boost::get<double>(var), 3.14, 1e-10);
 
   // Test visitor pattern
-  struct visitor : public boost::static_visitor<std::string> {
-    std::string operator()(int i) const { return "int: " + std::to_string(i); }
-    std::string operator()(const std::string& s) const {
-      return "string: " + s;
+  struct VariantVisitor : public boost::static_visitor<std::string> {
+    std::string operator()(int integer_value) const {
+      return "int: " + std::to_string(integer_value);
     }
-    std::string operator()(double d) const {
-      return "double: " + std::to_string(d);
+    std::string operator()(const std::string& string_value) const {
+      return "string: " + string_value;
+    }
+    std::string operator()(double double_value) const {
+      return "double: " + std::to_string(double_value);
     }
   };
 
   var = 100;
-  std::string result = boost::apply_visitor(visitor(), var);
-  EXPECT_EQ(result, "int: 100");
+  std::string variant_result = boost::apply_visitor(VariantVisitor(), var);
+  EXPECT_EQ(variant_result, "int: 100");
 }
 
 // Test Boost.Wave (C++ preprocessor) - Compile-time only
@@ -669,27 +681,28 @@ TEST_F(BoostIntegrationTest, WaveOperations) {
   // This test only verifies compile-time functionality.
 
   // Test that Wave headers can be included and basic types compiled
-  using namespace boost::wave;
-
   // Test static token ID constants are available (compile-time only)
-  static_assert(T_IDENTIFIER != T_INTLIT, "Token IDs should be different");
-  static_assert(T_IDENTIFIER != T_STRINGLIT, "Token IDs should be different");
-  static_assert(T_INTLIT != T_STRINGLIT, "Token IDs should be different");
+  static_assert(boost::wave::T_IDENTIFIER != boost::wave::T_INTLIT,
+                "Token IDs should be different");
+  static_assert(boost::wave::T_IDENTIFIER != boost::wave::T_STRINGLIT,
+                "Token IDs should be different");
+  static_assert(boost::wave::T_INTLIT != boost::wave::T_STRINGLIT,
+                "Token IDs should be different");
 
   // Test basic compile-time token ID comparisons
-  EXPECT_NE(T_IDENTIFIER, T_INTLIT);
-  EXPECT_NE(T_IDENTIFIER, T_STRINGLIT);
-  EXPECT_NE(T_INTLIT, T_STRINGLIT);
+  EXPECT_NE(boost::wave::T_IDENTIFIER, boost::wave::T_INTLIT);
+  EXPECT_NE(boost::wave::T_IDENTIFIER, boost::wave::T_STRINGLIT);
+  EXPECT_NE(boost::wave::T_INTLIT, boost::wave::T_STRINGLIT);
 
   // Test that token constants are properly defined
-  EXPECT_GT(T_IDENTIFIER, 0);
-  EXPECT_GT(T_INTLIT, 0);
-  EXPECT_GT(T_STRINGLIT, 0);
-  EXPECT_GT(T_LEFTPAREN, 0);
-  EXPECT_GT(T_RIGHTPAREN, 0);
-  EXPECT_GT(T_POUND, 0);
-  EXPECT_GT(T_SEMICOLON, 0);
-  EXPECT_GT(T_COMMA, 0);
+  EXPECT_GT(boost::wave::T_IDENTIFIER, 0);
+  EXPECT_GT(boost::wave::T_INTLIT, 0);
+  EXPECT_GT(boost::wave::T_STRINGLIT, 0);
+  EXPECT_GT(boost::wave::T_LEFTPAREN, 0);
+  EXPECT_GT(boost::wave::T_RIGHTPAREN, 0);
+  EXPECT_GT(boost::wave::T_POUND, 0);
+  EXPECT_GT(boost::wave::T_SEMICOLON, 0);
+  EXPECT_GT(boost::wave::T_COMMA, 0);
 
   // Test basic size calculations
   EXPECT_GT(sizeof(boost::wave::cpplexer::lex_token<>), 0);
@@ -748,51 +761,55 @@ TEST_F(BoostIntegrationTest, AnyOperations) {
   any_value = vec;
   EXPECT_EQ(any_value.type(), typeid(std::vector<int>));
 
-  std::vector<int> retrieved = boost::any_cast<std::vector<int>>(any_value);
+  auto retrieved = boost::any_cast<std::vector<int>>(any_value);
   EXPECT_EQ(retrieved, vec);
 }
 
 // Test Boost.Array
 TEST_F(BoostIntegrationTest, ArrayOperations) {
-  boost::array<int, 5> arr = {{1, 2, 3, 4, 5}};
+  boost::array<int, 5> array_values = {{1, 2, 3, 4, 5}};
 
-  EXPECT_EQ(arr.size(), 5);
-  EXPECT_EQ(arr[0], 1);
-  EXPECT_EQ(arr[4], 5);
+  EXPECT_EQ(array_values.size(), 5);
+  EXPECT_EQ(array_values[0], 1);
+  EXPECT_EQ(array_values[4], 5);
 
   // Test array iteration
   int sum = 0;
-  for (const auto& value : arr) {
+  for (const auto& value : array_values) {
     sum += value;
   }
   EXPECT_EQ(sum, 15);
 
   // Test array assignment
-  boost::array<int, 5> arr2;
-  arr2 = arr;
-  EXPECT_EQ(arr2[0], 1);
-  EXPECT_EQ(arr2[4], 5);
+  boost::array<int, 5> array_copy = array_values;
+  array_copy = array_values;
+  EXPECT_EQ(array_copy[0], 1);
+  EXPECT_EQ(array_copy[4], 5);
 
   // Test array comparison
-  EXPECT_EQ(arr, arr2);
+  EXPECT_EQ(array_values, array_copy);
 }
 
 // Test Boost.Function
 TEST_F(BoostIntegrationTest, FunctionOperations) {
   // Test function wrapper
-  boost::function<int(int, int)> add_func = [](int a, int b) { return a + b; };
+  boost::function<int(int, int)> add_func = [](int left_operand,
+                                               int right_operand) {
+    return left_operand + right_operand;
+  };
 
   EXPECT_EQ(add_func(3, 4), 7);
 
   // Test function assignment
-  boost::function<int(int, int)> multiply_func = [](int a, int b) {
-    return a * b;
+  boost::function<int(int, int)> multiply_func = [](int left_operand,
+                                                    int right_operand) {
+    return left_operand * right_operand;
   };
   EXPECT_EQ(multiply_func(3, 4), 12);
 
   // Test function with different signature
   boost::function<std::string(const std::string&)> string_func =
-      [](const std::string& s) { return "Hello, " + s; };
+      [](const std::string& input_text) { return "Hello, " + input_text; };
 
   EXPECT_EQ(string_func("World"), "Hello, World");
 
@@ -806,21 +823,21 @@ TEST_F(BoostIntegrationTest, FunctionOperations) {
 
 // Performance test for commonly used Boost features
 TEST_F(BoostIntegrationTest, PerformanceTest) {
-  const int iterations = 100000;
+  constexpr int PERFORMANCE_ITERATION_COUNT = 100000;
 
   // Test boost::format performance
   auto start = boost::chrono::high_resolution_clock::now();
-  for (int i = 0; i < iterations; ++i) {
-    std::string result = (boost::format("Test %1%") % i).str();
-    (void)result;  // Prevent optimization
+  for (int iteration = 0; iteration < PERFORMANCE_ITERATION_COUNT;
+       ++iteration) {
+    std::string formatted_value = (boost::format("Test %1%") % iteration).str();
+    (void)formatted_value;  // Prevent optimization
   }
   auto end = boost::chrono::high_resolution_clock::now();
 
   auto duration =
       boost::chrono::duration_cast<boost::chrono::microseconds>(end - start);
-  std::cout << "Boost.Format " << iterations
-            << " iterations: " << duration.count() << " microseconds"
-            << std::endl;
+  std::cout << "Boost.Format " << PERFORMANCE_ITERATION_COUNT
+            << " iterations: " << duration.count() << " microseconds" << '\n';
 
   // Should complete within reasonable time (less than 1 second)
   EXPECT_LT(duration.count(), 1000000);

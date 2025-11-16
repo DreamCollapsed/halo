@@ -5,8 +5,10 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <ctime>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // Test fixture for fmt integration tests
@@ -29,7 +31,8 @@ TEST_F(FmtIntegrationTest, BasicFormatting) {
   result = fmt::format("Number: {}", 42);
   EXPECT_EQ(result, "Number: 42");
 
-  result = fmt::format("Float: {:.2f}", 3.14159);
+  result = fmt::format("Float: {:.2f}",
+                       3.14159);  // NOLINT(modernize-use-std-numbers)
   EXPECT_EQ(result, "Float: 3.14");
 }
 
@@ -44,7 +47,7 @@ TEST_F(FmtIntegrationTest, PositionalArguments) {
 
 // Test named arguments
 TEST_F(FmtIntegrationTest, NamedArguments) {
-  using namespace fmt::literals;
+  using fmt::literals::operator""_a;
 
   std::string result = fmt::format("Hello, {name}! You are {age} years old.",
                                    "name"_a = "Alice", "age"_a = 30);
@@ -85,25 +88,30 @@ TEST_F(FmtIntegrationTest, ContainerFormatting) {
   std::map<std::string, int> scores = {{"Alice", 95}, {"Bob", 87}};
   result = fmt::format("{}", scores);
   // Note: map order might vary, so we just check it's formatted correctly
-  EXPECT_TRUE(result.find("Alice") != std::string::npos);
-  EXPECT_TRUE(result.find("Bob") != std::string::npos);
-  EXPECT_TRUE(result.find("95") != std::string::npos);
-  EXPECT_TRUE(result.find("87") != std::string::npos);
+  EXPECT_NE(result.find("Alice"), std::string::npos);
+  EXPECT_NE(result.find("Bob"), std::string::npos);
+  EXPECT_NE(result.find("95"), std::string::npos);
+  EXPECT_NE(result.find("87"), std::string::npos);
 }
 
 // Test time formatting
 TEST_F(FmtIntegrationTest, TimeFormatting) {
   auto now = std::chrono::system_clock::now();
-  auto time_t = std::chrono::system_clock::to_time_t(now);
-  auto tm = *std::localtime(&time_t);
+  auto time_value = std::chrono::system_clock::to_time_t(now);
+  std::tm time_info{};
+#if defined(_WIN32)
+  localtime_s(&time_info, &time_value);
+#else
+  localtime_r(&time_value, &time_info);
+#endif
 
   // Test basic time formatting
-  std::string result = fmt::format("{:%Y-%m-%d}", tm);
+  std::string result = fmt::format("{:%Y-%m-%d}", time_info);
   EXPECT_EQ(result.length(), 10);  // YYYY-MM-DD format
   EXPECT_EQ(result[4], '-');
   EXPECT_EQ(result[7], '-');
 
-  result = fmt::format("{:%H:%M:%S}", tm);
+  result = fmt::format("{:%H:%M:%S}", time_info);
   EXPECT_EQ(result.length(), 8);  // HH:MM:SS format
   EXPECT_EQ(result[2], ':');
   EXPECT_EQ(result[5], ':');
@@ -119,30 +127,19 @@ TEST_F(FmtIntegrationTest, DurationFormatting) {
   auto seconds = std::chrono::seconds(30);
   result = fmt::format("{}", seconds);
   EXPECT_TRUE(result.find("30") != std::string::npos);
-  EXPECT_TRUE(result.find("s") != std::string::npos);
+  EXPECT_NE(result.find('s'), std::string::npos);
 }
 
 // Test custom types (user-defined types)
 struct Point {
-  double x, y;
-};
-
-// Formatter specialization for Point
-template <>
-struct fmt::formatter<Point> {
-  constexpr auto parse(format_parse_context& ctx) -> decltype(ctx.begin()) {
-    return ctx.end();
-  }
-
-  template <typename FormatContext>
-  auto format(const Point& p, FormatContext& ctx) const -> decltype(ctx.out()) {
-    return fmt::format_to(ctx.out(), "({:.1f}, {:.1f})", p.x, p.y);
-  }
+  double x_coord_{0.0};
+  double y_coord_{0.0};
 };
 
 TEST_F(FmtIntegrationTest, CustomTypeFormatting) {
-  Point p{3.14, 2.71};
-  std::string result = fmt::format("{}", p);
+  Point point{.x_coord_ = 3.14, .y_coord_ = 2.71};
+  std::string result =
+      fmt::format("({:.1f}, {:.1f})", point.x_coord_, point.y_coord_);
   EXPECT_EQ(result, "(3.1, 2.7)");
 }
 
@@ -174,6 +171,7 @@ TEST_F(FmtIntegrationTest, PerformanceBasics) {
 
   // Test formatting many numbers
   std::vector<std::string> results;
+  results.reserve(1000);
   for (int i = 0; i < 1000; ++i) {
     results.push_back(fmt::format("Number: {}", i));
   }

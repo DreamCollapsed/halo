@@ -19,7 +19,6 @@
 #include <string>
 #include <vector>
 
-using ::testing::_;
 using ::testing::ElementsAre;
 using ::testing::Eq;
 using ::testing::HasSubstr;
@@ -28,6 +27,11 @@ using ::testing::Return;
 // Mock logger interface using Abseil types
 class MockLogger {
  public:
+  MockLogger() = default;
+  MockLogger(const MockLogger&) = default;
+  MockLogger& operator=(const MockLogger&) = default;
+  MockLogger(MockLogger&&) = default;
+  MockLogger& operator=(MockLogger&&) = default;
   virtual ~MockLogger() = default;
   virtual absl::Status Log(absl::string_view level,
                            absl::string_view message) = 0;
@@ -56,9 +60,9 @@ class DataProcessingService {
     }
 
     // Log the start of processing
+    absl::ParsedFormat<'d'> processing_format("Processing CSV data of size %d");
     auto log_status = logger_->Log(
-        "INFO",
-        absl::StrFormat("Processing CSV data of size %d", csv_data.size()));
+        "INFO", absl::StrFormat(processing_format, csv_data.size()));
     if (!log_status.ok()) {
       return log_status;
     }
@@ -67,7 +71,9 @@ class DataProcessingService {
     std::vector<std::string> lines = absl::StrSplit(csv_data, '\n');
 
     for (const auto& line : lines) {
-      if (line.empty()) continue;
+      if (line.empty()) {
+        continue;
+      }
 
       std::vector<std::string> parts = absl::StrSplit(line, ',');
       if (parts.size() >= 2) {
@@ -79,8 +85,9 @@ class DataProcessingService {
     }
 
     // Log completion
-    auto log_completion_status = logger_->Log(
-        "INFO", absl::StrFormat("Processed %d unique keys", result.size()));
+    absl::ParsedFormat<'d'> completion_format("Processed %d unique keys");
+    auto log_completion_status =
+        logger_->Log("INFO", absl::StrFormat(completion_format, result.size()));
     if (!log_completion_status.ok()) {
       return log_completion_status;
     }
@@ -100,9 +107,11 @@ class DataProcessingService {
     absl::Duration elapsed = end - start;
 
     if (elapsed > timeout) {
-      return absl::DeadlineExceededError(absl::StrFormat(
-          "Processing took %s, exceeded timeout of %s",
-          absl::FormatDuration(elapsed), absl::FormatDuration(timeout)));
+      absl::ParsedFormat<'s', 's'> timeout_format(
+          "Processing took %s, exceeded timeout of %s");
+      return absl::DeadlineExceededError(
+          absl::StrFormat(timeout_format, absl::FormatDuration(elapsed),
+                          absl::FormatDuration(timeout)));
     }
 
     if (!processing_result.ok()) {
@@ -112,7 +121,7 @@ class DataProcessingService {
     return absl::OkStatus();
   }
 
-  absl::flat_hash_set<std::string> GetUniqueKeys(
+  static absl::flat_hash_set<std::string> GetUniqueKeys(
       const absl::flat_hash_map<std::string, int>& data) {
     absl::flat_hash_set<std::string> keys;
     for (const auto& [key, value] : data) {
@@ -139,19 +148,23 @@ class CombinedIntegrationTest : public ::testing::Test {
     raw_mock_logger_ = nullptr;
   }
 
+  MockLoggerImpl& MockLogger() { return *raw_mock_logger_; }
+  DataProcessingService& ServiceUnderTest() { return *service_; }
+
+ private:
   std::unique_ptr<MockLoggerImpl> mock_logger_;
-  MockLoggerImpl* raw_mock_logger_;
+  MockLoggerImpl* raw_mock_logger_ = nullptr;
   std::unique_ptr<DataProcessingService> service_;
 };
 
 // Test successful data processing with Abseil containers and GTest matchers
 TEST_F(CombinedIntegrationTest, SuccessfulDataProcessing) {
   // Set up mock expectations
-  EXPECT_CALL(*raw_mock_logger_,
+  EXPECT_CALL(MockLogger(),
               Log(Eq("INFO"), HasSubstr("Processing CSV data of size")))
       .WillOnce(Return(absl::OkStatus()));
 
-  EXPECT_CALL(*raw_mock_logger_,
+  EXPECT_CALL(MockLogger(),
               Log(Eq("INFO"), HasSubstr("Processed 3 unique keys")))
       .WillOnce(Return(absl::OkStatus()));
 
@@ -159,7 +172,7 @@ TEST_F(CombinedIntegrationTest, SuccessfulDataProcessing) {
   absl::string_view csv_data = "apple,10\nbanana,20\napple,5\norange,15";
 
   // Process the data
-  auto result = service_->ProcessCsvData(csv_data);
+  auto result = ServiceUnderTest().ProcessCsvData(csv_data);
 
   // Verify the result using GTest assertions
   ASSERT_TRUE(result.ok()) << "Processing should succeed: " << result.status();
@@ -171,7 +184,7 @@ TEST_F(CombinedIntegrationTest, SuccessfulDataProcessing) {
   EXPECT_EQ(data.at("orange"), 15);
 
   // Test unique keys extraction
-  auto unique_keys = service_->GetUniqueKeys(data);
+  auto unique_keys = DataProcessingService::GetUniqueKeys(data);
   EXPECT_EQ(unique_keys.size(), 3);
   EXPECT_TRUE(unique_keys.contains("apple"));
   EXPECT_TRUE(unique_keys.contains("banana"));
@@ -181,16 +194,16 @@ TEST_F(CombinedIntegrationTest, SuccessfulDataProcessing) {
 // Test error handling with Abseil Status and GTest
 TEST_F(CombinedIntegrationTest, ErrorHandling) {
   // Test empty data error
-  auto result = service_->ProcessCsvData("");
+  auto result = ServiceUnderTest().ProcessCsvData("");
   EXPECT_FALSE(result.ok());
   EXPECT_EQ(result.status().code(), absl::StatusCode::kInvalidArgument);
   EXPECT_THAT(result.status().message(), HasSubstr("CSV data cannot be empty"));
 
   // Test logger error propagation
-  EXPECT_CALL(*raw_mock_logger_, Log(_, _))
+  EXPECT_CALL(MockLogger(), Log(::testing::_, ::testing::_))
       .WillOnce(Return(absl::InternalError("Logger failed")));
 
-  result = service_->ProcessCsvData("test,1");
+  result = ServiceUnderTest().ProcessCsvData("test,1");
   EXPECT_FALSE(result.ok());
   EXPECT_EQ(result.status().code(), absl::StatusCode::kInternal);
   EXPECT_THAT(result.status().message(), HasSubstr("Logger failed"));
@@ -199,17 +212,18 @@ TEST_F(CombinedIntegrationTest, ErrorHandling) {
 // Test timeout functionality with Abseil Time and GMock
 TEST_F(CombinedIntegrationTest, TimeoutHandling) {
   // Set up mock to accept timestamp setting
-  EXPECT_CALL(*raw_mock_logger_, SetTimestamp(_)).Times(1);
+  EXPECT_CALL(MockLogger(), SetTimestamp(::testing::_)).Times(1);
 
   // Set up mock to handle logging
-  EXPECT_CALL(*raw_mock_logger_, Log(_, _))
+  EXPECT_CALL(MockLogger(), Log(::testing::_, ::testing::_))
       .WillRepeatedly(Return(absl::OkStatus()));
 
   // Test with very short timeout (should not timeout for small data)
   absl::string_view small_data = "key,1";
   absl::Duration short_timeout = absl::Milliseconds(100);
 
-  auto status = service_->ProcessWithTimeout(small_data, short_timeout);
+  auto status =
+      ServiceUnderTest().ProcessWithTimeout(small_data, short_timeout);
   EXPECT_TRUE(status.ok()) << "Small data should process within timeout: "
                            << status;
 }
@@ -217,9 +231,10 @@ TEST_F(CombinedIntegrationTest, TimeoutHandling) {
 // Test Abseil string operations with GTest matchers
 TEST_F(CombinedIntegrationTest, AbseilStringOperations) {
   // Test string formatting with StrFormat
+  absl::ParsedFormat<'s', 'd', 's'> user_format(
+      "User: %s, Score: %d, Time: %s");
   std::string formatted =
-      absl::StrFormat("User: %s, Score: %d, Time: %s", "Alice", 95,
-                      absl::FormatTime(absl::Now()));
+      absl::StrFormat(user_format, "Alice", 95, absl::FormatTime(absl::Now()));
 
   EXPECT_THAT(formatted, HasSubstr("User: Alice"));
   EXPECT_THAT(formatted, HasSubstr("Score: 95"));
@@ -268,7 +283,7 @@ TEST_F(CombinedIntegrationTest, StatusChaining) {
     return absl::InvalidArgumentError(msg);
   };
 
-  auto chain_status = [&](absl::Status base_status) -> absl::Status {
+  auto chain_status = [&](const absl::Status& base_status) -> absl::Status {
     if (!base_status.ok()) {
       return absl::InternalError(
           absl::StrCat("Chained error: ", base_status.message()));
@@ -288,18 +303,19 @@ TEST_F(CombinedIntegrationTest, StatusChaining) {
 
 // Performance test combining both libraries
 TEST_F(CombinedIntegrationTest, PerformanceTest) {
-  const int iterations = 1000;
+  int iteration_count = 1000;
 
   // Set up mock to handle many calls efficiently
-  EXPECT_CALL(*raw_mock_logger_, Log(_, _))
-      .Times(iterations * 2)  // Start and end logging for each iteration
+  EXPECT_CALL(MockLogger(), Log(::testing::_, ::testing::_))
+      .Times(iteration_count * 2)  // Start and end logging for each iteration
       .WillRepeatedly(Return(absl::OkStatus()));
 
   auto start = absl::Now();
 
-  for (int i = 0; i < iterations; ++i) {
-    std::string test_data = absl::StrFormat("item_%d,%d", i, i * 2);
-    auto result = service_->ProcessCsvData(test_data);
+  absl::ParsedFormat<'d', 'd'> item_format("item_%d,%d");
+  for (int i = 0; i < iteration_count; ++i) {
+    std::string test_data = absl::StrFormat(item_format, i, i * 2);
+    auto result = ServiceUnderTest().ProcessCsvData(test_data);
     ASSERT_TRUE(result.ok());
     ASSERT_EQ(result.value().size(), 1);
   }
@@ -309,18 +325,18 @@ TEST_F(CombinedIntegrationTest, PerformanceTest) {
   // Should complete in reasonable time
   EXPECT_LT(absl::ToDoubleSeconds(elapsed), 1.0);
 
-  std::cout << "Processed " << iterations << " items in "
-            << absl::FormatDuration(elapsed) << std::endl;
+  std::cout << "Processed " << iteration_count << " items in "
+            << absl::FormatDuration(elapsed) << '\n';
 }
 
 // Integration test with real-world scenario
 TEST_F(CombinedIntegrationTest, RealWorldScenario) {
   // Set up expectations for a complete workflow
-  EXPECT_CALL(*raw_mock_logger_, Log(Eq("INFO"), _))
+  EXPECT_CALL(MockLogger(), Log(Eq("INFO"), ::testing::_))
       .Times(::testing::AtLeast(2))
       .WillRepeatedly(Return(absl::OkStatus()));
 
-  EXPECT_CALL(*raw_mock_logger_, GetLastLog())
+  EXPECT_CALL(MockLogger(), GetLastLog())
       .WillOnce(Return(absl::StatusOr<std::string>("Last log message")));
 
   // Simulate processing sales data
@@ -332,7 +348,7 @@ TEST_F(CombinedIntegrationTest, RealWorldScenario) {
       "ProductB,150\n";
 
   // Process the sales data
-  auto result = service_->ProcessCsvData(sales_data);
+  auto result = ServiceUnderTest().ProcessCsvData(sales_data);
   ASSERT_TRUE(result.ok());
 
   const auto& sales_totals = result.value();
@@ -356,9 +372,10 @@ TEST_F(CombinedIntegrationTest, RealWorldScenario) {
   EXPECT_EQ(max_sales, 350);
 
   // Generate summary report
+  absl::ParsedFormat<'d', 's', 'd', 'd'> summary_format(
+      "Sales Summary: %d products, top seller: %s (%d units), total: %d units");
   std::string summary = absl::StrFormat(
-      "Sales Summary: %d products, top seller: %s (%d units), total: %d units",
-      sales_totals.size(), top_product, max_sales,
+      summary_format, sales_totals.size(), top_product, max_sales,
       std::accumulate(
           sales_totals.begin(), sales_totals.end(), 0,
           [](int sum, const auto& pair) { return sum + pair.second; }));
@@ -368,7 +385,7 @@ TEST_F(CombinedIntegrationTest, RealWorldScenario) {
   EXPECT_THAT(summary, HasSubstr("total: 800 units"));
 
   // Verify logger state
-  auto last_log = raw_mock_logger_->GetLastLog();
+  auto last_log = MockLogger().GetLastLog();
   ASSERT_TRUE(last_log.ok());
   EXPECT_EQ(last_log.value(), "Last log message");
 }
@@ -376,9 +393,8 @@ TEST_F(CombinedIntegrationTest, RealWorldScenario) {
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
 
-  std::cout << "Testing combined Abseil + GTest/GMock integration..."
-            << std::endl;
-  std::cout << "Current time: " << absl::FormatTime(absl::Now()) << std::endl;
+  std::cout << "Testing combined Abseil + GTest/GMock integration..." << '\n';
+  std::cout << "Current time: " << absl::FormatTime(absl::Now()) << '\n';
 
   return RUN_ALL_TESTS();
 }

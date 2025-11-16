@@ -11,12 +11,14 @@ Checks: >
   -modernize-use-trailing-return-type,
   -readability-named-parameter,
   -readability-magic-numbers,
+  -readability-duplicate-include,
+  -readability-function-cognitive-complexity,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-macro-usage
 
-WarningsAsErrors: ''
-HeaderFilterRegex: '.*'
-AnalyzeTemporaryDtors: false
+WarningsAsErrors: '*'
+HeaderFilterRegex: '(^|.*/)(src|test)/'
 
 CheckOptions:
   - key: readability-identifier-naming.NamespaceCase

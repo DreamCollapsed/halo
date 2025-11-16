@@ -20,6 +20,8 @@
 #include <parquet/arrow/reader.h>
 #include <parquet/arrow/writer.h>
 
+#include <memory>
+
 // Force registration of Arrow compute and dataset functions
 namespace {
 class ArrowRegistrationHelper {
@@ -33,12 +35,12 @@ class ArrowRegistrationHelper {
       if (!status.ok()) {
         // If initialization fails, we'll continue and let tests skip gracefully
         std::cerr << "Arrow compute initialization failed: "
-                  << status.ToString() << std::endl;
+                  << status.ToString() << '\n';
       } else {
-        std::cerr << "Arrow compute initialization succeeded!" << std::endl;
+        std::cerr << "Arrow compute initialization succeeded!" << '\n';
       }
     } catch (...) {
-      std::cerr << "Exception during Arrow compute initialization" << std::endl;
+      std::cerr << "Exception during Arrow compute initialization" << '\n';
     }
   }
 };
@@ -67,7 +69,7 @@ TEST(ArrowExtended, JsonReadLines) {
   auto table_res = (*table_reader_res)->Read();
   ASSERT_TRUE(table_res.ok())
       << "JSON read failed: " << table_res.status().ToString();
-  auto table = *table_res;
+  const auto& table = *table_res;
   EXPECT_EQ(table->num_rows(), 2);
   EXPECT_EQ(table->num_columns(), 2);
 }
@@ -76,10 +78,12 @@ TEST(ArrowExtended, ComputeScalarAndAggregate) {
   // Initialize helper to ensure registry is set up
   GetArrowHelper();
 
-  arrow::Int32Builder b;
-  for (int i = 1; i <= 5; ++i) ASSERT_TRUE(b.Append(i).ok());
-  std::shared_ptr<arrow::Array> arr;
-  ASSERT_TRUE(b.Finish(&arr).ok());
+  arrow::Int32Builder value_builder;
+  for (int i = 1; i <= 5; ++i) {
+    ASSERT_TRUE(value_builder.Append(i).ok());
+  }
+  std::shared_ptr<arrow::Array> value_array;
+  ASSERT_TRUE(value_builder.Finish(&value_array).ok());
 
   // Sum function must be available after initialization
   auto* registry = arrow::compute::GetFunctionRegistry();
@@ -87,15 +91,17 @@ TEST(ArrowExtended, ComputeScalarAndAggregate) {
   ASSERT_TRUE(sum_func.ok())
       << "Sum kernel must be registered: " << sum_func.status().ToString();
 
-  auto sum_res = arrow::compute::Sum(arr);
+  auto sum_res = arrow::compute::Sum(value_array);
   ASSERT_TRUE(sum_res.ok())
       << "Sum kernel execution failed: " << sum_res.status().ToString();
   auto sum_scalar = sum_res->scalar();
   ASSERT_TRUE(sum_scalar->is_valid);
-  auto as_int64 = static_cast<const arrow::Int64Scalar&>(*sum_scalar);
-  EXPECT_EQ(as_int64.value, 15);
+  const auto* int64_scalar =
+      dynamic_cast<const arrow::Int64Scalar*>(sum_scalar.get());
+  ASSERT_NE(int64_scalar, nullptr);
+  EXPECT_EQ(int64_scalar->value, 15);
   auto cast_res = arrow::compute::Cast(
-      arr, arrow::compute::CastOptions::Safe(arrow::int64()));
+      value_array, arrow::compute::CastOptions::Safe(arrow::int64()));
   ASSERT_TRUE(cast_res.ok())
       << "Cast kernel not available: " << cast_res.status().ToString();
   (void)cast_res;
@@ -105,18 +111,19 @@ TEST(ArrowExtended, DatasetInMemoryScan) {
   // Initialize helper to ensure registry is set up
   GetArrowHelper();
 
-  arrow::Int32Builder idb;
-  arrow::StringBuilder sb;
-  ASSERT_TRUE(idb.Append(1).ok());
-  ASSERT_TRUE(idb.Append(2).ok());
-  ASSERT_TRUE(sb.Append("x").ok());
-  ASSERT_TRUE(sb.Append("y").ok());
-  std::shared_ptr<arrow::Array> id_arr, s_arr;
-  ASSERT_TRUE(idb.Finish(&id_arr).ok());
-  ASSERT_TRUE(sb.Finish(&s_arr).ok());
+  arrow::Int32Builder id_builder;
+  arrow::StringBuilder name_builder;
+  ASSERT_TRUE(id_builder.Append(1).ok());
+  ASSERT_TRUE(id_builder.Append(2).ok());
+  ASSERT_TRUE(name_builder.Append("x").ok());
+  ASSERT_TRUE(name_builder.Append("y").ok());
+  std::shared_ptr<arrow::Array> id_array;
+  std::shared_ptr<arrow::Array> name_array;
+  ASSERT_TRUE(id_builder.Finish(&id_array).ok());
+  ASSERT_TRUE(name_builder.Finish(&name_array).ok());
   auto schema = arrow::schema({arrow::field("id", arrow::int32()),
                                arrow::field("name", arrow::utf8())});
-  auto batch = arrow::RecordBatch::Make(schema, 2, {id_arr, s_arr});
+  auto batch = arrow::RecordBatch::Make(schema, 2, {id_array, name_array});
   auto dataset = std::make_shared<arrow::dataset::InMemoryDataset>(
       schema, std::vector<std::shared_ptr<arrow::RecordBatch>>{batch});
   auto scanner_builder_res = dataset->NewScan();
@@ -158,8 +165,10 @@ class SimpleFlightServer : public arrow::flight::FlightServerBase {
     std::vector<arrow::flight::FlightEndpoint> endpoints{endpoint};
     auto fi_res = arrow::flight::FlightInfo::Make(
         *batch_->schema(), request, endpoints, batch_->num_rows(), -1);
-    if (!fi_res.ok()) return fi_res.status();
-    info->reset(new arrow::flight::FlightInfo(*fi_res));
+    if (!fi_res.ok()) {
+      return fi_res.status();
+    }
+    *info = std::make_unique<arrow::flight::FlightInfo>(*fi_res);
     return arrow::Status::OK();
   }
 
@@ -172,7 +181,9 @@ class SimpleFlightServer : public arrow::flight::FlightServerBase {
     }
     std::vector<std::shared_ptr<arrow::RecordBatch>> batches{batch_};
     auto reader_res = arrow::RecordBatchReader::Make(batches, batch_->schema());
-    if (!reader_res.ok()) return reader_res.status();
+    if (!reader_res.ok()) {
+      return reader_res.status();
+    }
     *stream = std::make_unique<arrow::flight::RecordBatchStream>(*reader_res);
     return arrow::Status::OK();
   }
@@ -184,16 +195,16 @@ class SimpleFlightServer : public arrow::flight::FlightServerBase {
 
 TEST(ArrowExtended, FlightDoGetRoundTrip) {
   // Prepare a tiny batch
-  arrow::Int32Builder ib;
-  ASSERT_TRUE(ib.Append(7).ok());
-  ASSERT_TRUE(ib.Append(8).ok());
-  std::shared_ptr<arrow::Array> id_arr;
-  ASSERT_TRUE(ib.Finish(&id_arr).ok());
+  arrow::Int32Builder id_builder;
+  ASSERT_TRUE(id_builder.Append(7).ok());
+  ASSERT_TRUE(id_builder.Append(8).ok());
+  std::shared_ptr<arrow::Array> id_array;
+  ASSERT_TRUE(id_builder.Finish(&id_array).ok());
   auto schema = arrow::schema({arrow::field("id", arrow::int32())});
-  auto batch = arrow::RecordBatch::Make(schema, 2, {id_arr});
+  auto batch = arrow::RecordBatch::Make(schema, 2, {id_array});
 
   // Start server
-  std::unique_ptr<SimpleFlightServer> server(new SimpleFlightServer(batch));
+  auto server = std::make_unique<SimpleFlightServer>(batch);
   arrow::flight::Location bind_loc;
   auto bind_loc_res = arrow::flight::Location::ForGrpcTcp("localhost", 0);
   ASSERT_TRUE(bind_loc_res.ok()) << bind_loc_res.status().ToString();
@@ -216,7 +227,7 @@ TEST(ArrowExtended, FlightDoGetRoundTrip) {
   auto info_res = client->GetFlightInfo(descriptor);
   ASSERT_TRUE(info_res.ok()) << info_res.status().ToString();
   auto& info = *info_res;
-  ASSERT_EQ(info->endpoints().size(), 1u);
+  ASSERT_EQ(info->endpoints().size(), 1U);
 
   // Fetch stream
   auto stream_res = client->DoGet(info->endpoints()[0].ticket);
@@ -227,8 +238,10 @@ TEST(ArrowExtended, FlightDoGetRoundTrip) {
   while (true) {
     auto chunk_res = reader->Next();
     ASSERT_TRUE(chunk_res.ok()) << chunk_res.status().ToString();
-    auto chunk = *chunk_res;
-    if (!chunk.data) break;
+    const auto& chunk = *chunk_res;
+    if (!chunk.data) {
+      break;
+    }
     rows += chunk.data->num_rows();
   }
   EXPECT_EQ(rows, 2);
@@ -240,19 +253,20 @@ TEST(ArrowExtended, FlightDoGetRoundTrip) {
 TEST(ArrowExtended, ParquetInMemoryRoundTrip) {
   auto schema = arrow::schema({arrow::field("id", arrow::int32()),
                                arrow::field("name", arrow::utf8())});
-  arrow::Int32Builder ib;
-  arrow::StringBuilder sb;
-  ASSERT_TRUE(ib.Append(1).ok());
-  ASSERT_TRUE(sb.Append("alice").ok());
-  ASSERT_TRUE(ib.Append(2).ok());
-  ASSERT_TRUE(sb.Append("bob").ok());
-  std::shared_ptr<arrow::Array> id_arr, name_arr;
-  ASSERT_TRUE(ib.Finish(&id_arr).ok());
-  ASSERT_TRUE(sb.Finish(&name_arr).ok());
-  auto batch = arrow::RecordBatch::Make(schema, 2, {id_arr, name_arr});
+  arrow::Int32Builder id_builder;
+  arrow::StringBuilder name_builder;
+  ASSERT_TRUE(id_builder.Append(1).ok());
+  ASSERT_TRUE(name_builder.Append("alice").ok());
+  ASSERT_TRUE(id_builder.Append(2).ok());
+  ASSERT_TRUE(name_builder.Append("bob").ok());
+  std::shared_ptr<arrow::Array> id_array;
+  std::shared_ptr<arrow::Array> name_array;
+  ASSERT_TRUE(id_builder.Finish(&id_array).ok());
+  ASSERT_TRUE(name_builder.Finish(&name_array).ok());
+  auto batch = arrow::RecordBatch::Make(schema, 2, {id_array, name_array});
   auto table_res = arrow::Table::FromRecordBatches({batch});
   ASSERT_TRUE(table_res.ok()) << table_res.status().ToString();
-  auto table = *table_res;
+  const auto& table = *table_res;
   std::shared_ptr<arrow::io::BufferOutputStream> sink;
   ASSERT_TRUE(arrow::io::BufferOutputStream::Create().Value(&sink).ok());
   auto write_status = parquet::arrow::WriteTable(
@@ -284,19 +298,20 @@ TEST(ArrowExtended, GandivaAddExpression) {
   std::shared_ptr<gandiva::Projector> projector;
   auto status = gandiva::Projector::Make(schema, {expr}, &projector);
   ASSERT_TRUE(status.ok()) << status.ToString();
-  arrow::Int32Builder ab;
-  ASSERT_TRUE(ab.Append(41).ok());
-  ASSERT_TRUE(ab.Append(99).ok());
-  std::shared_ptr<arrow::Array> a_arr;
-  ASSERT_TRUE(ab.Finish(&a_arr).ok());
-  auto batch = arrow::RecordBatch::Make(schema, a_arr->length(), {a_arr});
+  arrow::Int32Builder value_builder;
+  ASSERT_TRUE(value_builder.Append(41).ok());
+  ASSERT_TRUE(value_builder.Append(99).ok());
+  std::shared_ptr<arrow::Array> value_array;
+  ASSERT_TRUE(value_builder.Finish(&value_array).ok());
+  auto batch =
+      arrow::RecordBatch::Make(schema, value_array->length(), {value_array});
   std::vector<std::shared_ptr<arrow::Array>> outputs;
   auto eval_status =
       projector->Evaluate(*batch, arrow::default_memory_pool(), &outputs);
   ASSERT_TRUE(eval_status.ok()) << eval_status.ToString();
-  ASSERT_EQ(outputs.size(), 1u);
+  ASSERT_EQ(outputs.size(), 1U);
   // Basic sanity: projector output length equals input length
-  ASSERT_EQ(outputs[0]->length(), a_arr->length());
+  ASSERT_EQ(outputs[0]->length(), value_array->length());
 }
 
 TEST(ArrowExtended, SubstraitExtensionSetUsable) {
@@ -304,5 +319,3 @@ TEST(ArrowExtended, SubstraitExtensionSetUsable) {
   // Construction succeeded if we reach here.
   SUCCEED();
 }
-// (Removed attempted deep Acero and Flight SQL tests due to API mismatch in
-// available version) End of file

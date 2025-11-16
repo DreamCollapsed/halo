@@ -9,7 +9,7 @@ file(MAKE_DIRECTORY "${TEST_OUTPUT_DIR}")
 
 # Generic test function: creates test executable files
 function(add_module_test module_name)
-    set(options PERFORMANCE)
+    set(options PERFORMANCE SERIAL)
     set(oneValueArgs TIMEOUT WORKING_DIRECTORY)
     set(multiValueArgs TEST_SOURCES LIBRARIES LABELS DEPENDENCIES LINK_LIBRARIES HEADER_INCLUDES CUSTOM_TARGETS)
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -61,6 +61,10 @@ function(add_module_test module_name)
         LABELS "${test_labels}"
         TIMEOUT ${ARG_TIMEOUT}
     )
+
+    if(ARG_SERIAL)
+        set_tests_properties(${test_name} PROPERTIES RUN_SERIAL TRUE)
+    endif()
     
     # Set working directory
     if(ARG_WORKING_DIRECTORY)

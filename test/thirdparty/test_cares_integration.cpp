@@ -10,59 +10,75 @@
 #include <sys/time.h>
 #include <unistd.h>
 
+#include <algorithm>
+#include <array>
+#include <cstring>
 #include <string>
 #include <vector>
 
 struct QueryResult {
-  int status = ARES_ECONNREFUSED;  // will be replaced by callback status
-  std::vector<std::string> addresses;
-  bool done = false;
+  int status_code_ = ARES_ECONNREFUSED;  // will be replaced by callback status
+  std::vector<std::string> resolved_addresses_;
+  bool is_complete_ = false;
 };
 
-static void addrinfo_callback(void* arg, int status, int /*timeouts*/,
-                              struct ares_addrinfo* res) {
+static void AddrinfoCallback(void* arg, int status, int /*timeouts*/,
+                             struct ares_addrinfo* address_info) {
   auto* result = static_cast<QueryResult*>(arg);
-  result->status = status;
-  if (status == ARES_SUCCESS && res) {
-    for (auto* node = res->nodes; node; node = node->ai_next) {
-      char ip[INET6_ADDRSTRLEN] = {0};
+  result->status_code_ = status;
+  if (status == ARES_SUCCESS && address_info != nullptr) {
+    for (auto* node = address_info->nodes; node != nullptr;
+         node = node->ai_next) {
+      std::array<char, INET6_ADDRSTRLEN> ip_buffer{};
       if (node->ai_family == AF_INET) {
-        const auto* sin =
-            reinterpret_cast<const struct sockaddr_in*>(node->ai_addr);
-        inet_ntop(AF_INET, &sin->sin_addr, ip, sizeof(ip));
+        struct sockaddr_in addr_v4{};
+        std::memcpy(&addr_v4, node->ai_addr, sizeof(addr_v4));
+        inet_ntop(AF_INET, &addr_v4.sin_addr, ip_buffer.data(),
+                  ip_buffer.size());
       } else if (node->ai_family == AF_INET6) {
-        const auto* sin6 =
-            reinterpret_cast<const struct sockaddr_in6*>(node->ai_addr);
-        inet_ntop(AF_INET6, &sin6->sin6_addr, ip, sizeof(ip));
+        struct sockaddr_in6 addr_v6{};
+        std::memcpy(&addr_v6, node->ai_addr, sizeof(addr_v6));
+        inet_ntop(AF_INET6, &addr_v6.sin6_addr, ip_buffer.data(),
+                  ip_buffer.size());
       }
-      if (ip[0]) result->addresses.emplace_back(ip);
+      if (ip_buffer.front() != '\0') {
+        result->resolved_addresses_.emplace_back(ip_buffer.data());
+      }
     }
   }
-  if (res) ares_freeaddrinfo(res);
-  result->done = true;
+  if (address_info != nullptr) {
+    ares_freeaddrinfo(address_info);
+  }
+  result->is_complete_ = true;
 }
 
 // Helper state for socket callback driven loop
 struct LoopState {
-  std::vector<ares_socket_t> sockets;  // active sockets
+  std::vector<ares_socket_t> active_sockets_;
 };
 
-static void sock_state_cb(void* data, ares_socket_t sock, int readable,
-                          int writable) {
-  auto* st = static_cast<LoopState*>(data);
-  auto it = std::find(st->sockets.begin(), st->sockets.end(), sock);
-  if (readable == 0 && writable == 0) {
-    if (it != st->sockets.end()) st->sockets.erase(it);
-  } else {
-    if (it == st->sockets.end()) st->sockets.push_back(sock);
+// NOLINTBEGIN(readability-suspicious-call-argument)
+// NOLINTBEGIN(bugprone-easily-swappable-parameters)
+static void SocketStateCallback(void* data, ares_socket_t socket_fd,
+                                int readable_flag, int writable_flag) {
+  auto* loop_state = static_cast<LoopState*>(data);
+  auto socket_iter = std::ranges::find(loop_state->active_sockets_, socket_fd);
+  if (readable_flag == 0 && writable_flag == 0) {
+    if (socket_iter != loop_state->active_sockets_.end()) {
+      loop_state->active_sockets_.erase(socket_iter);
+    }
+  } else if (socket_iter == loop_state->active_sockets_.end()) {
+    loop_state->active_sockets_.push_back(socket_fd);
   }
 }
+// NOLINTEND(bugprone-easily-swappable-parameters)
+// NOLINTEND(readability-suspicious-call-argument)
 
 TEST(CaresIntegration, CanResolveLocalhostWithGetAddrInfo) {
   ares_channel channel = nullptr;
   LoopState loop_state;
   ares_options options{};  // zero-init
-  options.sock_state_cb = sock_state_cb;
+  options.sock_state_cb = SocketStateCallback;
   options.sock_state_cb_data = &loop_state;
   int optmask = ARES_OPT_SOCK_STATE_CB;  // enable socket state callback
   ASSERT_EQ(ARES_SUCCESS, ares_init_options(&channel, &options, optmask));
@@ -71,49 +87,55 @@ TEST(CaresIntegration, CanResolveLocalhostWithGetAddrInfo) {
 
   ares_addrinfo_hints hints{};  // zero-init -> AF_UNSPEC, any socktype/proto
   hints.ai_family = AF_UNSPEC;
-  ares_getaddrinfo(channel, "localhost", nullptr, &hints, addrinfo_callback,
+  ares_getaddrinfo(channel, "localhost", nullptr, &hints, AddrinfoCallback,
                    &result);
 
-  for (int iter = 0; iter < 50 && !result.done; ++iter) {
-    if (loop_state.sockets.empty()) {
+  for (int iter = 0; iter < 50 && !result.is_complete_; ++iter) {
+    if (loop_state.active_sockets_.empty()) {
       // No sockets registered, wait a tiny bit (could be immediate completion)
-      struct timeval tiny{0, 50 * 1000};  // 50ms
+      struct timeval tiny{.tv_sec = 0, .tv_usec = 50 * 1000};  // 50ms
       select(0, nullptr, nullptr, nullptr, &tiny);
       continue;
     }
 
-    fd_set read_fds, write_fds;
+    fd_set read_fds;
+    fd_set write_fds;
     FD_ZERO(&read_fds);
     FD_ZERO(&write_fds);
-    ares_socket_t maxfd = ARES_SOCKET_BAD;
-    for (auto s : loop_state.sockets) {
+    ares_socket_t max_socket_fd = ARES_SOCKET_BAD;
+    for (auto socket_fd : loop_state.active_sockets_) {
       // We don't know per-socket readability/writability flags directly here;
       // select for both
-      FD_SET(s, &read_fds);
-      FD_SET(s, &write_fds);
-      if (s > maxfd) maxfd = s;
+      FD_SET(socket_fd, &read_fds);
+      FD_SET(socket_fd, &write_fds);
+      max_socket_fd = std::max(max_socket_fd, socket_fd);
     }
-    if (maxfd == ARES_SOCKET_BAD) break;
+    if (max_socket_fd == ARES_SOCKET_BAD) {
+      break;
+    }
 
-    struct timeval tv, *tvp;
-    tvp = ares_timeout(channel, nullptr, &tv);
-    (void)select(static_cast<int>(maxfd) + 1, &read_fds, &write_fds, nullptr,
-                 tvp);
+    struct timeval timeout_value{.tv_sec = 0, .tv_usec = 0};
+    struct timeval* timeout_ptr =
+        ares_timeout(channel, nullptr, &timeout_value);
+    (void)select(static_cast<int>(max_socket_fd) + 1, &read_fds, &write_fds,
+                 nullptr, timeout_ptr);
 
     // Process each socket according to readiness
-    for (auto s : loop_state.sockets) {
-      ares_socket_t rfd = FD_ISSET(s, &read_fds) ? s : ARES_SOCKET_BAD;
-      ares_socket_t wfd = FD_ISSET(s, &write_fds) ? s : ARES_SOCKET_BAD;
-      if (rfd != ARES_SOCKET_BAD || wfd != ARES_SOCKET_BAD) {
-        ares_process_fd(channel, rfd, wfd);
+    for (auto socket_fd : loop_state.active_sockets_) {
+      ares_socket_t read_fd =
+          FD_ISSET(socket_fd, &read_fds) ? socket_fd : ARES_SOCKET_BAD;
+      ares_socket_t write_fd =
+          FD_ISSET(socket_fd, &write_fds) ? socket_fd : ARES_SOCKET_BAD;
+      if (read_fd != ARES_SOCKET_BAD || write_fd != ARES_SOCKET_BAD) {
+        ares_process_fd(channel, read_fd, write_fd);
       }
     }
   }
 
-  ASSERT_TRUE(result.done);
-  ASSERT_NE(result.status, ARES_ECONNREFUSED);
-  if (result.status == ARES_SUCCESS) {
-    ASSERT_FALSE(result.addresses.empty());
+  ASSERT_TRUE(result.is_complete_);
+  ASSERT_NE(result.status_code_, ARES_ECONNREFUSED);
+  if (result.status_code_ == ARES_SUCCESS) {
+    ASSERT_FALSE(result.resolved_addresses_.empty());
   }
 
   ares_destroy(channel);

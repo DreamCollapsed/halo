@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <zstd.h>
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -8,7 +9,7 @@ class ZstdIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Set up test data
-    original_data =
+    original_data_ =
         "This is a test string for zstd compression and decompression. "
         "It should be long enough to demonstrate the compression capabilities. "
         "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
@@ -20,7 +21,12 @@ class ZstdIntegrationTest : public ::testing::Test {
     // Clean up if needed
   }
 
-  std::string original_data;
+  [[nodiscard]] const std::string& OriginalData() const {
+    return original_data_;
+  }
+
+ private:
+  std::string original_data_;
 };
 
 // Test zstd version and basic functionality
@@ -42,7 +48,7 @@ TEST_F(ZstdIntegrationTest, ZstdVersionTest) {
 // Test basic compression functionality
 TEST_F(ZstdIntegrationTest, BasicCompressionTest) {
   // Get bounds for compression
-  size_t compress_bound = ZSTD_compressBound(original_data.size());
+  size_t compress_bound = ZSTD_compressBound(OriginalData().size());
   EXPECT_GT(compress_bound, 0);
 
   // Allocate buffer for compressed data
@@ -50,36 +56,36 @@ TEST_F(ZstdIntegrationTest, BasicCompressionTest) {
 
   // Compress the data
   size_t compressed_size = ZSTD_compress(
-      compressed_data.data(), compressed_data.size(), original_data.data(),
-      original_data.size(), ZSTD_CLEVEL_DEFAULT);
+      compressed_data.data(), compressed_data.size(), OriginalData().data(),
+      OriginalData().size(), ZSTD_CLEVEL_DEFAULT);
 
   // Check that compression was successful
   EXPECT_FALSE(ZSTD_isError(compressed_size));
   EXPECT_GT(compressed_size, 0);
-  EXPECT_LT(compressed_size, original_data.size());  // Should be compressed
+  EXPECT_LT(compressed_size, OriginalData().size());  // Should be compressed
 
   // Resize the vector to actual compressed size
   compressed_data.resize(compressed_size);
 
   // Get the original size from compressed data
-  unsigned long long decompressed_size =
+  std::uint64_t decompressed_size =
       ZSTD_getFrameContentSize(compressed_data.data(), compressed_data.size());
-  EXPECT_EQ(decompressed_size, original_data.size());
+  EXPECT_EQ(decompressed_size, OriginalData().size());
 
   // Decompress the data
-  std::vector<char> decompressed_data(decompressed_size);
+  std::vector<char> decompressed_data(static_cast<size_t>(decompressed_size));
   size_t actual_decompressed_size =
       ZSTD_decompress(decompressed_data.data(), decompressed_data.size(),
                       compressed_data.data(), compressed_data.size());
 
   // Check that decompression was successful
   EXPECT_FALSE(ZSTD_isError(actual_decompressed_size));
-  EXPECT_EQ(actual_decompressed_size, original_data.size());
+  EXPECT_EQ(actual_decompressed_size, OriginalData().size());
 
   // Check that decompressed data matches original
   std::string decompressed_string(decompressed_data.data(),
                                   actual_decompressed_size);
-  EXPECT_EQ(decompressed_string, original_data);
+  EXPECT_EQ(decompressed_string, OriginalData());
 }
 
 // Test different compression levels
@@ -97,12 +103,12 @@ TEST_F(ZstdIntegrationTest, CompressionLevelsTest) {
 
   for (int level : levels) {
     if (level <= max_level) {
-      size_t compress_bound = ZSTD_compressBound(original_data.size());
+      size_t compress_bound = ZSTD_compressBound(OriginalData().size());
       std::vector<char> compressed_data(compress_bound);
 
       size_t compressed_size =
           ZSTD_compress(compressed_data.data(), compressed_data.size(),
-                        original_data.data(), original_data.size(), level);
+                        OriginalData().data(), OriginalData().size(), level);
 
       EXPECT_FALSE(ZSTD_isError(compressed_size));
       EXPECT_GT(compressed_size, 0);
@@ -121,28 +127,28 @@ TEST_F(ZstdIntegrationTest, StreamingCompressionTest) {
   EXPECT_NE(dctx, nullptr);
 
   // Compress using streaming API
-  size_t compress_bound = ZSTD_compressBound(original_data.size());
+  size_t compress_bound = ZSTD_compressBound(OriginalData().size());
   std::vector<char> compressed_data(compress_bound);
 
   size_t compressed_size = ZSTD_compressCCtx(
       cctx, compressed_data.data(), compressed_data.size(),
-      original_data.data(), original_data.size(), ZSTD_CLEVEL_DEFAULT);
+      OriginalData().data(), OriginalData().size(), ZSTD_CLEVEL_DEFAULT);
 
   EXPECT_FALSE(ZSTD_isError(compressed_size));
   EXPECT_GT(compressed_size, 0);
 
   // Decompress using streaming API
-  std::vector<char> decompressed_data(original_data.size());
+  std::vector<char> decompressed_data(OriginalData().size());
   size_t decompressed_size = ZSTD_decompressDCtx(
       dctx, decompressed_data.data(), decompressed_data.size(),
       compressed_data.data(), compressed_size);
 
   EXPECT_FALSE(ZSTD_isError(decompressed_size));
-  EXPECT_EQ(decompressed_size, original_data.size());
+  EXPECT_EQ(decompressed_size, OriginalData().size());
 
   // Verify data integrity
   std::string decompressed_string(decompressed_data.data(), decompressed_size);
-  EXPECT_EQ(decompressed_string, original_data);
+  EXPECT_EQ(decompressed_string, OriginalData());
 
   // Clean up contexts
   ZSTD_freeCCtx(cctx);
@@ -155,7 +161,7 @@ TEST_F(ZstdIntegrationTest, ErrorHandlingTest) {
   std::vector<char> small_buffer(1);  // Too small buffer
 
   size_t result = ZSTD_compress(small_buffer.data(), small_buffer.size(),
-                                original_data.data(), original_data.size(),
+                                OriginalData().data(), OriginalData().size(),
                                 ZSTD_CLEVEL_DEFAULT);
 
   // Should return an error

@@ -112,6 +112,10 @@ set(MVFST_VERSION "2025.08.18.00")
 set(MVFST_URL "https://github.com/facebook/mvfst/archive/refs/tags/v${MVFST_VERSION}.zip")
 set(MVFST_SHA256 "ab07677c1a424e942b932d308fb980ac3b9e6f2b7a35e35711f0d27b9672c199")
 
+set(OPENBLAS_VERSION "0.3.30")
+set(OPENBLAS_URL "https://github.com/OpenMathLib/OpenBLAS/releases/download/v${OPENBLAS_VERSION}/OpenBLAS-${OPENBLAS_VERSION}.tar.gz")
+set(OPENBLAS_SHA256 "27342cff518646afb4c2b976d809102e368957974c250a25ccc965e53063c95d")
+
 set(OPENSSL_VERSION "1.1.1w")
 string(REPLACE "." "_" OPENSSL_VERSION_UNDERSCORE ${OPENSSL_VERSION})
 set(OPENSSL_URL "https://github.com/openssl/openssl/releases/download/OpenSSL_${OPENSSL_VERSION_UNDERSCORE}/openssl-${OPENSSL_VERSION}.tar.gz")

@@ -124,6 +124,7 @@ target_link_libraries(halo_thirdparty_core
     simdjson::simdjson
     OpenMP::OpenMP_CXX
     unwind::unwind
+    $<$<PLATFORM_ID:Linux>:OpenBLAS::OpenBLAS>
 )
 
 add_library(halo_thirdparty_with_thrift INTERFACE)

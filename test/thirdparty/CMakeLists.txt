@@ -558,6 +558,18 @@ add_module_test(thirdparty_openmp
     SERIAL
 )
 
+# OpenBLAS integration test
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_module_test(thirdparty_openblas
+        TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_openblas_integration.cpp"
+        LABELS
+            openblas
+            thirdparty
+            integration
+        TIMEOUT 30
+    )
+endif()
+
 # libunwind integration test
 add_module_test(thirdparty_libunwind
     TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_libunwind_integration.cpp"

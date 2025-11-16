@@ -153,6 +153,12 @@ thirdparty_register_component(llvm-project
     SHA256 "${LLVM_PROJECT_SHA256}"
 )
 
+thirdparty_register_component(openblas
+    VERSION "${OPENBLAS_VERSION}"
+    URL "${OPENBLAS_URL}"
+    SHA256 "${OPENBLAS_SHA256}"
+)
+
 thirdparty_register_component(double-conversion
     VERSION "${DOUBLE_CONVERSION_VERSION}"
     URL "${DOUBLE_CONVERSION_URL}"
@@ -224,7 +230,7 @@ thirdparty_register_component(faiss
     VERSION "${FAISS_VERSION}"
     URL     "${FAISS_URL}"
     SHA256  "${FAISS_SHA256}"
-    DEPENDS_ON llvm-project
+    DEPENDS_ON llvm-project openblas
 )
 
 thirdparty_register_component(openssl

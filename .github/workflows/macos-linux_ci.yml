@@ -348,16 +348,16 @@ jobs:
             wget gnupg lsb-release software-properties-common \
             clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 \
             ninja-build autoconf automake libtool gettext gettext-base autopoint \
-            build-essential libopenblas-dev liblapack-dev libblas-dev
+            build-essential
           
           # Install latest GCC and libstdc++ development files
           # build-essential provides g++ and libstdc++, but we explicitly install for clarity
           echo "Ensuring GCC toolchain for Clang with libstdc++..."
           sudo apt-get install -y g++
           
-          # Remove any existing pkgconf installation
-          echo "Removing any existing pkgconf installation..."
-          sudo apt-get remove -y pkgconf pkg-config || true
+          # Remove any existing pkgconf openblas installation
+          echo "Removing any existing pkgconf openblas installation..."
+          sudo apt-get remove -y pkgconf pkg-config libopenblas-dev liblapack-dev libblas-dev || true
           sudo apt-get autoremove -y || true
           
           # Verify GCC and libstdc++ are available
@@ -660,11 +660,11 @@ jobs:
             wget gnupg lsb-release software-properties-common \
             clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 \
             ninja-build ccache autoconf automake libtool gettext gettext-base autopoint \
-            build-essential libopenblas-dev liblapack-dev libblas-dev
+            build-essential
           
-          # Remove any existing pkgconf installation
-          echo "Removing any existing pkgconf installation..."
-          sudo apt-get remove -y pkgconf pkg-config || true
+          # Remove any existing pkgconf openblas installation
+          echo "Removing any existing pkgconf openblas installation..."
+          sudo apt-get remove -y pkgconf pkg-config libopenblas-dev liblapack-dev libblas-dev || true
           sudo apt-get autoremove -y || true
 
           # Install latest GCC and libstdc++ development files

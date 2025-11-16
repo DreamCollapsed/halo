@@ -58,7 +58,7 @@ thirdparty_build_cmake_library(llvm-project
 # On Linux with libstdc++, we must avoid exposing LLVM's C++ ABI headers (cxxabi.h, etc.)
 # which conflict with GCC's libstdc++ headers. We create a filtered include directory
 # that only contains the OpenMP and libunwind headers we need.
-if(UNIX AND NOT APPLE)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(_llvm_filtered_include_dir "${LLVM_PROJECT_INSTALL_DIR}/include_filtered")
     file(MAKE_DIRECTORY "${_llvm_filtered_include_dir}")
     

@@ -39,6 +39,11 @@ if(_need_build)
         message(DEBUG "[bzip2] Set explicit linker environment: LD=${HALO_LINKER}")
     endif()
     
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PKG_CONFIG_EXECUTABLE)
+        list(APPEND _make_env "PKG_CONFIG=${PKG_CONFIG_EXECUTABLE}")
+        message(DEBUG "[bzip2] Set pkg-config environment: PKG_CONFIG=${PKG_CONFIG_EXECUTABLE}")
+    endif()
+    
     # Apply project-level linker flags directly (for Makefile-based build)
     set(_ldflags "")
     if(CMAKE_EXE_LINKER_FLAGS)

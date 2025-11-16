@@ -1198,6 +1198,13 @@ function(thirdparty_get_optimization_flags output_var)
         -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF
     )
     message(DEBUG "[thirdparty] LTO explicitly disabled for third-party libraries (CMAKE_INTERPROCEDURAL_OPTIMIZATION=OFF)")
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND PKG_CONFIG_EXECUTABLE)
+        list(APPEND _opt_flags
+            -DPKG_CONFIG_EXECUTABLE=${PKG_CONFIG_EXECUTABLE}
+        )
+        message(DEBUG "[thirdparty] Propagating pkg-config executable: ${PKG_CONFIG_EXECUTABLE}")
+    endif()
     
     # Combine and append all CMAKE flags at the end to avoid overrides
     if(HALO_CMAKE_C_FLAGS_BASE)
@@ -1726,6 +1733,9 @@ function(thirdparty_build_autotools_library library_name)
         endif()
         if(HALO_LINKER)
             list(APPEND _linker_env "LD=${HALO_LINKER}")
+        endif()
+        if(PKG_CONFIG_EXECUTABLE)
+            list(APPEND _linker_env "PKG_CONFIG=${PKG_CONFIG_EXECUTABLE}")
         endif()
 
         set(_auto_CFLAGS   "${CMAKE_C_FLAGS}")

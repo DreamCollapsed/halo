@@ -34,7 +34,6 @@ set(_icu_common_args
     --disable-tests
     --enable-tools
     --disable-extras
-    --disable-icuio
     --disable-layout
 )
 
@@ -73,6 +72,8 @@ thirdparty_build_autotools_library("icu4c"
         "${ICU4C_INSTALL_DIR}/lib/libicuuc.a"
         "${ICU4C_INSTALL_DIR}/lib/libicudata.a"
         "${ICU4C_INSTALL_DIR}/lib/libicui18n.a"
+        "${ICU4C_INSTALL_DIR}/lib/libicuio.a"
+        "${ICU4C_INSTALL_DIR}/lib/libicutu.a"
         "${ICU4C_INSTALL_DIR}/include/unicode/uversion.h"
         "${ICU4C_INSTALL_DIR}/bin/icu-config"
 )
@@ -100,10 +101,34 @@ if(EXISTS "${ICU4C_INSTALL_DIR}/lib/libicuuc.a")
             INTERFACE_INCLUDE_DIRECTORIES "${ICU4C_INSTALL_DIR}/include"
         )
     endif()
+    if(EXISTS "${ICU4C_INSTALL_DIR}/lib/libicuio.a" AND NOT TARGET ICU::io)
+        add_library(ICU::io STATIC IMPORTED)
+        set_target_properties(ICU::io PROPERTIES
+            IMPORTED_LOCATION "${ICU4C_INSTALL_DIR}/lib/libicuio.a"
+            INTERFACE_INCLUDE_DIRECTORIES "${ICU4C_INSTALL_DIR}/include"
+            INTERFACE_LINK_LIBRARIES ICU::uc
+        )
+    endif()
+    if(EXISTS "${ICU4C_INSTALL_DIR}/lib/libicutu.a" AND NOT TARGET ICU::tu)
+        add_library(ICU::tu STATIC IMPORTED)
+        set_target_properties(ICU::tu PROPERTIES
+            IMPORTED_LOCATION "${ICU4C_INSTALL_DIR}/lib/libicutu.a"
+            INTERFACE_INCLUDE_DIRECTORIES "${ICU4C_INSTALL_DIR}/include"
+            INTERFACE_LINK_LIBRARIES "ICU::i18n;ICU::uc"
+        )
+    endif()
     if(NOT TARGET ICU::ICU)
         add_library(ICU::ICU INTERFACE IMPORTED)
+        set(_icu_link_targets ICU::i18n ICU::uc ICU::data)
+        if(TARGET ICU::io)
+            list(APPEND _icu_link_targets ICU::io)
+        endif()
+        if(TARGET ICU::tu)
+            list(APPEND _icu_link_targets ICU::tu)
+        endif()
+        list(JOIN _icu_link_targets ";" _icu_link_targets_joined)
         set_target_properties(ICU::ICU PROPERTIES
-            INTERFACE_LINK_LIBRARIES "ICU::i18n;ICU::uc;ICU::data"
+            INTERFACE_LINK_LIBRARIES "${_icu_link_targets_joined}"
             INTERFACE_INCLUDE_DIRECTORIES "${ICU4C_INSTALL_DIR}/include"
         )
     endif() 

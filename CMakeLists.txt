@@ -86,6 +86,9 @@ get_filename_component(COMPILER_ROOT "${COMPILER_BIN_DIR}/.." ABSOLUTE)
 # do nothing (portable fallback). This avoids maintenance of multiple cache
 # options while ensuring consistency across main and third-party builds.
 # ----------------------------------------------------------------------------
+set(HALO_LINUX_X86_64_MARCH_VERSION_RESTRICT "v4" CACHE STRING "Restrict maximum march version for Linux x86_64")
+set_property(CACHE HALO_LINUX_X86_64_MARCH_VERSION_RESTRICT PROPERTY STRINGS v4 v3 v2 none)
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
     set(_halo_arch_flag "")
@@ -96,13 +99,19 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
       string(FIND "${_halo_cpuinfo}" "avx2" _has_avx2)
       string(FIND "${_halo_cpuinfo}" "sse4_2" _has_sse42)
 
-      if(_has_avx512f GREATER -1)
+      if(_has_avx512f GREATER -1
+          AND HALO_LINUX_X86_64_MARCH_VERSION_RESTRICT STREQUAL "v4")
         set(_halo_arch_flag "-march=x86-64-v4")
         set(_halo_arch_level v4)
-      elseif(_has_avx2 GREATER -1)
+      elseif(_has_avx2 GREATER -1
+              AND (HALO_LINUX_X86_64_MARCH_VERSION_RESTRICT STREQUAL "v4"
+                   OR HALO_LINUX_X86_64_MARCH_VERSION_RESTRICT STREQUAL "v3"))
         set(_halo_arch_flag "-march=x86-64-v3")
         set(_halo_arch_level v3)
-      elseif(_has_sse42 GREATER -1)
+      elseif(_has_sse42 GREATER -1
+              AND (HALO_LINUX_X86_64_MARCH_VERSION_RESTRICT STREQUAL "v4"
+                   OR HALO_LINUX_X86_64_MARCH_VERSION_RESTRICT STREQUAL "v3"
+                   OR HALO_LINUX_X86_64_MARCH_VERSION_RESTRICT STREQUAL "v2"))
         set(_halo_arch_flag "-march=x86-64-v2")
         set(_halo_arch_level v2)
       else()
@@ -110,6 +119,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
       endif()
 
       message(STATUS "[cpu] Linux x86_64 auto-detect level='${_halo_arch_level}' flags='${_halo_arch_flag}'")
+
+      # Check if AVX512 is available but restricted
+      if(_has_avx512f GREATER -1 AND NOT _halo_arch_level STREQUAL "v4" AND NOT HALO_LINUX_X86_64_MARCH_VERSION_RESTRICT STREQUAL "v4")
+        message(STATUS "[cpu] AVX512F detected but restricted to '${HALO_LINUX_X86_64_MARCH_VERSION_RESTRICT}'; using '${_halo_arch_level}'")
+      endif()
     else()
       message(WARNING "[cpu] /proc/cpuinfo not readable; skipping arch flag (portable fallback)")
     endif()
@@ -242,6 +256,7 @@ linker_add_selfcheck()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   find_program(PKG_CONFIG_EXECUTABLE NAMES pkgconf pkg-config)
+
   if(NOT PKG_CONFIG_EXECUTABLE)
     message(WARNING "Neither pkgconf nor pkg-config found. Some dependencies may not be detected correctly.")
   else()
@@ -250,6 +265,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 else()
   message(STATUS "Apple platform detected, skipping pkg-config search.")
 endif()
+
 # -----------------------------------------------------------------------------
 # Compiler feature / warning flag probes (performed once)
 # -----------------------------------------------------------------------------

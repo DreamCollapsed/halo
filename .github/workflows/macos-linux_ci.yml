@@ -553,7 +553,8 @@ jobs:
           cmake -S . -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_C_COMPILER=$CC \
-            -DCMAKE_CXX_COMPILER=$CXX
+            -DCMAKE_CXX_COMPILER=$CXX \
+            -DHALO_LINUX_X86_64_MARCH_VERSION_RESTRICT=v3
           
           echo "CMake configure completed, build directory ready for main compilation"
 
@@ -889,7 +890,8 @@ jobs:
             -DCMAKE_C_COMPILER=$CC \
             -DCMAKE_CXX_COMPILER=$CXX \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
-            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DHALO_LINUX_X86_64_MARCH_VERSION_RESTRICT=v3
           
           echo "CMake configure completed, build directory ready for main compilation"
 

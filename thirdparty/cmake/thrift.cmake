@@ -3,8 +3,7 @@
 
 thirdparty_setup_directories("thrift")
 
-thirdparty_download_and_check("${THRIFT_URL}" "${THRIFT_DOWNLOAD_FILE}" "${THRIFT_SHA256}")
-thirdparty_extract_and_rename("${THRIFT_DOWNLOAD_FILE}" "${THRIFT_SOURCE_DIR}" "${THIRDPARTY_SRC_DIR}/${THRIFT_NAME}-*")
+thirdparty_acquire_source("thrift" THRIFT_SOURCE_DIR)
 
 set(THRIFT_TSSL_FILE "${THRIFT_SOURCE_DIR}/lib/cpp/src/thrift/transport/TSSLSocket.cpp")
 if(EXISTS "${THRIFT_TSSL_FILE}")

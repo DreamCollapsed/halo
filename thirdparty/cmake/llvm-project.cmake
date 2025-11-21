@@ -3,15 +3,15 @@
 
 thirdparty_setup_directories("llvm-project")
 
-thirdparty_combine_flags(_llvm_cxx_flags FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "-I${THIRDPARTY_BUILD_DIR}/llvm-project/bin/20/include")
+thirdparty_combine_flags(_llvm_cxx_flags FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}")
 
 thirdparty_build_cmake_library(llvm-project
     SOURCE_SUBDIR "runtimes"
     CMAKE_CACHE_ARGS
         "LLVM_ENABLE_RUNTIMES=openmp;libunwind"
-        "CLANG_VERSION_MAJOR=20"
-        "PACKAGE_VERSION=20.1.8"
-        "CLANG_RESOURCE_DIR=20"
+        "CLANG_VERSION_MAJOR=21"
+        "PACKAGE_VERSION=21.1.6"
+        "CLANG_RESOURCE_DIR=21"
         "CMAKE_CXX_FLAGS=${_llvm_cxx_flags}"
         "OPENMP_FILECHECK_EXECUTABLE=/usr/bin/true"
         "OPENMP_LLVM_LIT_EXECUTABLE=/usr/bin/true"
@@ -82,12 +82,14 @@ set_target_properties(OpenMP::OpenMP_CXX PROPERTIES
   IMPORTED_LOCATION "${LLVM_PROJECT_INSTALL_DIR}/lib/libomp.a"
   INTERFACE_INCLUDE_DIRECTORIES "${_llvm_interface_include_dir}"
   INTERFACE_COMPILE_OPTIONS "-fopenmp=libomp"
+  INTERFACE_LINK_DIRECTORIES "${LLVM_PROJECT_INSTALL_DIR}/lib"
 )
 add_library(OpenMP::OpenMP_C STATIC IMPORTED GLOBAL)
 set_target_properties(OpenMP::OpenMP_C PROPERTIES
   IMPORTED_LOCATION "${LLVM_PROJECT_INSTALL_DIR}/lib/libomp.a"
   INTERFACE_INCLUDE_DIRECTORIES "${_llvm_interface_include_dir}"
   INTERFACE_COMPILE_OPTIONS "-fopenmp=libomp"
+  INTERFACE_LINK_DIRECTORIES "${LLVM_PROJECT_INSTALL_DIR}/lib"
 )
 add_library(unwind::unwind STATIC IMPORTED GLOBAL)
 set_target_properties(unwind::unwind PROPERTIES
@@ -117,24 +119,14 @@ endif()
 set(OpenMP_FOUND TRUE CACHE BOOL "OpenMP found" FORCE)
 set(OpenMP_C_FOUND TRUE CACHE BOOL "OpenMP C support found" FORCE)
 set(OpenMP_CXX_FOUND TRUE CACHE BOOL "OpenMP CXX support found" FORCE)
-set(OpenMP_VERSION "5.0" CACHE STRING "OpenMP version" FORCE)
-set(OpenMP_C_VERSION "5.0" CACHE STRING "OpenMP C version" FORCE)
-set(OpenMP_CXX_VERSION "5.0" CACHE STRING "OpenMP CXX version" FORCE)
+set(OpenMP_VERSION "5.1" CACHE STRING "OpenMP version" FORCE)
+set(OpenMP_C_VERSION "5.1" CACHE STRING "OpenMP C version" FORCE)
+set(OpenMP_CXX_VERSION "5.1" CACHE STRING "OpenMP CXX version" FORCE)
+# Pass linker search path to ensure we pick up our own libomp if implicit linking occurs
 set(OpenMP_C_FLAGS "-fopenmp=libomp" CACHE STRING "OpenMP C flags" FORCE)
 set(OpenMP_CXX_FLAGS "-fopenmp=libomp" CACHE STRING "OpenMP CXX flags" FORCE)
 set(OpenMP_C_LIB_NAMES "omp" CACHE STRING "OpenMP C library names" FORCE)
 set(OpenMP_CXX_LIB_NAMES "omp" CACHE STRING "OpenMP CXX library names" FORCE)
 set(OpenMP_omp_LIBRARY "${LLVM_PROJECT_INSTALL_DIR}/lib/libomp.a" CACHE FILEPATH "OpenMP omp library" FORCE)
-
-# Copy OpenMP headers to standard include directory for better compatibility
-file(MAKE_DIRECTORY "${LLVM_PROJECT_INSTALL_DIR}/include")
-if(EXISTS "${LLVM_PROJECT_INSTALL_DIR}/bin/20/include/omp.h")
-    file(COPY "${LLVM_PROJECT_INSTALL_DIR}/bin/20/include/omp.h" 
-         DESTINATION "${LLVM_PROJECT_INSTALL_DIR}/include")
-endif()
-if(EXISTS "${LLVM_PROJECT_INSTALL_DIR}/bin/20/include/ompx.h")
-    file(COPY "${LLVM_PROJECT_INSTALL_DIR}/bin/20/include/ompx.h" 
-         DESTINATION "${LLVM_PROJECT_INSTALL_DIR}/include")
-endif()
 
 message(DEBUG "LLVM Project unified runtimes build (openmp;libunwind) complete")

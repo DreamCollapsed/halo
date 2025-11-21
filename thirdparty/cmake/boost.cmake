@@ -56,6 +56,9 @@ function(boost_configure_and_build)
         linkflags=-L${THIRDPARTY_INSTALL_DIR}/zlib/lib
         linkflags=-L${THIRDPARTY_INSTALL_DIR}/xz/lib
         linkflags=-L${THIRDPARTY_INSTALL_DIR}/cares/lib
+        linkflags=-L${THIRDPARTY_INSTALL_DIR}/llvm-project/lib
+        linkflags=-lunwind
+        cxxflags=-I${THIRDPARTY_INSTALL_DIR}/llvm-project/include
         --with-atomic
         --with-chrono
         --with-container
@@ -107,6 +110,33 @@ function(boost_configure_and_build)
             linkflags=-Wl,-force_load,${THIRDPARTY_INSTALL_DIR}/xz/lib/liblzma.a
             linkflags=-Wl,-force_load,${THIRDPARTY_INSTALL_DIR}/cares/lib/libcares.a
         )
+        
+        # Fix for Homebrew LLVM: ensure we link against the correct libc++
+        if(CMAKE_CXX_COMPILER MATCHES "llvm/bin/clang\\+\\+")
+            get_filename_component(_compiler_bin_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+            get_filename_component(_llvm_root "${_compiler_bin_dir}" DIRECTORY)
+            
+            # Check for libc++ in lib/c++ (common in newer Homebrew LLVM)
+            if(EXISTS "${_llvm_root}/lib/c++/libc++.dylib")
+                set(_llvm_lib_dir "${_llvm_root}/lib/c++")
+            else()
+                set(_llvm_lib_dir "${_llvm_root}/lib")
+            endif()
+            
+            list(APPEND BOOST_B2_OPTIONS "linkflags=-L${_llvm_lib_dir}")
+            list(APPEND BOOST_B2_OPTIONS "linkflags=-Wl,-rpath,${_llvm_lib_dir}")
+            list(APPEND BOOST_B2_OPTIONS "cxxflags=-stdlib=libc++")
+            list(APPEND BOOST_B2_OPTIONS "linkflags=-stdlib=libc++")
+            
+            # We also need these for bootstrap, which is handled later.
+            set(_boost_bootstrap_cxxflags "-stdlib=libc++")
+            set(_boost_bootstrap_ldflags "-L${_llvm_lib_dir} -Wl,-rpath,${_llvm_lib_dir} -stdlib=libc++")
+            
+            # Explicitly set CXX and LDFLAGS for bootstrap environment
+            set(ENV{CXXFLAGS} "${_boost_bootstrap_cxxflags}")
+            set(ENV{LDFLAGS} "${_boost_bootstrap_ldflags}")
+        endif()
+
         message(STATUS "[boost] Added macOS specific -force_load and -search_paths_first flags")
     endif()
 
@@ -122,10 +152,38 @@ function(boost_configure_and_build)
     endif()
 
     if(NOT EXISTS "${BOOST_SOURCE_DIR}/b2")
+        # Patch bootstrap.sh to pass CXX and CXXFLAGS to build.sh
+        # bootstrap.sh explicitly clears them, and build.sh ignores env vars for clang toolset
+        if(APPLE)
+            message(STATUS "[boost] Patching bootstrap.sh to pass CXX/CXXFLAGS to build.sh...")
+            file(READ "${BOOST_SOURCE_DIR}/bootstrap.sh" _bootstrap_content)
+            string(REPLACE 
+                "CXX= CXXFLAGS= \"$my_dir/tools/build/src/engine/build.sh\"" 
+                "\"$my_dir/tools/build/src/engine/build.sh\" --cxx=\"$CXX\" --cxxflags=\"$CXXFLAGS\"" 
+                _bootstrap_content "${_bootstrap_content}")
+            file(WRITE "${BOOST_SOURCE_DIR}/bootstrap.sh" "${_bootstrap_content}")
+        endif()
+
         # Setup environment for bootstrap
         set(_bootstrap_env)
+        
+        # Determine the CXX compiler command for bootstrap
+        set(_bootstrap_cxx "${CMAKE_CXX_COMPILER}")
+        if(_boost_bootstrap_cxxflags OR _boost_bootstrap_ldflags)
+            # Inject flags directly into CXX to ensure build.sh uses them via --cxx argument
+            set(_bootstrap_cxx "${_bootstrap_cxx} ${_boost_bootstrap_cxxflags} ${_boost_bootstrap_ldflags}")
+            message(STATUS "[boost] Bootstrap CXX command: ${_bootstrap_cxx}")
+        endif()
+
         if(CMAKE_CXX_COMPILER)
-            list(APPEND _bootstrap_env "CXX=${CMAKE_CXX_COMPILER}")
+            list(APPEND _bootstrap_env "CXX=${_bootstrap_cxx}")
+            # Also pass flags in CXXFLAGS for completeness, though CXX injection covers most
+            if(_boost_bootstrap_cxxflags)
+                list(APPEND _bootstrap_env "CXXFLAGS=${_boost_bootstrap_cxxflags}")
+            endif()
+            if(_boost_bootstrap_ldflags)
+                list(APPEND _bootstrap_env "LDFLAGS=${_boost_bootstrap_ldflags}")
+            endif()
         endif()
         if(CMAKE_C_COMPILER)
             list(APPEND _bootstrap_env "CC=${CMAKE_C_COMPILER}")
@@ -223,14 +281,13 @@ thirdparty_register_to_cmake_prefix_path("${BOOST_INSTALL_DIR}")
 
 find_package(Boost CONFIG REQUIRED
     COMPONENTS
-        system filesystem thread chrono date_time regex program_options 
+        filesystem thread chrono date_time regex program_options 
         iostreams random context coroutine atomic container log timer
         serialization math json stacktrace_basic url wave
         fiber exception graph
 )
 
 thirdparty_map_imported_config(
-    Boost::system
     Boost::filesystem
     Boost::thread
     Boost::chrono
@@ -255,3 +312,8 @@ thirdparty_map_imported_config(
     Boost::exception
     Boost::graph
 )
+
+if(TARGET Boost::stacktrace_basic)
+    # Ensure libunwind is linked when using stacktrace_basic
+    set_property(TARGET Boost::stacktrace_basic APPEND PROPERTY INTERFACE_LINK_LIBRARIES "${THIRDPARTY_INSTALL_DIR}/llvm-project/lib/libunwind.a")
+endif()

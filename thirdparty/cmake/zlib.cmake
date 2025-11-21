@@ -13,6 +13,13 @@ thirdparty_build_cmake_library("zlib"
         "${THIRDPARTY_INSTALL_DIR}/zlib/include/zlib.h"
 )
 
+# Clean up shared libraries if they were built, to prevent accidental linking
+file(GLOB _zlib_shared "${THIRDPARTY_INSTALL_DIR}/zlib/lib/*.dylib" "${THIRDPARTY_INSTALL_DIR}/zlib/lib/*.so*")
+if(_zlib_shared)
+    file(REMOVE ${_zlib_shared})
+    message(DEBUG "[zlib] Removed shared libraries to enforce static linking")
+endif()
+
 set(ZLIB_INSTALL_DIR "${THIRDPARTY_INSTALL_DIR}/zlib")
 get_filename_component(ZLIB_INSTALL_DIR "${ZLIB_INSTALL_DIR}" ABSOLUTE)
 

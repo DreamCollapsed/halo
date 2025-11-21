@@ -72,7 +72,7 @@ class BoostIntegrationTest : public ::testing::Test {
 // Test Boost version and basic functionality
 TEST_F(BoostIntegrationTest, VersionAndBasic) {
   // Test version
-  EXPECT_EQ(BOOST_VERSION, 108800);  // Should be at least 1.88.0
+  EXPECT_EQ(BOOST_VERSION, 108900);  // Should be at least 1.89.0
 
   // Test basic format functionality
   std::string result = (boost::format("Hello %1%") % "World").str();
@@ -321,9 +321,13 @@ TEST_F(BoostIntegrationTest, ContextOperations) {
   std::string result;
 
   auto fiber = boost::context::fiber([&result](boost::context::fiber&& sink) {
-    result += "Hello";
-    sink = std::move(sink).resume();
-    result += " World";
+    try {
+      result += "Hello";
+      sink = std::move(sink).resume();
+      result += " World";
+    } catch (...) {
+      std::terminate();
+    }
     return std::move(sink);
   });
 

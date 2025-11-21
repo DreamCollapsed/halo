@@ -2,7 +2,6 @@
 # Reference: https://github.com/libevent/libevent
 
 thirdparty_build_cmake_library("libevent"
-    DEPENDENCIES "openssl"
     EXTRACT_PATTERN "${THIRDPARTY_SRC_DIR}/libevent-*"
     CMAKE_ARGS
         -DEVENT__DISABLE_TESTS=ON

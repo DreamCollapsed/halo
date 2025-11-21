@@ -9,7 +9,7 @@ if(APPLE)
     set(_FOLLY_USE_JEMALLOC ON)
     set(_FOLLY_EXTRA_C_FLAGS "")
     # Use safe flag combination utility to avoid truncation issues
-    thirdparty_combine_flags(_FOLLY_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_FOLLY_JEMALLOC_CXX_FLAGS}")
+    thirdparty_combine_flags(_FOLLY_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_FOLLY_JEMALLOC_CXX_FLAGS}" "-DGLOG_USE_GLOG_EXPORT")
     thirdparty_combine_flags(_FOLLY_EXE_LINKER_FLAGS FRAGMENTS "${HALO_CMAKE_EXE_LINKER_FLAGS_BASE}" "-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib" "-ljemalloc_pic")
     thirdparty_combine_flags(_FOLLY_SHARED_LINKER_FLAGS FRAGMENTS "${HALO_CMAKE_SHARED_LINKER_FLAGS_BASE}" "-L${THIRDPARTY_INSTALL_DIR}/jemalloc/lib" "-ljemalloc_pic")
 else()
@@ -20,7 +20,7 @@ else()
     # Use lld on Linux to fix library format compatibility issues
     set(_FOLLY_EXTRA_C_FLAGS "")
     # Use safe flag combination utility
-    thirdparty_combine_flags(_FOLLY_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "")
+    thirdparty_combine_flags(_FOLLY_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "-DGLOG_USE_GLOG_EXPORT")
     thirdparty_combine_flags(_FOLLY_EXE_LINKER_FLAGS FRAGMENTS "${HALO_CMAKE_EXE_LINKER_FLAGS_BASE}")
     thirdparty_combine_flags(_FOLLY_SHARED_LINKER_FLAGS FRAGMENTS "${HALO_CMAKE_SHARED_LINKER_FLAGS_BASE}")
 endif()
@@ -99,6 +99,13 @@ thirdparty_build_cmake_library("folly"
         # LIBSODIUM
         -DLIBSODIUM_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/libsodium/include
         -DLIBSODIUM_LIBRARY=${THIRDPARTY_INSTALL_DIR}/libsodium/lib/libsodium.a
+
+        # LIBUNWIND
+        -DFOLLY_HAVE_LIBUNWIND=ON
+        -DLIBUNWIND_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/llvm-project/include
+        -DLIBUNWIND_INCLUDE_DIRS=${THIRDPARTY_INSTALL_DIR}/llvm-project/include
+        -DLIBUNWIND_LIBRARIES=${THIRDPARTY_INSTALL_DIR}/llvm-project/lib/libunwind.a
+        -DLIBUNWIND_FOUND=ON
 
         # GFLAGS
         -DFOLLY_HAVE_LIBGFLAGS:BOOL=ON

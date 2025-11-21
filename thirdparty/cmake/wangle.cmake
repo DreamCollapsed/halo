@@ -14,7 +14,7 @@ else()
 endif()
 
 # Combine base libc++ flags + jemalloc flags
-thirdparty_combine_flags(_WANGLE_COMBINED_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_WANGLE_JEMALLOC_FLAGS}")
+thirdparty_combine_flags(_WANGLE_COMBINED_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_WANGLE_JEMALLOC_FLAGS}" "-DGLOG_USE_GLOG_EXPORT")
 
 set(_wangle_args
     -DCMAKE_INSTALL_PREFIX=${WANGLE_INSTALL_DIR}

@@ -1,64 +1,36 @@
-diff --git a/CMake/FindSnappy.cmake b/CMake/FindSnappy.cmake
-index 2d65b3d17..21ec6d1bd 100644
---- a/CMake/FindSnappy.cmake
-+++ b/CMake/FindSnappy.cmake
-@@ -10,7 +10,7 @@
- include(FindPackageHandleStandardArgs)
- include(SelectLibraryConfigurations)
- 
--find_library(SNAPPY_LIBRARY_RELEASE snappy PATHS $SNAPPY_LIBRARYDIR})
-+find_library(SNAPPY_LIBRARY_RELEASE snappy PATHS ${SNAPPY_LIBRARYDIR})
- find_library(SNAPPY_LIBRARY_DEBUG snappyd PATHS ${SNAPPY_LIBRARYDIR})
- 
- find_path(SNAPPY_INCLUDE_DIR snappy.h PATHS ${SNAPPY_INCLUDEDIR})
-diff --git a/CMake/Findzstd.cmake b/CMake/Findzstd.cmake
-index ed3a73081..a84ea680c 100644
---- a/CMake/Findzstd.cmake
-+++ b/CMake/Findzstd.cmake
-@@ -23,8 +23,8 @@
- include(FindPackageHandleStandardArgs)
- include(SelectLibraryConfigurations)
- 
--find_library(ZSTD_LIBRARY_RELEASE zstd PATHS $ZSTD_LIBRARYDIR})
--find_library(ZSTD_LIBRARY_DEBUG zstdd PATHS ${ZSTD_LIBRARYDIR})
-+find_library(ZSTD_LIBRARY_RELEASE zstd PATHS ${ZSTD_LIBRARYDIR})
-+find_library(ZSTD_LIBRARY_DEBUG zstd PATHS ${ZSTD_LIBRARYDIR})
- 
- find_path(ZSTD_INCLUDE_DIR zstd.h PATHS ${ZSTD_INCLUDEDIR})
- 
-@@ -46,6 +46,8 @@ if(NOT TARGET zstd::zstd)
-   set_target_properties(zstd::zstd PROPERTIES INTERFACE_INCLUDE_DIRECTORIES "${ZSTD_INCLUDE_DIR}")
-   set_target_properties(
-     zstd::zstd
--    PROPERTIES IMPORTED_LINK_INTERFACE_LANGUAGES "C" IMPORTED_LOCATION "${ZSTD_LIBRARIES}"
-+    PROPERTIES
-+      IMPORTED_LINK_INTERFACE_LANGUAGES "C"
-+      IMPORTED_LOCATION "${ZSTD_LIBRARY}"
-   )
- endif()
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 577a06b7c..f443c2185 100644
+index d0ceeb392..9c490fa56 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -239,6 +239,8 @@ if(${VELOX_ENABLE_DUCKDB})
- endif()
+@@ -432,7 +432,9 @@ if(ENABLE_ALL_WARNINGS)
+       KNOWN_COMPILER_SPECIFIC_WARNINGS
+       "-Wno-range-loop-analysis \
+          -Wno-mismatched-tags \
+-         -Wno-nullability-completeness"
++         -Wno-nullability-completeness \
++         -Wno-gnu-zero-variadic-macro-arguments \
++         -Wno-gnu-statement-expression"
+     )
+   elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+     set(
+@@ -549,7 +551,6 @@ set(
+   filesystem
+   program_options
+   regex
+-  system
+   thread
+ )
  
- if(VELOX_ENABLE_FAISS)
-+  include(CMakeFindDependencyMacro)
-+  find_dependency(OpenMP REQUIRED)
-   velox_set_source(faiss)
-   velox_resolve_dependency(faiss)
-   if(NOT TARGET FAISS::faiss)
-@@ -591,7 +593,7 @@ if(${VELOX_BUILD_MINIMAL_WITH_DWIO} OR ${VELOX_ENABLE_HIVE_CONNECTOR} OR VELOX_E
+@@ -619,7 +620,7 @@ if(${VELOX_BUILD_MINIMAL_WITH_DWIO} OR ${VELOX_ENABLE_HIVE_CONNECTOR} OR VELOX_E
  endif()
  
  velox_set_source(simdjson)
--velox_resolve_dependency(simdjson 3.9.3)
-+velox_resolve_dependency(simdjson 3.13.0)
+-velox_resolve_dependency(simdjson 4.1.0)
++velox_resolve_dependency(simdjson 4.2.2)
  
- velox_set_source(folly)
- velox_resolve_dependency(folly)
-@@ -683,7 +685,7 @@ if(NOT VELOX_DISABLE_GOOGLETEST)
+ velox_set_source(FastFloat)
+ velox_resolve_dependency(FastFloat)
+@@ -714,7 +715,7 @@ if(NOT VELOX_DISABLE_GOOGLETEST)
  endif()
  
  velox_set_source(xsimd)
@@ -67,50 +39,139 @@ index 577a06b7c..f443c2185 100644
  
  velox_set_source(stemmer)
  velox_resolve_dependency(stemmer)
+@@ -744,4 +745,24 @@ if(VELOX_ENABLE_GEO)
+   velox_resolve_dependency(geos)
+ endif()
+ 
++# Remove -Wpedantic if inherited, as it triggers warnings in Velox
++get_directory_property(opts COMPILE_OPTIONS)
++list(REMOVE_ITEM opts "-Wpedantic")
++set_directory_properties(PROPERTIES COMPILE_OPTIONS "${opts}")
++
++if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
++  add_compile_options(
++    -Wno-gnu-zero-variadic-macro-arguments
++    -Wno-gnu-statement-expression
++    -Wno-unused-lambda-capture
++    -Wno-compound-token-split-by-macro
++    -Wno-ignored-qualifiers
++    -Wno-unused-but-set-variable
++    -Wno-unused-function
++    -Wno-deprecated-declarations
++    -Wno-unused-private-field
++    -Wno-unused-variable
++  )
++endif()
++
+ add_subdirectory(velox)
+diff --git a/dwio/parquet/common/BitPacking.h b/dwio/parquet/common/BitPacking.h
+new file mode 100644
+index 000000000..d39bbc474
+--- /dev/null
++++ b/dwio/parquet/common/BitPacking.h
+@@ -0,0 +1,34 @@
++/*
++ * Copyright (c) Facebook, Inc. and its affiliates.
++ *
++ * Licensed under the Apache License, Version 2.0 (the "License");
++ * you may not use this file except in compliance with the License.
++ * You may obtain a copy of the License at
++ *
++ *    http://www.apache.org/licenses/LICENSE-2.0
++ *
++ * Unless required by applicable law or agreed to in writing, software
++ * distributed under the License is distributed on an "AS IS" BASIS,
++ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++ * See the License for the specific language governing permissions and
++ * limitations under the License.
++ */
++
++// Adapted from Apache Arrow:
++// https://github.com/apache/arrow/blob/apache-arrow-15.0.0/cpp/src/arrow/util/bpacking.h
++// Copyright 2016-2024 The Apache Software Foundation
++
++#pragma once
++
++#include "arrow/util/visibility.h"
++
++#include <stdint.h>
++
++namespace arrow::internal {
++
++ARROW_EXPORT
++int unpack32(const uint32_t* in, uint32_t* out, int batch_size, int num_bits);
++ARROW_EXPORT
++int unpack64(const uint8_t* in, uint64_t* out, int batch_size, int num_bits);
++
++} // namespace arrow::internal
+diff --git a/velox/common/base/Fs.cpp b/velox/common/base/Fs.cpp
+index bbea7b778..2821a2ea0 100644
+--- a/velox/common/base/Fs.cpp
++++ b/velox/common/base/Fs.cpp
+@@ -18,6 +18,7 @@
+ 
+ #include <fmt/format.h>
+ #include <glog/logging.h>
++#include <unistd.h>
+ 
+ namespace facebook::velox::common {
+ 
 diff --git a/velox/common/caching/AsyncDataCache.cpp b/velox/common/caching/AsyncDataCache.cpp
-index 717107416..433b8b08a 100644
+index bb81ddbb6..7ffdba29f 100644
 --- a/velox/common/caching/AsyncDataCache.cpp
 +++ b/velox/common/caching/AsyncDataCache.cpp
-@@ -660,6 +660,9 @@ AsyncDataCache::AsyncDataCache(
+@@ -664,6 +664,15 @@ AsyncDataCache::AsyncDataCache(
      std::unique_ptr<SsdCache> ssdCache)
-     : AsyncDataCache({}, allocator, std::move(ssdCache)){};
+     : AsyncDataCache({}, allocator, std::move(ssdCache)) {}
  
-+AsyncDataCache::AsyncDataCache(memory::MemoryAllocator* allocator)
-+    : AsyncDataCache(allocator, nullptr){};
++AsyncDataCache::AsyncDataCache(
++    const Options& options,
++    memory::MemoryAllocator* allocator)
++    : AsyncDataCache(options, allocator, nullptr) {}
++
++AsyncDataCache::AsyncDataCache(
++    memory::MemoryAllocator* allocator)
++    : AsyncDataCache({}, allocator, nullptr) {}
 +
  AsyncDataCache::AsyncDataCache(
      const Options& options,
      memory::MemoryAllocator* allocator,
-@@ -686,6 +689,12 @@ std::shared_ptr<AsyncDataCache> AsyncDataCache::create(
+@@ -690,6 +699,13 @@ std::shared_ptr<AsyncDataCache> AsyncDataCache::create(
    return cache;
  }
  
 +// static
 +std::shared_ptr<AsyncDataCache> AsyncDataCache::create(
-+    memory::MemoryAllocator* allocator) {
-+  return create(allocator, nullptr, AsyncDataCache::Options{});
++    memory::MemoryAllocator* allocator,
++    const AsyncDataCache::Options& options) {
++  return create(allocator, nullptr, options);
 +}
 +
  // static
  AsyncDataCache* AsyncDataCache::getInstance() {
    return *getInstancePtr();
 diff --git a/velox/common/caching/AsyncDataCache.h b/velox/common/caching/AsyncDataCache.h
-index 605e95cd5..5c82974f1 100644
+index 0baf904de..a0eacb52f 100644
 --- a/velox/common/caching/AsyncDataCache.h
 +++ b/velox/common/caching/AsyncDataCache.h
-@@ -727,19 +727,24 @@ class AsyncDataCache : public memory::Cache {
+@@ -734,17 +734,28 @@ class AsyncDataCache : public memory::Cache {
    AsyncDataCache(
        const Options& options,
        memory::MemoryAllocator* allocator,
 -      std::unique_ptr<SsdCache> ssdCache = nullptr);
 +      std::unique_ptr<SsdCache> ssdCache);
++
++  AsyncDataCache(
++      const Options& options,
++      memory::MemoryAllocator* allocator);
  
    AsyncDataCache(
        memory::MemoryAllocator* allocator,
 -      std::unique_ptr<SsdCache> ssdCache = nullptr);
 +      std::unique_ptr<SsdCache> ssdCache);
 +
-+  explicit AsyncDataCache(memory::MemoryAllocator* allocator);
++  AsyncDataCache(
++      memory::MemoryAllocator* allocator);
  
    ~AsyncDataCache() override;
  
@@ -118,67 +179,27 @@ index 605e95cd5..5c82974f1 100644
        memory::MemoryAllocator* allocator,
 -      std::unique_ptr<SsdCache> ssdCache = nullptr,
 +      std::unique_ptr<SsdCache> ssdCache,
++      const AsyncDataCache::Options& = {});
++
++  static std::shared_ptr<AsyncDataCache> create(
++      memory::MemoryAllocator* allocator,
        const AsyncDataCache::Options& = {});
  
-+  static std::shared_ptr<AsyncDataCache> create(
-+      memory::MemoryAllocator* allocator);
-+
    static AsyncDataCache* getInstance();
+diff --git a/velox/common/process/ThreadDebugInfo.cpp b/velox/common/process/ThreadDebugInfo.cpp
+index ae681a2dc..35ebaf485 100644
+--- a/velox/common/process/ThreadDebugInfo.cpp
++++ b/velox/common/process/ThreadDebugInfo.cpp
+@@ -18,6 +18,7 @@
  
-   static void setInstance(AsyncDataCache* asyncDataCache);
-diff --git a/velox/common/memory/Scratch.h b/velox/common/memory/Scratch.h
-index dcde26e90..1f38f9db5 100644
---- a/velox/common/memory/Scratch.h
-+++ b/velox/common/memory/Scratch.h
-@@ -82,9 +82,9 @@ class Scratch {
-       Item* newItems =
-           reinterpret_cast<Item*>(::malloc(sizeof(Item) * newCapacity));
-       if (fill_ > 0) {
--        ::memcpy(newItems, items_, fill_ * sizeof(Item));
-+        ::memcpy(static_cast<void*>(newItems), items_, fill_ * sizeof(Item));
-       }
--      ::memset(newItems + fill_, 0, (newCapacity - fill_) * sizeof(Item));
-+      ::memset(static_cast<void*>(newItems + fill_), 0, (newCapacity - fill_) * sizeof(Item));
-       ::free(items_);
-       items_ = newItems;
-       capacity_ = newCapacity;
-diff --git a/velox/connectors/hive/storage_adapters/s3fs/S3Util.h b/velox/connectors/hive/storage_adapters/s3fs/S3Util.h
-index ab2e25790..4edc0fda1 100644
---- a/velox/connectors/hive/storage_adapters/s3fs/S3Util.h
-+++ b/velox/connectors/hive/storage_adapters/s3fs/S3Util.h
-@@ -237,7 +237,7 @@ class StringViewStream : Aws::Utils::Stream::PreallocatedStreamBuf,
+ #include <folly/experimental/symbolizer/SignalHandler.h>
+ #include <glog/logging.h>
++#include <unistd.h>
  
- template <>
- struct fmt::formatter<Aws::Http::HttpResponseCode> : formatter<int> {
--  auto format(Aws::Http::HttpResponseCode s, format_context& ctx) {
-+  auto format(Aws::Http::HttpResponseCode s, format_context& ctx) const {
-     return formatter<int>::format(static_cast<int>(s), ctx);
-   }
- };
-diff --git a/velox/connectors/tpcds/TpcdsConnectorSplit.h b/velox/connectors/tpcds/TpcdsConnectorSplit.h
-index 1f51eb22a..e0acd2dcd 100644
---- a/velox/connectors/tpcds/TpcdsConnectorSplit.h
-+++ b/velox/connectors/tpcds/TpcdsConnectorSplit.h
-@@ -54,7 +54,7 @@ struct fmt::formatter<facebook::velox::connector::tpcds::TpcdsConnectorSplit>
-     : formatter<std::string> {
-   auto format(
-       facebook::velox::connector::tpcds::TpcdsConnectorSplit s,
--      format_context& ctx) {
-+      format_context& ctx) const {
-     return formatter<std::string>::format(s.toString(), ctx);
-   }
- };
-@@ -65,7 +65,7 @@ struct fmt::formatter<
-     : formatter<std::string> {
-   auto format(
-       std::shared_ptr<facebook::velox::connector::tpcds::TpcdsConnectorSplit> s,
--      format_context& ctx) {
-+      format_context& ctx) const {
-     return formatter<std::string>::format(s->toString(), ctx);
-   }
- };
+ namespace facebook::velox::process {
+ thread_local const ThreadDebugInfo* threadDebugInfo = nullptr;
 diff --git a/velox/dwio/common/CacheInputStream.cpp b/velox/dwio/common/CacheInputStream.cpp
-index dedda0c72..41fa2d5dd 100644
+index 99f09c86c..cbf1f6ecf 100644
 --- a/velox/dwio/common/CacheInputStream.cpp
 +++ b/velox/dwio/common/CacheInputStream.cpp
 @@ -142,8 +142,8 @@ bool CacheInputStream::SkipInt64(int64_t count) {
@@ -234,7 +255,7 @@ index 3d75b4459..45fb465f3 100644
    void seekToPosition(PositionProvider& position) override;
    std::string getName() const override;
 diff --git a/velox/dwio/common/OutputStream.h b/velox/dwio/common/OutputStream.h
-index 46e90410a..1de47e091 100644
+index 9c93df048..d106cd4c9 100644
 --- a/velox/dwio/common/OutputStream.h
 +++ b/velox/dwio/common/OutputStream.h
 @@ -47,8 +47,8 @@ class BufferedOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
@@ -249,11 +270,30 @@ index 46e90410a..1de47e091 100644
  
    bool WriteAliasedRaw(const void* /* unused */, int32_t /* unused */)
 diff --git a/velox/dwio/common/SeekableInputStream.cpp b/velox/dwio/common/SeekableInputStream.cpp
-index 2f4615516..db3c7f4a5 100644
+index 2f4615516..7a16f838c 100644
 --- a/velox/dwio/common/SeekableInputStream.cpp
 +++ b/velox/dwio/common/SeekableInputStream.cpp
-@@ -163,8 +163,8 @@ bool SeekableArrayInputStream::SkipInt64(int64_t count) {
-   return false;
+@@ -152,19 +152,20 @@ void SeekableArrayInputStream::BackUp(int32_t count) {
+ bool SeekableArrayInputStream::SkipInt64(int64_t count) {
+   loadIfAvailable();
+ 
+-  if (count >= 0) {
+-    const uint64_t unsignedCount = static_cast<uint64_t>(count);
+-    if (unsignedCount + position_ <= length_) {
+-      position_ += unsignedCount;
+-      return true;
+-    }
++  if (count < 0) {
++    return false;
++  }
++  const uint64_t unsignedCount = static_cast<uint64_t>(count);
++  if (unsignedCount > length_ - position_) {
+     position_ = length_;
++    return false;
+   }
+-  return false;
++  position_ += unsignedCount;
++  return true;
  }
  
 -google::protobuf::int64 SeekableArrayInputStream::ByteCount() const {
@@ -263,7 +303,7 @@ index 2f4615516..db3c7f4a5 100644
  }
  
  void SeekableArrayInputStream::seekToPosition(PositionProvider& position) {
-@@ -241,8 +241,8 @@ bool SeekableFileInputStream::SkipInt64(int64_t signedCount) {
+@@ -241,8 +242,8 @@ bool SeekableFileInputStream::SkipInt64(int64_t signedCount) {
    return position_ < length_;
  }
  
@@ -297,154 +337,99 @@ index c53347a62..f4e330085 100644
    virtual std::string getName() const override;
    virtual size_t positionSize() const override;
 diff --git a/velox/dwio/common/compression/PagedInputStream.h b/velox/dwio/common/compression/PagedInputStream.h
-index 15b1acd63..f4107b7a9 100644
+index 15b1acd63..39d48cbb6 100644
 --- a/velox/dwio/common/compression/PagedInputStream.h
 +++ b/velox/dwio/common/compression/PagedInputStream.h
-@@ -56,8 +56,8 @@ class PagedInputStream : public dwio::common::SeekableInputStream {
+@@ -56,7 +56,7 @@ class PagedInputStream : public dwio::common::SeekableInputStream {
    // NOTE: This always returns true.
    bool SkipInt64(int64_t count) override;
  
 -  google::protobuf::int64 ByteCount() const override {
--    return bytesReturned_ + pendingSkip_;
 +  int64_t ByteCount() const override {
-+    return static_cast<int64_t>(bytesReturned_ + pendingSkip_);
+     return bytesReturned_ + pendingSkip_;
    }
  
-   void seekToPosition(dwio::common::PositionProvider& position) override;
-diff --git a/velox/dwio/dwrf/reader/ReaderBase.cpp b/velox/dwio/dwrf/reader/ReaderBase.cpp
-index c52dcf871..39a2cadd1 100644
---- a/velox/dwio/dwrf/reader/ReaderBase.cpp
-+++ b/velox/dwio/dwrf/reader/ReaderBase.cpp
-@@ -96,7 +96,7 @@ template <typename T>
- std::unique_ptr<FooterWrapper> parseFooter(
-     dwio::common::SeekableInputStream* input,
-     google::protobuf::Arena* arena) {
--  auto* impl = google::protobuf::Arena::CreateMessage<T>(arena);
-+  auto* impl = google::protobuf::Arena::Create<T>(arena);
-   VELOX_CHECK(impl->ParseFromZeroCopyStream(input));
-   return std::make_unique<FooterWrapper>(impl);
+diff --git a/velox/dwio/dwrf/test/TestDecompression.cpp b/velox/dwio/dwrf/test/TestDecompression.cpp
+index dcc315ad5..049c7a682 100644
+--- a/velox/dwio/dwrf/test/TestDecompression.cpp
++++ b/velox/dwio/dwrf/test/TestDecompression.cpp
+@@ -1065,7 +1065,7 @@ class TestingSeekableInputStream : public SeekableInputStream {
+     return true;
+   }
+ 
+-  google::protobuf::int64 ByteCount() const override {
++  int64_t ByteCount() const override {
+     return position_;
+   }
+ 
+diff --git a/velox/dwio/dwrf/writer/IndexBuilder.h b/velox/dwio/dwrf/writer/IndexBuilder.h
+index 44bd15833..daa358602 100644
+--- a/velox/dwio/dwrf/writer/IndexBuilder.h
++++ b/velox/dwio/dwrf/writer/IndexBuilder.h
+@@ -41,9 +41,9 @@ class IndexBuilder : public PositionRecorder {
+       : out_{std::move(out)},
+         arena_(std::make_unique<google::protobuf::Arena>()) {
+     auto rowIndex =
+-        google::protobuf::Arena::CreateMessage<proto::RowIndex>(arena_.get());
++        google::protobuf::Arena::Create<proto::RowIndex>(arena_.get());
+     auto rowIndexEntry =
+-        google::protobuf::Arena::CreateMessage<proto::RowIndexEntry>(
++        google::protobuf::Arena::Create<proto::RowIndexEntry>(
+             arena_.get());
+ 
+     index_ = std::make_unique<RowIndexWriteWrapper>(rowIndex);
+diff --git a/velox/dwio/dwrf/writer/LayoutPlanner.cpp b/velox/dwio/dwrf/writer/LayoutPlanner.cpp
+index 07ce6fca3..15fe8b6e7 100644
+--- a/velox/dwio/dwrf/writer/LayoutPlanner.cpp
++++ b/velox/dwio/dwrf/writer/LayoutPlanner.cpp
+@@ -129,7 +129,7 @@ EncodingManager::EncodingManager(
+       arena_{std::make_unique<google::protobuf::Arena>()} {
+   initEncryptionGroups();
+   auto dwrfStripeFooter =
+-      google::protobuf::Arena::CreateMessage<proto::StripeFooter>(arena_.get());
++      google::protobuf::Arena::Create<proto::StripeFooter>(arena_.get());
+   footer_ = std::make_unique<StripeFooterWriteWrapper>(dwrfStripeFooter);
  }
-diff --git a/velox/dwio/dwrf/reader/StripeReaderBase.cpp b/velox/dwio/dwrf/reader/StripeReaderBase.cpp
-index 44ba6aa81..166cb1bbc 100644
---- a/velox/dwio/dwrf/reader/StripeReaderBase.cpp
-+++ b/velox/dwio/dwrf/reader/StripeReaderBase.cpp
-@@ -96,8 +96,7 @@ std::unique_ptr<const StripeMetadata> StripeReaderBase::fetchStripe(
  
-   if (fileFooter.format() == DwrfFormat::kDwrf) {
-     auto* rawFooter =
--        google::protobuf::Arena::CreateMessage<proto::StripeFooter>(
--            arena.get());
-+        google::protobuf::Arena::Create<proto::StripeFooter>(arena.get());
-     ProtoUtils::readProtoInto(
-         reader_->createDecompressedStream(
-             std::move(footerStream), streamDebugInfo),
-@@ -111,8 +110,7 @@ std::unique_ptr<const StripeMetadata> StripeReaderBase::fetchStripe(
-     return createStripeMetadata(std::move(stripeFooter));
-   } else {
-     auto* rawFooter =
--        google::protobuf::Arena::CreateMessage<proto::orc::StripeFooter>(
--            arena.get());
-+        google::protobuf::Arena::Create<proto::orc::StripeFooter>(arena.get());
-     ProtoUtils::readProtoInto(
-         reader_->createDecompressedStream(
-             std::move(footerStream), streamDebugInfo),
-diff --git a/velox/dwio/dwrf/test/ColumnStatisticsBase.h b/velox/dwio/dwrf/test/ColumnStatisticsBase.h
-index 32b09aacf..60499629c 100644
---- a/velox/dwio/dwrf/test/ColumnStatisticsBase.h
-+++ b/velox/dwio/dwrf/test/ColumnStatisticsBase.h
-@@ -752,7 +752,7 @@ class ColumnStatisticsBase {
+diff --git a/velox/dwio/dwrf/writer/StatisticsBuilder.cpp b/velox/dwio/dwrf/writer/StatisticsBuilder.cpp
+index 779f73d25..23b172e32 100644
+--- a/velox/dwio/dwrf/writer/StatisticsBuilder.cpp
++++ b/velox/dwio/dwrf/writer/StatisticsBuilder.cpp
+@@ -119,7 +119,7 @@ void StatisticsBuilder::toProto(ColumnStatisticsWriteWrapper& stats) const {
+ std::unique_ptr<dwio::common::ColumnStatistics> StatisticsBuilder::build()
+     const {
+   auto columnStatistics =
+-      google::protobuf::Arena::CreateMessage<proto::ColumnStatistics>(
++      google::protobuf::Arena::Create<proto::ColumnStatistics>(
+           arena_.get());
+   auto stats = ColumnStatisticsWriteWrapper(columnStatistics);
+   toProto(stats);
+diff --git a/velox/dwio/dwrf/writer/WriterBase.cpp b/velox/dwio/dwrf/writer/WriterBase.cpp
+index 69534a53b..fab5f91eb 100644
+--- a/velox/dwio/dwrf/writer/WriterBase.cpp
++++ b/velox/dwio/dwrf/writer/WriterBase.cpp
+@@ -59,7 +59,7 @@ void WriterBase::writeFooter(const Type& type) {
+   // write postscript
+   pos = writerSink_->size();
+   auto dwrfPostScript =
+-      google::protobuf::Arena::CreateMessage<proto::PostScript>(arena_.get());
++      google::protobuf::Arena::Create<proto::PostScript>(arena_.get());
+   std::unique_ptr<PostScriptWriteWrapper> ps =
+       std::make_unique<PostScriptWriteWrapper>(dwrfPostScript);
+   ps->setWriterVersion(writerVersion);
+diff --git a/velox/dwio/dwrf/writer/WriterBase.h b/velox/dwio/dwrf/writer/WriterBase.h
+index 53bf008da..ad184717c 100644
+--- a/velox/dwio/dwrf/writer/WriterBase.h
++++ b/velox/dwio/dwrf/writer/WriterBase.h
+@@ -90,7 +90,7 @@ class WriterBase {
+         context_->getMemoryPool(MemoryUsageCategory::OUTPUT_STREAM),
+         context_->getConfigs());
+     auto dwrfFooter_ =
+-        google::protobuf::Arena::CreateMessage<proto::Footer>(arena_.get());
++        google::protobuf::Arena::Create<proto::Footer>(arena_.get());
+     footer_ = std::make_unique<FooterWriteWrapper>(dwrfFooter_);
+   }
  
-       if (format == DwrfFormat::kDwrf) {
-         auto columnStatistics =
--            google::protobuf::Arena::CreateMessage<proto::ColumnStatistics>(
-+            google::protobuf::Arena::Create<proto::ColumnStatistics>(
-                 arena_.get());
-         if (from == State::kFalse) {
-           columnStatistics->set_hasnull(false);
-@@ -762,8 +762,9 @@ class ColumnStatisticsBase {
-         target.merge(*buildColumnStatisticsFromProto(
-             ColumnStatisticsWrapper(columnStatistics), context()));
-       } else {
--        auto columnStatistics = google::protobuf::Arena::CreateMessage<
--            proto::orc::ColumnStatistics>(arena_.get());
-+        auto columnStatistics =
-+            google::protobuf::Arena::Create<proto::orc::ColumnStatistics>(
-+                arena_.get());
-         if (from == State::kFalse) {
-           columnStatistics->set_hasnull(false);
-         } else if (from == State::kTrue) {
-diff --git a/velox/dwio/dwrf/test/ReaderBaseTests.cpp b/velox/dwio/dwrf/test/ReaderBaseTests.cpp
-index 04f0685c2..1b0041316 100644
---- a/velox/dwio/dwrf/test/ReaderBaseTests.cpp
-+++ b/velox/dwio/dwrf/test/ReaderBaseTests.cpp
-@@ -72,8 +72,7 @@ class EncryptedStatsTest : public Test {
-     TestEncrypter encrypter;
-     HiveTypeParser parser;
-     auto type = parser.parse("struct<a:int,b:struct<a:int,b:int>,c:int,d:int>");
--    auto footer =
--        google::protobuf::Arena::CreateMessage<proto::Footer>(&arena_);
-+    auto footer = google::protobuf::Arena::Create<proto::Footer>(&arena_);
-     // add empty stats to the file
-     for (size_t i = 0; i < 7; ++i) {
-       footer->add_statistics()->set_numberofvalues(i);
-diff --git a/velox/dwio/dwrf/test/TestStripeStream.cpp b/velox/dwio/dwrf/test/TestStripeStream.cpp
-index 2e9132aeb..f8502505f 100644
---- a/velox/dwio/dwrf/test/TestStripeStream.cpp
-+++ b/velox/dwio/dwrf/test/TestStripeStream.cpp
-@@ -158,7 +158,7 @@ INSTANTIATE_TEST_SUITE_P(
- 
- TEST_P(StripeStreamFormatTypeTest, planReads) {
-   google::protobuf::Arena arena;
--  auto footer = google::protobuf::Arena::CreateMessage<proto::Footer>(&arena);
-+  auto footer = google::protobuf::Arena::Create<proto::Footer>(&arena);
-   footer->set_rowindexstride(100);
-   auto type = HiveTypeParser().parse("struct<a:int,b:float>");
-   ProtoUtils::writeType(*type, *footer);
-@@ -247,7 +247,7 @@ TEST_P(StripeStreamFormatTypeTest, planReads) {
- 
- TEST_F(StripeStreamTest, filterSequences) {
-   google::protobuf::Arena arena;
--  auto footer = google::protobuf::Arena::CreateMessage<proto::Footer>(&arena);
-+  auto footer = google::protobuf::Arena::Create<proto::Footer>(&arena);
-   footer->set_rowindexstride(100);
-   auto type = HiveTypeParser().parse("struct<a:map<int,float>>");
-   ProtoUtils::writeType(*type, *footer);
-@@ -311,7 +311,7 @@ TEST_F(StripeStreamTest, filterSequences) {
- 
- TEST_P(StripeStreamFormatTypeTest, zeroLength) {
-   google::protobuf::Arena arena;
--  auto footer = google::protobuf::Arena::CreateMessage<proto::Footer>(&arena);
-+  auto footer = google::protobuf::Arena::Create<proto::Footer>(&arena);
-   footer->set_rowindexstride(100);
-   auto type = HiveTypeParser().parse("struct<a:int>");
-   ProtoUtils::writeType(*type, *footer);
-@@ -437,7 +437,7 @@ TEST_P(StripeStreamFormatTypeTest, planReadsIndex) {
-   index.SerializeToOstream(&buffer);
- 
-   // build footer
--  auto footer = google::protobuf::Arena::CreateMessage<proto::Footer>(&arena);
-+  auto footer = google::protobuf::Arena::Create<proto::Footer>(&arena);
-   footer->set_rowindexstride(100);
-   footer->add_stripecacheoffsets(0);
-   footer->add_stripecacheoffsets(buffer.tellp());
-@@ -596,7 +596,7 @@ TEST_F(StripeStreamTest, readEncryptedStreams) {
-   proto::PostScript ps;
-   ps.set_compression(proto::CompressionKind::ZSTD);
-   ps.set_compressionblocksize(256 * 1024);
--  auto footer = google::protobuf::Arena::CreateMessage<proto::Footer>(&arena);
-+  auto footer = google::protobuf::Arena::Create<proto::Footer>(&arena);
-   // a: not encrypted, projected
-   // encryption group 1: b, c. projected b.
-   // group 2: d. projected d.
-@@ -689,7 +689,7 @@ TEST_F(StripeStreamTest, schemaMismatch) {
-   proto::PostScript ps;
-   ps.set_compression(proto::CompressionKind::ZSTD);
-   ps.set_compressionblocksize(256 * 1024);
--  auto footer = google::protobuf::Arena::CreateMessage<proto::Footer>(&arena);
-+  auto footer = google::protobuf::Arena::Create<proto::Footer>(&arena);
-   // a: not encrypted, has schema change
-   // b: encrypted
-   // c: not encrypted
 diff --git a/velox/dwio/parquet/common/BitPacking.h b/velox/dwio/parquet/common/BitPacking.h
 new file mode 100644
 index 000000000..8eef9d15a
@@ -486,18 +471,16 @@ index 000000000..8eef9d15a
 +
 +} // namespace arrow::internal
 diff --git a/velox/dwio/parquet/common/BitStreamUtilsInternal.h b/velox/dwio/parquet/common/BitStreamUtilsInternal.h
-index a49cea663..51e43d6fb 100644
+index a49cea663..001e3b3a0 100644
 --- a/velox/dwio/parquet/common/BitStreamUtilsInternal.h
 +++ b/velox/dwio/parquet/common/BitStreamUtilsInternal.h
-@@ -25,9 +25,10 @@
- #include <cstring>
- 
+@@ -27,7 +27,8 @@
  #include "velox/common/base/Exceptions.h"
-+#include "velox/dwio/parquet/common/BitPacking.h"
  
  #include "arrow/util/bit_util.h"
 -#include "arrow/util/bpacking.h"
 +#include "arrow/util/endian.h"
++#include "velox/dwio/parquet/common/BitPacking.h"
  
  namespace facebook::velox::parquet {
  
@@ -617,10 +600,10 @@ index 000000000..3cc4340d2
 +
 +} // namespace facebook::velox::parquet::arrow::util::internal
 diff --git a/velox/dwio/parquet/writer/arrow/Encoding.cpp b/velox/dwio/parquet/writer/arrow/Encoding.cpp
-index 996d6455d..87a950d49 100644
+index f4a5990e5..77829fe68 100644
 --- a/velox/dwio/parquet/writer/arrow/Encoding.cpp
 +++ b/velox/dwio/parquet/writer/arrow/Encoding.cpp
-@@ -165,7 +165,7 @@ class PlainEncoder : public EncoderImpl, virtual public TypedEncoder<DType> {
+@@ -164,7 +164,7 @@ class PlainEncoder : public EncoderImpl, virtual public TypedEncoder<DType> {
            auto buffer,
            ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
        T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -629,7 +612,7 @@ index 996d6455d..87a950d49 100644
            src, num_values, valid_bits, valid_bits_offset, data);
        Put(data, num_valid_values);
      } else {
-@@ -380,7 +380,7 @@ class PlainEncoder<BooleanType> : public EncoderImpl,
+@@ -379,7 +379,7 @@ class PlainEncoder<BooleanType> : public EncoderImpl,
            auto buffer,
            ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
        T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -638,7 +621,7 @@ index 996d6455d..87a950d49 100644
            src, num_values, valid_bits, valid_bits_offset, data);
        Put(data, num_valid_values);
      } else {
-@@ -998,7 +998,7 @@ void ByteStreamSplitEncoder<DType>::PutSpaced(
+@@ -997,7 +997,7 @@ void ByteStreamSplitEncoder<DType>::PutSpaced(
          auto buffer,
          ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
      T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -647,7 +630,7 @@ index 996d6455d..87a950d49 100644
          src, num_values, valid_bits, valid_bits_offset, data);
      Put(data, num_valid_values);
    } else {
-@@ -2743,7 +2743,7 @@ void DeltaBitPackEncoder<DType>::PutSpaced(
+@@ -2744,7 +2744,7 @@ void DeltaBitPackEncoder<DType>::PutSpaced(
          auto buffer,
          ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
      T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -656,7 +639,7 @@ index 996d6455d..87a950d49 100644
          src, num_values, valid_bits, valid_bits_offset, data);
      Put(data, num_valid_values);
    } else {
-@@ -3115,7 +3115,7 @@ void DeltaLengthByteArrayEncoder<DType>::PutSpaced(
+@@ -3116,7 +3116,7 @@ void DeltaLengthByteArrayEncoder<DType>::PutSpaced(
          auto buffer,
          ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
      T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -665,7 +648,7 @@ index 996d6455d..87a950d49 100644
          src, num_values, valid_bits, valid_bits_offset, data);
      Put(data, num_valid_values);
    } else {
-@@ -3351,7 +3351,7 @@ class RleBooleanEncoder final : public EncoderImpl,
+@@ -3353,7 +3353,7 @@ class RleBooleanEncoder final : public EncoderImpl,
            auto buffer,
            ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
        T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -674,7 +657,7 @@ index 996d6455d..87a950d49 100644
            src, num_values, valid_bits, valid_bits_offset, data);
        Put(data, num_valid_values);
      } else {
-@@ -3563,7 +3563,7 @@ class DeltaByteArrayEncoder : public EncoderImpl,
+@@ -3565,7 +3565,7 @@ class DeltaByteArrayEncoder : public EncoderImpl,
          PARQUET_THROW_NOT_OK(buffer_->Resize(num_values * sizeof(T), false));
        }
        T* data = reinterpret_cast<T*>(buffer_->mutable_data());
@@ -684,23 +667,19 @@ index 996d6455d..87a950d49 100644
        Put(data, num_valid_values);
      } else {
 diff --git a/velox/dwio/parquet/writer/arrow/Encoding.h b/velox/dwio/parquet/writer/arrow/Encoding.h
-index b57ee2b68..b119b5d11 100644
+index b57ee2b68..0840e9e88 100644
 --- a/velox/dwio/parquet/writer/arrow/Encoding.h
 +++ b/velox/dwio/parquet/writer/arrow/Encoding.h
-@@ -23,11 +23,10 @@
+@@ -23,7 +23,7 @@
  #include <memory>
  #include <vector>
  
 -#include "arrow/util/spaced.h"
--
- #include "velox/dwio/parquet/writer/arrow/Exception.h"
- #include "velox/dwio/parquet/writer/arrow/Platform.h"
- #include "velox/dwio/parquet/writer/arrow/Types.h"
 +#include "velox/dwio/parquet/writer/arrow/util/Spaced.h"
  
- namespace arrow {
- 
-@@ -307,7 +306,7 @@ class TypedDecoder : virtual public Decoder {
+ #include "velox/dwio/parquet/writer/arrow/Exception.h"
+ #include "velox/dwio/parquet/writer/arrow/Platform.h"
+@@ -307,7 +307,7 @@ class TypedDecoder : virtual public Decoder {
              "Number of values / definition_levels read did not match");
        }
  
@@ -710,7 +689,7 @@ index b57ee2b68..b119b5d11 100644
      } else {
        return Decode(buffer, num_values);
 diff --git a/velox/dwio/parquet/writer/arrow/Exception.h b/velox/dwio/parquet/writer/arrow/Exception.h
-index 927df3407..70924fa88 100644
+index b71cfc926..7bf4e03ae 100644
 --- a/velox/dwio/parquet/writer/arrow/Exception.h
 +++ b/velox/dwio/parquet/writer/arrow/Exception.h
 @@ -23,8 +23,13 @@
@@ -727,31 +706,30 @@ index 927df3407..70924fa88 100644
  #include "velox/dwio/parquet/writer/arrow/Platform.h"
  
  // PARQUET-1085
-@@ -60,6 +65,23 @@
+@@ -60,6 +65,22 @@
  
  // Arrow Status to Parquet exception
  
 +#if ARROW_VERSION_MAJOR >= 21
-+#define PARQUET_IGNORE_NOT_OK(s)               \
-+  do {                                         \
++#define PARQUET_IGNORE_NOT_OK(s) \
++  do {                           \
 +    ::arrow::Status _s = ::arrow::ToStatus(s); \
-+    ARROW_UNUSED(_s);                          \
++    ARROW_UNUSED(_s);            \
 +  } while (0)
 +
-+#define PARQUET_THROW_NOT_OK(s)                                        \
-+  do {                                                                 \
-+    ::arrow::Status _s = ::arrow::ToStatus(s);                         \
-+    if (!_s.ok()) {                                                    \
-+      throw ::facebook::velox::parquet::arrow::ParquetStatusException( \
-+          std::move(_s));                                              \
-+    }                                                                  \
++#define PARQUET_THROW_NOT_OK(s)                                            \
++  do {                                                                     \
++    ::arrow::Status _s = ::arrow::ToStatus(s);                             \
++    if (!_s.ok()) {                                                        \
++      throw ::facebook::velox::parquet::arrow::ParquetStatusException(     \
++          std::move(_s));                                                  \
++    }                                                                      \
 +  } while (0)
 +#else
-+
  #define PARQUET_IGNORE_NOT_OK(s)                                \
    do {                                                          \
      ::arrow::Status _s = ::arrow::internal::GenericToStatus(s); \
-@@ -74,6 +96,7 @@
+@@ -74,6 +95,7 @@
            std::move(_s));                                              \
      }                                                                  \
    } while (0)
@@ -759,27 +737,27 @@ index 927df3407..70924fa88 100644
  
  #define PARQUET_ASSIGN_OR_THROW_IMPL(status_name, lhs, rexpr) \
    auto status_name = (rexpr);                                 \
-@@ -102,7 +125,14 @@ class ParquetException : public std::exception {
+@@ -102,7 +124,14 @@ class ParquetException : public std::exception {
  
    template <typename... Args>
    explicit ParquetException(Args&&... args)
 -      : msg_(::arrow::util::StringBuilder(std::forward<Args>(args)...)) {}
 +      : msg_(
 +#if ARROW_VERSION_MAJOR >= 21
-+            ::arrow::internal::JoinToString(std::forward<Args>(args)...)
++          ::arrow::internal::JoinToString(std::forward<Args>(args)...)
 +#else
-+            ::arrow::util::StringBuilder(std::forward<Args>(args)...)
++          ::arrow::util::StringBuilder(std::forward<Args>(args)...)
 +#endif
-+        ) {
++      ) {
 +  }
  
    explicit ParquetException(std::string msg) : msg_(std::move(msg)) {}
  
 diff --git a/velox/dwio/parquet/writer/arrow/Writer.cpp b/velox/dwio/parquet/writer/arrow/Writer.cpp
-index e6572bb76..25a8401f2 100644
+index f3a101a02..8ed8dbf4a 100644
 --- a/velox/dwio/parquet/writer/arrow/Writer.cpp
 +++ b/velox/dwio/parquet/writer/arrow/Writer.cpp
-@@ -419,16 +419,21 @@ class FileWriterImpl : public FileWriter {
+@@ -419,16 +419,22 @@ class FileWriterImpl : public FileWriter {
  
      if (table.num_rows() == 0) {
        // Append a row group with 0 rows
@@ -787,6 +765,7 @@ index e6572bb76..25a8401f2 100644
 +      auto s = WriteRowGroup(0, 0);
 +      if (!s.ok()) {
 +        PARQUET_IGNORE_NOT_OK(Close());
++        return s;
 +      }
        return Status::OK();
      }
@@ -807,7 +786,7 @@ index e6572bb76..25a8401f2 100644
      return Status::OK();
    }
 diff --git a/velox/dwio/parquet/writer/arrow/tests/ColumnWriterTest.cpp b/velox/dwio/parquet/writer/arrow/tests/ColumnWriterTest.cpp
-index 4d9b10f35..8d1171661 100644
+index cb9f85196..8a5e63732 100644
 --- a/velox/dwio/parquet/writer/arrow/tests/ColumnWriterTest.cpp
 +++ b/velox/dwio/parquet/writer/arrow/tests/ColumnWriterTest.cpp
 @@ -962,7 +962,8 @@ TEST(TestColumnWriter, RepeatedListsUpdateSpacedBug) {
@@ -821,7 +800,7 @@ index 4d9b10f35..8d1171661 100644
    // valgrind will warn about out of bounds access into def_levels_data
    typed_writer->WriteBatchSpaced(
 diff --git a/velox/dwio/parquet/writer/arrow/tests/EncodingTest.cpp b/velox/dwio/parquet/writer/arrow/tests/EncodingTest.cpp
-index 92570dc13..5286efff8 100644
+index 47d501aef..5bd0f6129 100644
 --- a/velox/dwio/parquet/writer/arrow/tests/EncodingTest.cpp
 +++ b/velox/dwio/parquet/writer/arrow/tests/EncodingTest.cpp
 @@ -138,7 +138,7 @@ class PlainEncoder : public EncoderImpl, virtual public TypedEncoder<DType> {
@@ -869,7 +848,7 @@ index 92570dc13..5286efff8 100644
          src, num_values, valid_bits, valid_bits_offset, data);
      Put(data, num_valid_values);
    } else {
-@@ -3315,7 +3315,7 @@ class RleBooleanEncoder final : public EncoderImpl,
+@@ -3316,7 +3316,7 @@ class RleBooleanEncoder final : public EncoderImpl,
            auto buffer,
            ::arrow::AllocateBuffer(num_values * sizeof(T), this->memory_pool()));
        T* data = reinterpret_cast<T*>(buffer->mutable_data());
@@ -993,144 +972,20 @@ index 000000000..3cc4340d2
 +}
 +
 +} // namespace facebook::velox::parquet::arrow::util::internal
-diff --git a/velox/external/date/date.h b/velox/external/date/date.h
-index b0ae226e29a0a718e8bcd2ea486db01c16a94b2c..c8eef8dbe3633891e5be8606b6092348b202e366 100644
+diff --git a/velox/external/hdfs/ArrowHdfsInternal.cpp b/velox/external/hdfs/ArrowHdfsInternal.cpp
+index dc22b64ce306eb7665509b099b196223e8d91116..5ecc3546c18dd090de3efeb1d30a6d6688441f1e 100644
 GIT binary patch
-delta 55
-zcmey+!}p?xZv$5olakV8#!HHm^_%2D%!W&fn~R&e{2{{CK&rXnQhUQC#_bK4m_BR<
-E07e=X5C8xG
+delta 21
+ccmex0k+ESC;|4zqHpieK|M2+Deimy409!8yy8r+H
 
-delta 75
-zcmaFS!}p<wZv$5on}U*(LVU{PfF_a2N=;fUAns<rrq%w)5`vdf!4i}GniMC`T`$nQ
-R@>2WCON`rBUSit6834b!8@K=f
+delta 14
+VcmZpe#Q19>;|4#A%^?<R1OP6^1<?Qi
 
-diff --git a/velox/external/date/iso_week.h b/velox/external/date/iso_week.h
-index e5572b8e41922db7fe30f61b23b95f6bf89f4b16..3080791b8375b8c74206d1edb77985e32b4eef15 100644
-GIT binary patch
-delta 30
-mcmccE!gRKUX+w(%i;_}&<zxX<k;(H+a+s8qHuIS}`vL%{jS0K}
-
-delta 28
-gcmX@x!gR5PX+w(%i-MAp!sIrSCNN_&m#MQa0E})3bN~PV
-
-diff --git a/velox/external/tzdb/tzdb_list_private.h b/velox/external/tzdb/tzdb_list_private.h
-index 9fa8dbab56b851ddc6a4c8b21654b565dd43719d..ea30ecb95bc2b05c3e93793f1137e0968c2d563b 100644
-GIT binary patch
-delta 74
-zcmew_+9kH(731V?CeF!^7&|84=aSb~sOI7-EzZnKS12w?v9ii7ElI7gMiwc}%PcHS
-UjnBzX&bH>_nh?BMkog@u02w(N{{R30
-
-delta 52
-zcmeAY`!BlT731XJj17|&*d)Z2GxL&jN>fr5Y;sFWQY-AZlvDFkGSenkGO12>Vh-Fa
-I#r%OC00+|&aR2}S
-
-diff --git a/velox/functions/prestosql/geospatial/GeometryUtils.h b/velox/functions/prestosql/geospatial/GeometryUtils.h
-index af32c0ae6..cd0d16486 100644
---- a/velox/functions/prestosql/geospatial/GeometryUtils.h
-+++ b/velox/functions/prestosql/geospatial/GeometryUtils.h
-@@ -23,6 +23,7 @@
- #include <geos/util/UnsupportedOperationException.h>
- #include <optional>
- 
-+#include <fmt/ranges.h>
- #include "velox/common/base/Status.h"
- 
- namespace facebook::velox::functions::geospatial {
-diff --git a/velox/functions/sparksql/fuzzer/SparkQueryRunner.cpp b/velox/functions/sparksql/fuzzer/SparkQueryRunner.cpp
-index 451ce15c8..a0451c5c0 100644
---- a/velox/functions/sparksql/fuzzer/SparkQueryRunner.cpp
-+++ b/velox/functions/sparksql/fuzzer/SparkQueryRunner.cpp
-@@ -177,21 +177,20 @@ SparkQueryRunner::executeAndReturnVector(const core::PlanNodePtr& plan) {
- 
- std::vector<RowVectorPtr> SparkQueryRunner::execute(
-     const std::string& content) {
--  auto sql = google::protobuf::Arena::CreateMessage<SQL>(&arena_);
-+  auto sql = google::protobuf::Arena::Create<SQL>(&arena_);
-   sql->set_query(content);
- 
--  auto relation = google::protobuf::Arena::CreateMessage<Relation>(&arena_);
-+  auto relation = google::protobuf::Arena::Create<Relation>(&arena_);
-   relation->set_allocated_sql(sql);
- 
--  auto plan = google::protobuf::Arena::CreateMessage<Plan>(&arena_);
-+  auto plan = google::protobuf::Arena::Create<Plan>(&arena_);
-   plan->set_allocated_root(relation);
- 
--  auto context = google::protobuf::Arena::CreateMessage<UserContext>(&arena_);
-+  auto context = google::protobuf::Arena::Create<UserContext>(&arena_);
-   context->set_user_id(userId_);
-   context->set_user_name(userName_);
- 
--  auto request =
--      google::protobuf::Arena::CreateMessage<ExecutePlanRequest>(&arena_);
-+  auto request = google::protobuf::Arena::Create<ExecutePlanRequest>(&arena_);
-   request->set_session_id(sessionId_);
-   request->set_allocated_user_context(context);
-   request->set_allocated_plan(plan);
 diff --git a/velox/type/DecimalUtil.h b/velox/type/DecimalUtil.h
-index 581c776f7..d86d6893e 100644
+index 581c776f7..cd8161fa9 100644
 --- a/velox/type/DecimalUtil.h
 +++ b/velox/type/DecimalUtil.h
-@@ -28,6 +28,58 @@
- 
- namespace facebook::velox {
- 
-+// GCC's libstdc++ does not provide std::to_chars overloads for 128-bit
-+// integers. Using std::to_chars with int128_t/uint128_t leads to ambiguous
-+// calls among the existing integral overload set. Provide lightweight
-+// helpers to serialize 128-bit integers into a character buffer without
-+// heap allocation. Interface mimics std::to_chars returning {ptr, errc}.
-+namespace detail {
-+struct ToChars128Helper {
-+  static inline std::pair<char*, std::errc> toCharsUnsigned(
-+      char* first,
-+      char* last,
-+      uint128_t value) {
-+    if (first >= last) {
-+      return {first, std::errc::value_too_large};
-+    }
-+    // Write digits in reverse into a scratch area (reuse end of provided
-+    // buffer) then move them to the front. We rely on caller supplying
-+    // sufficiently large buffer (DecimalUtil already estimates max size).
-+    char* write = last;
-+    do {
-+      if (write == first) {
-+        return {first, std::errc::value_too_large};
-+      }
-+      auto digit = static_cast<unsigned>(value % 10);
-+      *--write = static_cast<char>('0' + digit);
-+      value /= 10;
-+    } while (value != 0);
-+    // Move digits to beginning.
-+    size_t len = static_cast<size_t>(last - write);
-+    // Overlap-safe move (write <= first < last). Use memmove.
-+    std::memmove(first, write, len);
-+    return {first + len, std::errc()};
-+  }
-+
-+  static inline std::pair<char*, std::errc> toCharsSigned(
-+      char* first,
-+      char* last,
-+      int128_t value) {
-+    if (first >= last) {
-+      return {first, std::errc::value_too_large};
-+    }
-+    bool negative = value < 0;
-+    uint128_t unsignedValue = negative ? static_cast<uint128_t>(-value)
-+                                       : static_cast<uint128_t>(value);
-+    if (negative) {
-+      *first++ = '-';
-+    }
-+    auto [ptr, ec] = toCharsUnsigned(first, last, unsignedValue);
-+    return {ptr, ec};
-+  }
-+};
-+} // namespace detail
-+
- /// A static class that holds helper functions for DECIMAL type.
- class DecimalUtil {
-  public:
-@@ -356,10 +408,24 @@ class DecimalUtil {
+@@ -356,10 +356,46 @@ class DecimalUtil {
          *writePosition++ = '-';
          unscaledValue = -unscaledValue;
        }
@@ -1138,64 +993,56 @@ index 581c776f7..d86d6893e 100644
 -          writePosition,
 -          writePosition + maxSize,
 -          unscaledValue / DecimalUtil::kPowersOfTen[scale]);
-+      // Serialize the integral part. Use custom 128-bit implementation when
-+      // needed to avoid ambiguous std::to_chars resolution.
-+      std::pair<char*, std::errc> resultPair;
-+      if constexpr (sizeof(T) > sizeof(uint64_t)) { // int128_t path
-+        resultPair = detail::ToChars128Helper::toCharsUnsigned(
-+            writePosition,
-+            writePosition + maxSize,
-+            static_cast<uint128_t>(
-+                unscaledValue / DecimalUtil::kPowersOfTen[scale]));
-+      } else {
-+        auto stdResult = std::to_chars(
-+            writePosition,
-+            writePosition + maxSize,
-+            unscaledValue / DecimalUtil::kPowersOfTen[scale]);
-+        resultPair = {stdResult.ptr, stdResult.ec};
-+      }
-+      auto position = resultPair.first;
-+      auto errorCode = resultPair.second;
++      auto to_chars_wrapper = [&](auto v) {
++        using V = decltype(v);
++        if constexpr (sizeof(V) <= 8) {
++          return std::to_chars(writePosition, writePosition + maxSize, v);
++        } else {
++          if (v <= static_cast<V>(std::numeric_limits<uint64_t>::max())) {
++            return std::to_chars(
++                writePosition, writePosition + maxSize, static_cast<uint64_t>(v));
++          } else {
++            char buf[40];
++            char* end = buf + 40;
++            char* curr = end;
++            auto tmp = v;
++            constexpr uint64_t kChunk = 10000000000000000000ULL;
++            while (tmp > std::numeric_limits<uint64_t>::max()) {
++              uint64_t rem = static_cast<uint64_t>(tmp % kChunk);
++              tmp /= kChunk;
++              char chunkBuf[20];
++              auto res = std::to_chars(chunkBuf, chunkBuf + 20, rem);
++              int len = res.ptr - chunkBuf;
++              curr -= 19;
++              std::memset(curr, '0', 19 - len);
++              std::memcpy(curr + (19 - len), chunkBuf, len);
++            }
++            uint64_t last = static_cast<uint64_t>(tmp);
++            char chunkBuf[20];
++            auto res = std::to_chars(chunkBuf, chunkBuf + 20, last);
++            int len = res.ptr - chunkBuf;
++            curr -= len;
++            std::memcpy(curr, chunkBuf, len);
++            int totalLen = end - curr;
++            std::memcpy(writePosition, curr, totalLen);
++            writePosition += totalLen;
++            return std::to_chars_result{writePosition, std::errc()};
++          }
++        }
++      };
++
++      auto [position, errorCode] =
++          to_chars_wrapper(unscaledValue / DecimalUtil::kPowersOfTen[scale]);
        VELOX_DCHECK_EQ(
            errorCode,
            std::errc(),
-@@ -375,14 +441,21 @@ class DecimalUtil {
+@@ -375,8 +411,7 @@ class DecimalUtil {
          std::memset(writePosition, '0', numLeadingZeros);
          writePosition += numLeadingZeros;
          // Append remaining fraction digits.
 -        auto result =
 -            std::to_chars(writePosition, writePosition + maxSize, fraction);
-+        std::pair<char*, std::errc> fracResult;
-+        if constexpr (sizeof(T) > sizeof(uint64_t)) { // 128-bit path
-+          fracResult = detail::ToChars128Helper::toCharsUnsigned(
-+              writePosition, writePosition + maxSize, fraction);
-+        } else {
-+          auto stdFrac =
-+              std::to_chars(writePosition, writePosition + maxSize, static_cast<uint64_t>(fraction));
-+          fracResult = {stdFrac.ptr, stdFrac.ec};
-+        }
++        auto result = to_chars_wrapper(fraction);
          VELOX_DCHECK_EQ(
--            result.ec,
-+            fracResult.second,
+             result.ec,
              std::errc(),
-             "Failed to cast decimal to varchar: {}",
--            std::make_error_code(result.ec).message());
--        writePosition = result.ptr;
-+            std::make_error_code(fracResult.second).message());
-+        writePosition = fracResult.first;
-       }
-     }
-     return writePosition - startPosition;
-diff --git a/velox/vector/ConstantVector.h b/velox/vector/ConstantVector.h
-index c63b06add..f6db0ad80 100644
---- a/velox/vector/ConstantVector.h
-+++ b/velox/vector/ConstantVector.h
-@@ -42,7 +42,7 @@ class ConstantVector final : public SimpleVector<T> {
-   static constexpr bool can_simd =
-       (std::is_same_v<T, int64_t> || std::is_same_v<T, int32_t> ||
-        std::is_same_v<T, int16_t> || std::is_same_v<T, int8_t> ||
--       std::is_same_v<T, bool> || std::is_same_v<T, size_t>);
-+       std::is_same_v<T, size_t>);
- 
-   ConstantVector(
-       velox::memory::MemoryPool* pool,

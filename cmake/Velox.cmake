@@ -8,7 +8,7 @@
     include(cmake/Velox.cmake)
     add_subdirectory(velox)
 ]]
-set(VELOX_SHA256 "7274da53db330bb8ad691d394818248809c10ca8")
+set(VELOX_SHA256 "9bc0ce3b5f84936f64bd16ee2c0e8464e760aaa4")
 
 include_guard(GLOBAL)
 
@@ -395,6 +395,8 @@ if(DEFINED THIRDPARTY_INSTALL_DIR AND EXISTS "${THIRDPARTY_INSTALL_DIR}/jemalloc
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
   endif()
 endif()
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DGLOG_USE_GLOG_EXPORT")
 
 # Create a unified Velox target for easier consumption in main project
 # This function will be automatically called via cmake_language(DEFER) after velox is added

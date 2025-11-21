@@ -1,4 +1,4 @@
-name: CI (macOS + Linux)
+name: Halo Continuous Integration
 
 on:
   push:
@@ -143,8 +143,8 @@ jobs:
         run: |
           set -euxo pipefail
           brew update
-          brew install llvm@20
-          LLVM_PREFIX=$(brew --prefix)/opt/llvm@20
+          brew install llvm
+          LLVM_PREFIX=$(brew --prefix)/opt/llvm
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
           "$LLVM_PREFIX/bin/clang-format" --version
 
@@ -248,6 +248,16 @@ jobs:
         with:
           lfs: true
 
+      - name: Calculate thirdparty hash
+        id: calc-hash
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            HASH=$(sha256sum thirdparty/ComponentsInfo.cmake | awk '{print $1}')
+          else
+            HASH=$(shasum -a 256 thirdparty/ComponentsInfo.cmake | awk '{print $1}')
+          fi
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
       - name: Probe thirdparty cache
         id: thirdparty-cache-probe
         uses: actions/cache/restore@v4
@@ -256,7 +266,7 @@ jobs:
             thirdparty/builds
             thirdparty/installed
             thirdparty/src
-          key: thirdparty-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+          key: thirdparty-${{ runner.os }}-${{ matrix.build_type }}-${{ steps.calc-hash.outputs.hash }}
           lookup-only: true
 
       - name: Determine construct thirdparty skip
@@ -279,8 +289,8 @@ jobs:
           echo "brew --version:" && brew --version
           brew update
           # Hard fail if any of these cannot be installed (no fallbacks)
-          brew install llvm@20 cmake autoconf automake libtool
-          brew list --versions llvm@20
+          brew install llvm cmake autoconf automake libtool
+          brew list --versions llvm
           brew list --versions cmake
 
       - name: Verify toolchain integrity (macOS)
@@ -288,15 +298,15 @@ jobs:
         run: |
           set -euxo pipefail
           HOMEBREW_PREFIX=$(brew --prefix)
-          LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm@20"
+          LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm"
           
           # Verify LLVM installation integrity
-          echo "=== Verifying LLVM 20 installation ==="
+          echo "=== Verifying LLVM 21 installation ==="
           if [ ! -d "$LLVM_PREFIX" ]; then
-            echo "ERROR: LLVM@20 directory not found at $LLVM_PREFIX"
-            echo "Reinstalling llvm@20..."
-            brew uninstall --ignore-dependencies llvm@20
-            brew install llvm@20
+            echo "ERROR: LLVM directory not found at $LLVM_PREFIX"
+            echo "Reinstalling llvm..."
+            brew uninstall --ignore-dependencies llvm
+            brew install llvm
           fi
           
           # Test compiler functionality
@@ -306,14 +316,14 @@ jobs:
           echo "Testing C compiler..."
           echo 'int main(){return 0;}' | "$CLANG_BIN" -x c - -o /tmp/test_c || {
             echo "ERROR: C compiler test failed"
-            brew reinstall llvm@20
+            brew reinstall llvm
             echo 'int main(){return 0;}' | "$CLANG_BIN" -x c - -o /tmp/test_c
           }
           
           echo "Testing C++ compiler..."
           echo 'int main(){return 0;}' | "$CLANGXX_BIN" -x c++ - -o /tmp/test_cxx || {
             echo "ERROR: C++ compiler test failed"
-            brew reinstall llvm@20
+            brew reinstall llvm
             echo 'int main(){return 0;}' | "$CLANGXX_BIN" -x c++ - -o /tmp/test_cxx
           }
           
@@ -324,7 +334,7 @@ jobs:
         run: |
           set -euo pipefail
           HOMEBREW_PREFIX=$(brew --prefix)
-          LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm@20"
+          LLVM_PREFIX="$HOMEBREW_PREFIX/opt/llvm"
           CCBIN="$LLVM_PREFIX/bin/clang"
             
           CXXBIN="$LLVM_PREFIX/bin/clang++"
@@ -342,11 +352,11 @@ jobs:
         run: |
           # Add LLVM repository first, then single update
           wget --tries=3 --timeout=30 -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" | sudo tee /etc/apt/sources.list.d/llvm.list
           sudo apt-get -o Acquire::Retries=3 update
           sudo apt-get -o Acquire::Retries=3 install -y \
             wget gnupg lsb-release software-properties-common \
-            clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 \
+            clang-21 clang++-21 clang-tools-21 clang-tidy-21 clang-format-21 \
             ninja-build autoconf automake libtool gettext gettext-base autopoint \
             build-essential
           
@@ -384,9 +394,41 @@ jobs:
             ls -la /usr/include/x86_64-linux-gnu/c++/$GCC_VERSION | head -5
           fi
 
-          echo "Installing pkgconf from source..."
-          PKGCONF_URL="https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-2.5.1.tar.gz"
-          PKGCONF_DIR="pkgconf-pkgconf-2.5.1"
+          echo "Resolving latest pkgconf version..."
+          resolve_pkgconf_version() {
+            local authHeader="" http_code resp tag
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              authHeader="Authorization: Bearer $GITHUB_TOKEN"
+            fi
+            # Try releases/latest
+            resp=$(curl -sSL -w '\n%{http_code}' --retry 3 \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/pkgconf/pkgconf/releases/latest" || true)
+            http_code=$(echo "$resp" | tail -n1)
+            body=$(echo "$resp" | sed '$d')
+            if [ "$http_code" = "200" ]; then
+              tag=$(echo "$body" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
+              if [ -n "$tag" ]; then
+                echo "$tag"
+                return 0
+              fi
+            fi
+            # Fallback to tags
+            resp=$(curl -sSL --retry 3 -H "Accept: application/vnd.github+json" ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/pkgconf/pkgconf/tags?per_page=5" || true)
+            tag=$(echo "$resp" | grep -m1 '"name"' | sed -E 's/.*"name": "([^"]+)".*/\1/')
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            echo "pkgconf-2.5.1" # Fallback
+          }
+          PKGCONF_TAG=$(resolve_pkgconf_version)
+          echo "Installing pkgconf $PKGCONF_TAG..."
+          PKGCONF_URL="https://github.com/pkgconf/pkgconf/archive/refs/tags/${PKGCONF_TAG}.tar.gz"
+          PKGCONF_DIR="pkgconf-${PKGCONF_TAG}"
           wget --tries=3 --timeout=30 -q "$PKGCONF_URL" -O pkgconf.tar.gz
           tar -xzf pkgconf.tar.gz
           cd "$PKGCONF_DIR"
@@ -472,8 +514,40 @@ jobs:
           sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/cpack /usr/local/bin/cpack || true
           cmake --version
 
-          echo "Installing mold from GitHub releases..."
-          MOLD_VERSION="2.40.4"
+          echo "Resolving latest mold version..."
+          resolve_mold_version() {
+            local authHeader="" http_code resp tag
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              authHeader="Authorization: Bearer $GITHUB_TOKEN"
+            fi
+            # Try releases/latest
+            resp=$(curl -sSL -w '\n%{http_code}' --retry 3 \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/rui314/mold/releases/latest" || true)
+            http_code=$(echo "$resp" | tail -n1)
+            body=$(echo "$resp" | sed '$d')
+            if [ "$http_code" = "200" ]; then
+              tag=$(echo "$body" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
+              if [ -n "$tag" ]; then
+                echo "$tag"
+                return 0
+              fi
+            fi
+            # Fallback to tags
+            resp=$(curl -sSL --retry 3 -H "Accept: application/vnd.github+json" ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/rui314/mold/tags?per_page=5" || true)
+            tag=$(echo "$resp" | grep -m1 '"name"' | sed -E 's/.*"name": "([^"]+)".*/\1/')
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            echo "v2.40.4" # Fallback
+          }
+          MOLD_TAG=$(resolve_mold_version)
+          MOLD_VERSION="${MOLD_TAG#v}"
+          echo "Installing mold $MOLD_VERSION..."
           wget --tries=3 --timeout=30 -q "https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
           sudo tar -C /usr/local --strip-components=1 -xzf "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
           rm "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
@@ -482,21 +556,21 @@ jobs:
         if: steps.construct-thirdparty-skip.outputs.skip != 'true' && startsWith(matrix.os, 'ubuntu')
         run: |
           # Try versioned binaries in /usr/bin first (more reliable), then fall back to LLVM directory
-          if [ -x "/usr/bin/clang-20" ]; then
-            CC_PATH="/usr/bin/clang-20"
-          elif [ -x "/usr/lib/llvm-20/bin/clang" ]; then
-            CC_PATH="/usr/lib/llvm-20/bin/clang"
+          if [ -x "/usr/bin/clang-21" ]; then
+            CC_PATH="/usr/bin/clang-21"
+          elif [ -x "/usr/lib/llvm-21/bin/clang" ]; then
+            CC_PATH="/usr/lib/llvm-21/bin/clang"
           else
-            echo "ERROR: No suitable clang-20 compiler found"
+            echo "ERROR: No suitable clang-21 compiler found"
             exit 1
           fi
           
-          if [ -x "/usr/bin/clang++-20" ]; then
-            CXX_PATH="/usr/bin/clang++-20"
-          elif [ -x "/usr/lib/llvm-20/bin/clang++" ]; then
-            CXX_PATH="/usr/lib/llvm-20/bin/clang++"
+          if [ -x "/usr/bin/clang++-21" ]; then
+            CXX_PATH="/usr/bin/clang++-21"
+          elif [ -x "/usr/lib/llvm-21/bin/clang++" ]; then
+            CXX_PATH="/usr/lib/llvm-21/bin/clang++"
           else
-            echo "ERROR: No suitable clang++-20 compiler found"
+            echo "ERROR: No suitable clang++-21 compiler found"
             exit 1
           fi
           
@@ -527,8 +601,8 @@ jobs:
           fi
           
           # Add LLVM tools to PATH
-          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
-          echo "PATH=/usr/lib/llvm-20/bin:$PATH" >> $GITHUB_ENV
+          echo "/usr/lib/llvm-21/bin" >> $GITHUB_PATH
+          echo "PATH=/usr/lib/llvm-21/bin:$PATH" >> $GITHUB_ENV
           
           # Verify final setup
           "$CC_PATH" --version
@@ -566,7 +640,7 @@ jobs:
             thirdparty/builds
             thirdparty/installed
             thirdparty/src
-          key: thirdparty-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+          key: thirdparty-${{ runner.os }}-${{ matrix.build_type }}-${{ steps.calc-hash.outputs.hash }}
 
       - name: Create compressed thirdparty artifact tarball
         if: success() && steps.construct-thirdparty-skip.outputs.skip != 'true'
@@ -609,6 +683,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Calculate thirdparty hash
+        id: calc-hash
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            HASH=$(sha256sum thirdparty/ComponentsInfo.cmake | awk '{print $1}')
+          else
+            HASH=$(shasum -a 256 thirdparty/ComponentsInfo.cmake | awk '{print $1}')
+          fi
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
       - name: Restore thirdparty cache
         id: thirdparty-cache-restore
         uses: actions/cache/restore@v4
@@ -617,7 +701,7 @@ jobs:
             thirdparty/builds
             thirdparty/installed
             thirdparty/src
-          key: thirdparty-${{ runner.os }}-${{ matrix.build_type }}-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+          key: thirdparty-${{ runner.os }}-${{ matrix.build_type }}-${{ steps.calc-hash.outputs.hash }}
 
       - name: Download thirdparty artifact
         if: steps.thirdparty-cache-restore.outputs.cache-hit != 'true'
@@ -645,8 +729,8 @@ jobs:
         run: |
           set -euxo pipefail
           brew update
-          brew install llvm@20 ccache
-          LLVM_PREFIX=$(brew --prefix)/opt/llvm@20
+          brew install llvm ccache
+          LLVM_PREFIX=$(brew --prefix)/opt/llvm
           echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
           echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
@@ -655,11 +739,11 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           wget --tries=3 --timeout=30 -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" | sudo tee /etc/apt/sources.list.d/llvm.list
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" | sudo tee /etc/apt/sources.list.d/llvm.list
           sudo apt-get -o Acquire::Retries=3 update
           sudo apt-get -o Acquire::Retries=3 install -y \
             wget gnupg lsb-release software-properties-common \
-            clang-20 clang++-20 clang-tools-20 clang-tidy-20 clang-format-20 \
+            clang-21 clang++-21 clang-tools-21 clang-tidy-21 clang-format-21 \
             ninja-build ccache autoconf automake libtool gettext gettext-base autopoint \
             build-essential
           
@@ -767,15 +851,79 @@ jobs:
           sudo ln -sf /opt/cmake-$CM_VER-linux-x86_64/bin/cpack /usr/local/bin/cpack || true
           cmake --version
 
-          echo "Installing mold from GitHub releases..."
-          MOLD_VERSION="2.40.4"
+          echo "Resolving latest mold version..."
+          resolve_mold_version() {
+            local authHeader="" http_code resp tag
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              authHeader="Authorization: Bearer $GITHUB_TOKEN"
+            fi
+            # Try releases/latest
+            resp=$(curl -sSL -w '\n%{http_code}' --retry 3 \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/rui314/mold/releases/latest" || true)
+            http_code=$(echo "$resp" | tail -n1)
+            body=$(echo "$resp" | sed '$d')
+            if [ "$http_code" = "200" ]; then
+              tag=$(echo "$body" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
+              if [ -n "$tag" ]; then
+                echo "$tag"
+                return 0
+              fi
+            fi
+            # Fallback to tags
+            resp=$(curl -sSL --retry 3 -H "Accept: application/vnd.github+json" ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/rui314/mold/tags?per_page=5" || true)
+            tag=$(echo "$resp" | grep -m1 '"name"' | sed -E 's/.*"name": "([^"]+)".*/\1/')
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            echo "v2.40.4" # Fallback
+          }
+          MOLD_TAG=$(resolve_mold_version)
+          MOLD_VERSION="${MOLD_TAG#v}"
+          echo "Installing mold $MOLD_VERSION..."
           wget --tries=3 --timeout=30 -q "https://github.com/rui314/mold/releases/download/v${MOLD_VERSION}/mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
           sudo tar -C /usr/local --strip-components=1 -xzf "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
           rm "mold-${MOLD_VERSION}-x86_64-linux.tar.gz"
 
-          echo "Installing pkgconf from source..."
-          PKGCONF_URL="https://github.com/pkgconf/pkgconf/archive/refs/tags/pkgconf-2.5.1.tar.gz"
-          PKGCONF_DIR="pkgconf-pkgconf-2.5.1"
+          echo "Resolving latest pkgconf version ..."
+          resolve_pkgconf_version() {
+            local authHeader="" http_code resp tag
+            if [ -n "${GITHUB_TOKEN:-}" ]; then
+              authHeader="Authorization: Bearer $GITHUB_TOKEN"
+            fi
+            # Try releases/latest
+            resp=$(curl -sSL -w '\n%{http_code}' --retry 3 \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/pkgconf/pkgconf/releases/latest" || true)
+            http_code=$(echo "$resp" | tail -n1)
+            body=$(echo "$resp" | sed '$d')
+            if [ "$http_code" = "200" ]; then
+              tag=$(echo "$body" | grep -m1 '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
+              if [ -n "$tag" ]; then
+                echo "$tag"
+                return 0
+              fi
+            fi
+            # Fallback to tags
+            resp=$(curl -sSL --retry 3 -H "Accept: application/vnd.github+json" ${authHeader:+ -H "$authHeader"} \
+              "https://api.github.com/repos/pkgconf/pkgconf/tags?per_page=5" || true)
+            tag=$(echo "$resp" | grep -m1 '"name"' | sed -E 's/.*"name": "([^"]+)".*/\1/')
+            if [ -n "$tag" ]; then
+              echo "$tag"
+              return 0
+            fi
+            echo "pkgconf-2.5.1" # Fallback
+          }
+          PKGCONF_TAG=$(resolve_pkgconf_version)
+          echo "Installing pkgconf $PKGCONF_TAG..."
+          PKGCONF_URL="https://github.com/pkgconf/pkgconf/archive/refs/tags/${PKGCONF_TAG}.tar.gz"
+          PKGCONF_DIR="pkgconf-${PKGCONF_TAG}"
           wget --tries=3 --timeout=30 -q "$PKGCONF_URL" -O pkgconf.tar.gz
           tar -xzf pkgconf.tar.gz
           cd "$PKGCONF_DIR"
@@ -792,21 +940,21 @@ jobs:
         if: startsWith(matrix.os, 'ubuntu')
         run: |
           # Try versioned binaries in /usr/bin first (more reliable), then fall back to LLVM directory
-          if [ -x "/usr/bin/clang-20" ]; then
-            CC_PATH="/usr/bin/clang-20"
-          elif [ -x "/usr/lib/llvm-20/bin/clang" ]; then
-            CC_PATH="/usr/lib/llvm-20/bin/clang"
+          if [ -x "/usr/bin/clang-21" ]; then
+            CC_PATH="/usr/bin/clang-21"
+          elif [ -x "/usr/lib/llvm-21/bin/clang" ]; then
+            CC_PATH="/usr/lib/llvm-21/bin/clang"
           else
-            echo "ERROR: No suitable clang-20 compiler found"
+            echo "ERROR: No suitable clang-21 compiler found"
             exit 1
           fi
           
-          if [ -x "/usr/bin/clang++-20" ]; then
-            CXX_PATH="/usr/bin/clang++-20"
-          elif [ -x "/usr/lib/llvm-20/bin/clang++" ]; then
-            CXX_PATH="/usr/lib/llvm-20/bin/clang++"
+          if [ -x "/usr/bin/clang++-21" ]; then
+            CXX_PATH="/usr/bin/clang++-21"
+          elif [ -x "/usr/lib/llvm-21/bin/clang++" ]; then
+            CXX_PATH="/usr/lib/llvm-21/bin/clang++"
           else
-            echo "ERROR: No suitable clang++-20 compiler found"
+            echo "ERROR: No suitable clang++-21 compiler found"
             exit 1
           fi
           
@@ -837,8 +985,8 @@ jobs:
           fi
           
           # Add LLVM tools to PATH
-          echo "/usr/lib/llvm-20/bin" >> $GITHUB_PATH
-          echo "PATH=/usr/lib/llvm-20/bin:$PATH" >> $GITHUB_ENV
+          echo "/usr/lib/llvm-21/bin" >> $GITHUB_PATH
+          echo "PATH=/usr/lib/llvm-21/bin:$PATH" >> $GITHUB_ENV
           
           # Verify final setup
           "$CC_PATH" --version
@@ -919,6 +1067,29 @@ jobs:
 
       - name: Run halo executable
         run: ./build/halo || (echo "halo run failed" && exit 1)
+
+      - name: Clean thirdparty outputs
+        run: |
+          set -euo pipefail
+          if [ -d thirdparty/downloads ]; then
+            echo "Cleaning thirdparty/downloads directory"
+            rm -rf thirdparty/downloads/*
+          fi
+
+          if [ -d thirdparty/src ]; then
+            echo "Cleaning thirdparty/src directory"
+            rm -rf thirdparty/src/*
+          fi
+
+          if [ -d thirdparty/builds ]; then
+            echo "Cleaning thirdparty/builds directory"
+            rm -rf thirdparty/builds/*
+          fi
+
+          if [ -d thirdparty/installed ]; then
+            echo "Cleaning thirdparty/installed directory"
+            rm -rf thirdparty/installed/*
+          fi
 
       - name: Delete existing ccache key
         if: success() && steps.ccache-restore-build.outputs.cache-hit == 'true'
@@ -1111,6 +1282,17 @@ jobs:
           COUNT=$(wc -l < changed_files.txt | tr -d ' ')
           echo "count=$COUNT" >> $GITHUB_OUTPUT
 
+      - name: Calculate thirdparty hash
+        if: steps.diff.outputs.count != '0'
+        id: calc-hash
+        run: |
+          if command -v sha256sum >/dev/null 2>&1; then
+            HASH=$(sha256sum thirdparty/ComponentsInfo.cmake | awk '{print $1}')
+          else
+            HASH=$(shasum -a 256 thirdparty/ComponentsInfo.cmake | awk '{print $1}')
+          fi
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
       - name: Restore thirdparty cache
         if: steps.diff.outputs.count != '0'
         id: clang-tidy-thirdparty-cache
@@ -1120,7 +1302,7 @@ jobs:
             thirdparty/builds
             thirdparty/installed
             thirdparty/src
-          key: thirdparty-${{ runner.os }}-Debug-${{ hashFiles('thirdparty/ComponentsInfo.cmake') }}
+          key: thirdparty-${{ runner.os }}-Debug-${{ steps.calc-hash.outputs.hash }}
 
       - name: Download thirdparty artifact
         if: steps.diff.outputs.count != '0' && steps.clang-tidy-thirdparty-cache.outputs.cache-hit != 'true'
@@ -1187,6 +1369,11 @@ jobs:
             exit 1
           fi
 
+          if [ -f velox/.git ]; then
+            echo "Removing broken .git file from velox submodule directory"
+            rm -f velox/.git
+          fi
+
       - name: Verify compile database and setup
         if: steps.diff.outputs.count != '0'
         run: |
@@ -1226,8 +1413,8 @@ jobs:
         run: |
           set -euxo pipefail
           brew update
-          brew install llvm@20
-          LLVM_PREFIX=$(brew --prefix)/opt/llvm@20  
+          brew install llvm
+          LLVM_PREFIX=$(brew --prefix)/opt/llvm
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
           "$LLVM_PREFIX/bin/clang-tidy" --version
 
@@ -1254,13 +1441,13 @@ jobs:
           CORES=$(command -v nproc >/dev/null 2>&1 && nproc || sysctl -n hw.ncpu)
           echo "Detected $CORES cores for parallel clang-tidy"
 
-          TIDY_BIN=$(command -v clang-tidy-20 || command -v clang-tidy || true)
+          TIDY_BIN=$(command -v clang-tidy-21 || command -v clang-tidy || true)
           if [ -z "$TIDY_BIN" ]; then
             echo "ERROR: clang-tidy binary not found" >&2
             exit 1
           fi
 
-          RUN_TIDY=$(command -v run-clang-tidy-20 || command -v run-clang-tidy || command -v run-clang-tidy.py || true)
+          RUN_TIDY=$(command -v run-clang-tidy-21 || command -v run-clang-tidy || command -v run-clang-tidy.py || true)
           if [ -z "$RUN_TIDY" ]; then
             echo "ERROR: run-clang-tidy script not found" >&2
             exit 1

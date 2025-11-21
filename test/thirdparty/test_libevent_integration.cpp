@@ -17,6 +17,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <iostream>
 #include <vector>
 
 // Test fixture for libevent integration tests
@@ -24,7 +25,7 @@ class LibeventIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Initialize libevent threading support
-    evthread_use_pthreads();
+    ASSERT_EQ(evthread_use_pthreads(), 0);
 
     // Create event base
     base_ = event_base_new();
@@ -32,13 +33,13 @@ class LibeventIntegrationTest : public ::testing::Test {
   }
 
   void TearDown() override {
-    if (base_) {
+    if (base_ != nullptr) {
       event_base_free(base_);
       base_ = nullptr;
     }
   }
 
-  struct event_base* base_ = nullptr;
+  struct event_base* base_ = nullptr;  // NOLINT
 };
 
 // Test basic libevent functionality
@@ -46,7 +47,7 @@ TEST_F(LibeventIntegrationTest, BasicEventLoop) {
   // Create a simple timer event
   std::atomic<bool> timer_fired{false};
 
-  auto timer_callback = [](evutil_socket_t, short, void* arg) {
+  auto timer_callback = [](evutil_socket_t, int16_t, void* arg) {
     auto* fired = static_cast<std::atomic<bool>*>(arg);
     fired->store(true);
   };
@@ -56,17 +57,13 @@ TEST_F(LibeventIntegrationTest, BasicEventLoop) {
   ASSERT_NE(timer_event, nullptr);
 
   // Set timer to fire in 100ms
-  struct timeval tv;
-  tv.tv_sec = 0;
-  tv.tv_usec = 100000;  // 100ms
+  struct timeval timeout{.tv_sec = 0, .tv_usec = 100000};  // 100ms
 
-  int result = event_add(timer_event, &tv);
+  int result = event_add(timer_event, &timeout);
   ASSERT_EQ(result, 0);
 
   // Run event loop with timeout
-  struct timeval loop_timeout;
-  loop_timeout.tv_sec = 1;
-  loop_timeout.tv_usec = 0;
+  struct timeval loop_timeout{.tv_sec = 1, .tv_usec = 0};
 
   int loop_result = event_base_loopexit(base_, &loop_timeout);
   ASSERT_EQ(loop_result, 0);
@@ -124,7 +121,7 @@ TEST_F(LibeventIntegrationTest, HTTPBasic) {
 
     // Send a simple response
     struct evbuffer* reply = evbuffer_new();
-    evbuffer_add_printf(reply, "Hello from libevent HTTP server!");
+    evbuffer_add_printf(reply, "Hello from libevent HTTP server!");  // NOLINT
     evhttp_send_reply(req, HTTP_OK, "OK", reply);
     evbuffer_free(reply);
   };
@@ -135,13 +132,14 @@ TEST_F(LibeventIntegrationTest, HTTPBasic) {
   struct evhttp_bound_socket* handle =
       evhttp_bind_socket_with_handle(http, "127.0.0.1", 0);
 
-  if (handle) {
+  if (handle != nullptr) {
     // Get the actual port that was bound
     evutil_socket_t sock = evhttp_bound_socket_get_fd(handle);
-    struct sockaddr_in sin;
+    struct sockaddr_in sin{};
     socklen_t len = sizeof(sin);
 
-    if (getsockname(sock, (struct sockaddr*)&sin, &len) == 0) {
+    if (getsockname(sock, reinterpret_cast<struct sockaddr*>(&sin),  // NOLINT
+                    &len) == 0) {
       unsigned short port = ntohs(sin.sin_port);
       EXPECT_GT(port, 0);
 
@@ -164,17 +162,17 @@ TEST_F(LibeventIntegrationTest, EventPriorities) {
   std::vector<int> execution_order;
 
   // Create events with different priorities
-  auto low_priority_callback = [](evutil_socket_t, short, void* arg) {
+  auto low_priority_callback = [](evutil_socket_t, int16_t, void* arg) {
     auto* order = static_cast<std::vector<int>*>(arg);
     order->push_back(2);  // Low priority
   };
 
-  auto high_priority_callback = [](evutil_socket_t, short, void* arg) {
+  auto high_priority_callback = [](evutil_socket_t, int16_t, void* arg) {
     auto* order = static_cast<std::vector<int>*>(arg);
     order->push_back(0);  // High priority
   };
 
-  auto medium_priority_callback = [](evutil_socket_t, short, void* arg) {
+  auto medium_priority_callback = [](evutil_socket_t, int16_t, void* arg) {
     auto* order = static_cast<std::vector<int>*>(arg);
     order->push_back(1);  // Medium priority
   };
@@ -191,18 +189,18 @@ TEST_F(LibeventIntegrationTest, EventPriorities) {
   ASSERT_NE(medium_event, nullptr);
 
   // Set priorities
-  event_priority_set(low_event, 2);     // Low priority
-  event_priority_set(high_event, 0);    // High priority
-  event_priority_set(medium_event, 1);  // Medium priority
+  ASSERT_EQ(event_priority_set(low_event, 2), 0);     // Low priority
+  ASSERT_EQ(event_priority_set(high_event, 0), 0);    // High priority
+  ASSERT_EQ(event_priority_set(medium_event, 1), 0);  // Medium priority
 
   // Schedule all events to fire immediately
-  struct timeval immediate = {0, 0};
-  event_add(low_event, &immediate);
-  event_add(medium_event, &immediate);
-  event_add(high_event, &immediate);
+  struct timeval immediate{0, 0};  // NOLINT
+  ASSERT_EQ(event_add(low_event, &immediate), 0);
+  ASSERT_EQ(event_add(medium_event, &immediate), 0);
+  ASSERT_EQ(event_add(high_event, &immediate), 0);
 
   // Run one iteration of the event loop
-  event_base_loop(base_, EVLOOP_ONCE);
+  ASSERT_EQ(event_base_loop(base_, EVLOOP_ONCE), 0);
 
   // Clean up
   event_free(low_event);
@@ -225,12 +223,12 @@ TEST_F(LibeventIntegrationTest, MultipleEventBases) {
   std::atomic<int> counter1{0};
   std::atomic<int> counter2{0};
 
-  auto timer_callback1 = [](evutil_socket_t, short, void* arg) {
+  auto timer_callback1 = [](evutil_socket_t, int16_t, void* arg) {
     auto* counter = static_cast<std::atomic<int>*>(arg);
     counter->fetch_add(1);
   };
 
-  auto timer_callback2 = [](evutil_socket_t, short, void* arg) {
+  auto timer_callback2 = [](evutil_socket_t, int16_t, void* arg) {
     auto* counter = static_cast<std::atomic<int>*>(arg);
     counter->fetch_add(1);
   };
@@ -245,13 +243,13 @@ TEST_F(LibeventIntegrationTest, MultipleEventBases) {
   ASSERT_NE(event2, nullptr);
 
   // Schedule events
-  struct timeval tv = {0, 1000};  // 1ms
-  event_add(event1, &tv);
-  event_add(event2, &tv);
+  struct timeval timeout{0, 1000};  // 1ms // NOLINT
+  ASSERT_EQ(event_add(event1, &timeout), 0);
+  ASSERT_EQ(event_add(event2, &timeout), 0);
 
   // Run both event loops once
-  event_base_loop(base_, EVLOOP_ONCE);
-  event_base_loop(base2, EVLOOP_ONCE);
+  ASSERT_EQ(event_base_loop(base_, EVLOOP_ONCE), 0);
+  ASSERT_EQ(event_base_loop(base2, EVLOOP_ONCE), 0);
 
   // Check that both events fired
   EXPECT_EQ(counter1.load(), 1);
@@ -276,7 +274,8 @@ TEST_F(LibeventIntegrationTest, VersionInfo) {
   EXPECT_GT(version_num, 0);
 
   // Print version info for debugging
-  printf("Libevent version: %s (0x%08x)\n", version, version_num);
+  std::cout << "Libevent version: " << version << " (0x" << std::hex
+            << version_num << std::dec << ")" << "\n";
 }
 
 // Test supported methods
@@ -285,21 +284,21 @@ TEST_F(LibeventIntegrationTest, SupportedMethods) {
   ASSERT_NE(methods, nullptr);
 
   // Check that we have at least one method
-  EXPECT_NE(methods[0], nullptr);
+  EXPECT_NE(methods[0], nullptr);  // NOLINT
 
   // Print supported methods
-  printf("Supported methods: ");
-  for (int i = 0; methods[i] != nullptr; ++i) {
-    printf("%s ", methods[i]);
+  std::cout << "Supported methods: ";
+  for (int i = 0; methods[i] != nullptr; ++i) {  // NOLINT
+    std::cout << methods[i] << " ";              // NOLINT
   }
-  printf("\n");
+  std::cout << "\n";
 
   // Get current method
   const char* current_method = event_base_get_method(base_);
   ASSERT_NE(current_method, nullptr);
   EXPECT_GT(strlen(current_method), 0);
 
-  printf("Current method: %s\n", current_method);
+  std::cout << "Current method: " << current_method << "\n";
 }
 
 // Performance test - measure event loop overhead
@@ -307,7 +306,7 @@ TEST_F(LibeventIntegrationTest, PerformanceBasic) {
   const int NUM_EVENTS = 1000;
   std::atomic<int> events_fired{0};
 
-  auto timer_callback = [](evutil_socket_t, short, void* arg) {
+  auto timer_callback = [](evutil_socket_t, int16_t, void* arg) {
     auto* counter = static_cast<std::atomic<int>*>(arg);
     counter->fetch_add(1);
   };
@@ -317,22 +316,22 @@ TEST_F(LibeventIntegrationTest, PerformanceBasic) {
   events.reserve(NUM_EVENTS);
 
   for (int i = 0; i < NUM_EVENTS; ++i) {
-    struct event* ev =
+    struct event* event_ptr =
         event_new(base_, -1, EV_TIMEOUT, timer_callback, &events_fired);
-    ASSERT_NE(ev, nullptr);
-    events.push_back(ev);
+    ASSERT_NE(event_ptr, nullptr);
+    events.push_back(event_ptr);
   }
 
   // Measure time to schedule all events
   auto start_time = std::chrono::high_resolution_clock::now();
 
-  struct timeval immediate = {0, 0};
-  for (auto* ev : events) {
-    event_add(ev, &immediate);
+  struct timeval immediate{0, 0};  // NOLINT
+  for (auto* event_ptr : events) {
+    ASSERT_EQ(event_add(event_ptr, &immediate), 0);
   }
 
   // Run event loop
-  event_base_dispatch(base_);
+  ASSERT_EQ(event_base_dispatch(base_), 1);
 
   auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -342,14 +341,15 @@ TEST_F(LibeventIntegrationTest, PerformanceBasic) {
   EXPECT_EQ(events_fired.load(), NUM_EVENTS);
 
   // Print performance metrics
-  printf("Processed %d events in %lld microseconds\n", NUM_EVENTS,
-         duration.count());
-  printf("Average time per event: %.2f microseconds\n",
-         static_cast<double>(duration.count()) / NUM_EVENTS);
+  std::cout << "Processed " << NUM_EVENTS << " events in " << duration.count()
+            << " microseconds" << "\n";
+  std::cout << "Average time per event: "
+            << static_cast<double>(duration.count()) / NUM_EVENTS
+            << " microseconds" << "\n";
 
   // Clean up
-  for (auto* ev : events) {
-    event_free(ev);
+  for (auto* event_ptr : events) {
+    event_free(event_ptr);
   }
 }
 
@@ -400,7 +400,7 @@ TEST_F(LibeventIntegrationTest, OpenSSLHTTPSServer) {
 
     // Send a simple response
     struct evbuffer* reply = evbuffer_new();
-    evbuffer_add_printf(reply, "Hello from libevent HTTPS server!");
+    evbuffer_add_printf(reply, "Hello from libevent HTTPS server!");  // NOLINT
     evhttp_send_reply(req, HTTP_OK, "OK", reply);
     evbuffer_free(reply);
   };
@@ -411,13 +411,14 @@ TEST_F(LibeventIntegrationTest, OpenSSLHTTPSServer) {
   struct evhttp_bound_socket* handle =
       evhttp_bind_socket_with_handle(http, "127.0.0.1", 0);
 
-  if (handle) {
+  if (handle != nullptr) {
     // Get the actual port that was bound
     evutil_socket_t sock = evhttp_bound_socket_get_fd(handle);
-    struct sockaddr_in sin;
+    struct sockaddr_in sin{};
     socklen_t len = sizeof(sin);
 
-    if (getsockname(sock, (struct sockaddr*)&sin, &len) == 0) {
+    if (getsockname(sock, reinterpret_cast<struct sockaddr*>(&sin),  // NOLINT
+                    &len) == 0) {
       unsigned short port = ntohs(sin.sin_port);
       EXPECT_GT(port, 0);
 
@@ -444,15 +445,16 @@ TEST_F(LibeventIntegrationTest, OpenSSLIntegration) {
   ASSERT_NE(version, nullptr);
   EXPECT_GT(strlen(version), 0);
 
-  printf("OpenSSL version: %s\n", version);
+  std::cout << "OpenSSL version: " << version << "\n";
 
   // Test basic SSL context creation
   SSL_CTX* ctx = SSL_CTX_new(TLS_method());
   ASSERT_NE(ctx, nullptr);
 
   // Test that we can use OpenSSL random functions
-  unsigned char rand_buf[16];
-  int rand_result = RAND_bytes(rand_buf, sizeof(rand_buf));
+  std::vector<unsigned char> rand_buf(16);
+  int rand_result =
+      RAND_bytes(rand_buf.data(), static_cast<int>(rand_buf.size()));
   EXPECT_EQ(rand_result, 1);
 
   // Clean up

@@ -5,7 +5,6 @@
 #include <string>
 #include <vector>
 
-using ::testing::_;
 using ::testing::AtLeast;
 using ::testing::ContainerEq;
 using ::testing::ElementsAre;
@@ -18,7 +17,13 @@ using ::testing::StrictMock;
 // Mock interface for testing
 class MockDatabase {
  public:
+  MockDatabase() = default;
   virtual ~MockDatabase() = default;
+  MockDatabase(const MockDatabase&) = delete;
+  MockDatabase& operator=(const MockDatabase&) = delete;
+  MockDatabase(MockDatabase&&) = delete;
+  MockDatabase& operator=(MockDatabase&&) = delete;
+
   virtual bool Connect(const std::string& connection_string) = 0;
   virtual std::string Query(const std::string& sql) = 0;
   virtual int ExecuteUpdate(const std::string& sql) = 0;
@@ -38,8 +43,8 @@ class MockDatabaseImpl : public MockDatabase {
 // Service class that uses the database
 class DatabaseService {
  public:
-  explicit DatabaseService(std::unique_ptr<MockDatabase> db)
-      : database_(std::move(db)) {}
+  explicit DatabaseService(std::unique_ptr<MockDatabase> database)
+      : database_(std::move(database)) {}
 
   bool Initialize(const std::string& connection_string) {
     return database_->Connect(connection_string);
@@ -80,10 +85,12 @@ class GTestIntegrationTest : public ::testing::Test {
     raw_mock_db_ = nullptr;
   }
 
+  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
   std::unique_ptr<MockDatabaseImpl> mock_db_;
-  MockDatabaseImpl*
-      raw_mock_db_;  // Non-owning pointer for setting expectations
+  MockDatabaseImpl* raw_mock_db_ =
+      nullptr;  // Non-owning pointer for setting expectations
   std::unique_ptr<DatabaseService> service_;
+  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
 };
 
 // Test basic GTest functionality
@@ -105,7 +112,7 @@ TEST_F(GTestIntegrationTest, BasicAssertions) {
   EXPECT_THAT(hello, HasSubstr("World"));
 
   // Test floating point assertions
-  EXPECT_FLOAT_EQ(1.0f, 1.0f);
+  EXPECT_FLOAT_EQ(1.0F, 1.0F);
   EXPECT_DOUBLE_EQ(1.0, 1.0);
   EXPECT_NEAR(1.0, 1.1, 0.2);
 }
@@ -129,8 +136,8 @@ TEST_F(GTestIntegrationTest, ExceptionHandling) {
       { throw std::runtime_error("Test exception"); }, std::runtime_error);
 
   EXPECT_NO_THROW({
-    int x = 42;
-    x = x + 1;
+    int val = 42;
+    val = val + 1;
   });
 
   // Test specific exception message
@@ -163,11 +170,11 @@ TEST_F(GTestIntegrationTest, BasicMockFunctionality) {
 // Test mock with multiple calls
 TEST_F(GTestIntegrationTest, MockMultipleCalls) {
   // Set up expectations for multiple calls
-  EXPECT_CALL(*raw_mock_db_, Connect(_))
+  EXPECT_CALL(*raw_mock_db_, Connect(::testing::_))
       .Times(AtLeast(1))
       .WillRepeatedly(Return(true));
 
-  EXPECT_CALL(*raw_mock_db_, ExecuteUpdate(_))
+  EXPECT_CALL(*raw_mock_db_, ExecuteUpdate(::testing::_))
       .Times(3)
       .WillOnce(Return(1))
       .WillOnce(Return(1))
@@ -201,7 +208,7 @@ TEST_F(GTestIntegrationTest, NiceMockTest) {
   auto nice_service = std::make_unique<DatabaseService>(std::move(nice_mock));
 
   // With NiceMock, unexpected calls return default values
-  EXPECT_CALL(*nice_raw, Connect(_)).WillOnce(Return(true));
+  EXPECT_CALL(*nice_raw, Connect(::testing::_)).WillOnce(Return(true));
 
   EXPECT_TRUE(nice_service->Initialize("nice_connection"));
 
@@ -213,11 +220,11 @@ TEST_F(GTestIntegrationTest, NiceMockTest) {
 TEST_F(GTestIntegrationTest, CallSequenceTest) {
   InSequence seq;  // Calls must happen in the specified order
 
-  EXPECT_CALL(*raw_mock_db_, Connect(_)).WillOnce(Return(true));
+  EXPECT_CALL(*raw_mock_db_, Connect(::testing::_)).WillOnce(Return(true));
 
-  EXPECT_CALL(*raw_mock_db_, Query(_)).WillOnce(Return("data"));
+  EXPECT_CALL(*raw_mock_db_, Query(::testing::_)).WillOnce(Return("data"));
 
-  EXPECT_CALL(*raw_mock_db_, ExecuteUpdate(_)).WillOnce(Return(1));
+  EXPECT_CALL(*raw_mock_db_, ExecuteUpdate(::testing::_)).WillOnce(Return(1));
 
   EXPECT_CALL(*raw_mock_db_, Disconnect());
 
@@ -230,16 +237,16 @@ TEST_F(GTestIntegrationTest, CallSequenceTest) {
 
 // Performance test for GTest/GMock
 TEST_F(GTestIntegrationTest, PerformanceTest) {
-  const int iterations = 1000;
+  const int ITERATIONS = 1000;
 
   // Set up expectations for many calls
-  EXPECT_CALL(*raw_mock_db_, Query(_))
-      .Times(iterations)
+  EXPECT_CALL(*raw_mock_db_, Query(::testing::_))
+      .Times(ITERATIONS)
       .WillRepeatedly(Return("test_result"));
 
   auto start = std::chrono::high_resolution_clock::now();
 
-  for (int i = 0; i < iterations; ++i) {
+  for (int i = 0; i < ITERATIONS; ++i) {
     service_->GetUsers();
   }
 
@@ -277,9 +284,9 @@ int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
 
   // Print version and feature information
-  std::cout << "Testing GTest/GMock integration..." << std::endl;
-  std::cout << "Death tests supported: " << GTEST_HAS_DEATH_TEST << std::endl;
-  std::cout << "Typed tests supported: " << GTEST_HAS_TYPED_TEST << std::endl;
+  std::cout << "Testing GTest/GMock integration...\n";
+  std::cout << "Death tests supported: " << GTEST_HAS_DEATH_TEST << "\n";
+  std::cout << "Typed tests supported: " << GTEST_HAS_TYPED_TEST << "\n";
 
   return RUN_ALL_TESTS();
 }

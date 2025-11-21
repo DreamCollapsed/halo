@@ -12,7 +12,7 @@ else()
 endif()
 
 # Combine base libc++ flags + jemalloc flags
-thirdparty_combine_flags(_MVFST_COMBINED_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_MVFST_JEMALLOC_FLAGS}")
+thirdparty_combine_flags(_MVFST_COMBINED_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_MVFST_JEMALLOC_FLAGS}" "-DGLOG_USE_GLOG_EXPORT")
 
 # Acquire mvfst source first for patching
 thirdparty_acquire_source("mvfst" _mvfst_srcdir)

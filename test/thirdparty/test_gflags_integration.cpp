@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <numbers>
 #include <string>
 #include <vector>
 
@@ -28,12 +29,17 @@ class GflagsIntegrationTest : public ::testing::Test {
   }
 
   // Helper method to parse command line arguments
-  void ParseArgs(const std::vector<std::string>& args) {
-    // Convert string vector to char* array
+  static void ParseArgs(const std::vector<std::string>& args) {
+    // Create mutable copies of strings
+    std::vector<std::string> mutable_args;
+    mutable_args.reserve(args.size() + 1);
+    mutable_args.emplace_back("test_program");
+    mutable_args.insert(mutable_args.end(), args.begin(), args.end());
+
     std::vector<char*> argv;
-    argv.push_back(const_cast<char*>("test_program"));
-    for (const auto& arg : args) {
-      argv.push_back(const_cast<char*>(arg.c_str()));
+    argv.reserve(mutable_args.size());
+    for (auto& arg : mutable_args) {
+      argv.push_back(arg.data());
     }
 
     int argc = static_cast<int>(argv.size());
@@ -160,10 +166,18 @@ TEST_F(GflagsIntegrationTest, FlagListing) {
   bool found_test_double = false;
 
   for (const auto& flag : all_flags) {
-    if (flag.name == "test_string") found_test_string = true;
-    if (flag.name == "test_int") found_test_int = true;
-    if (flag.name == "test_bool") found_test_bool = true;
-    if (flag.name == "test_double") found_test_double = true;
+    if (flag.name == "test_string") {
+      found_test_string = true;
+    }
+    if (flag.name == "test_int") {
+      found_test_int = true;
+    }
+    if (flag.name == "test_bool") {
+      found_test_bool = true;
+    }
+    if (flag.name == "test_double") {
+      found_test_double = true;
+    }
   }
 
   EXPECT_TRUE(found_test_string);
@@ -202,13 +216,13 @@ TEST_F(GflagsIntegrationTest, FlagSaver) {
   FLAGS_test_string = "modified";
   FLAGS_test_int = 999;
   FLAGS_test_bool = true;
-  FLAGS_test_double = 2.718;
+  FLAGS_test_double = std::numbers::e;
 
   // Verify modifications
   EXPECT_EQ(FLAGS_test_string, "modified");
   EXPECT_EQ(FLAGS_test_int, 999);
   EXPECT_TRUE(FLAGS_test_bool);
-  EXPECT_DOUBLE_EQ(FLAGS_test_double, 2.718);
+  EXPECT_DOUBLE_EQ(FLAGS_test_double, std::numbers::e);
 
   // FlagSaver destructor should restore original values when it goes out of
   // scope
@@ -254,7 +268,7 @@ TEST_F(GflagsIntegrationTest, IntegrationWithStdLibrary) {
   // Simulate reading configuration from flags
   config_values.push_back(FLAGS_test_string);
   config_values.push_back(std::to_string(FLAGS_test_int));
-  config_values.push_back(FLAGS_test_bool ? "enabled" : "disabled");
+  config_values.emplace_back(FLAGS_test_bool ? "enabled" : "disabled");
   config_values.push_back(std::to_string(FLAGS_test_double));
 
   EXPECT_EQ(config_values.size(), 4);
@@ -270,7 +284,7 @@ TEST_F(GflagsIntegrationTest, IntegrationWithStdLibrary) {
   config_values.clear();
   config_values.push_back(FLAGS_test_string);
   config_values.push_back(std::to_string(FLAGS_test_int));
-  config_values.push_back(FLAGS_test_bool ? "enabled" : "disabled");
+  config_values.emplace_back(FLAGS_test_bool ? "enabled" : "disabled");
   config_values.push_back(std::to_string(FLAGS_test_double));
 
   EXPECT_EQ(config_values[0], "integration_test");

@@ -195,14 +195,25 @@ if(APPLE)
         ERROR_QUIET)
 
       if(_HALO_MACOS_SDK AND EXISTS "${_HALO_MACOS_SDK}")
-        add_compile_options(-isysroot "${_HALO_MACOS_SDK}")
-        add_link_options(-isysroot "${_HALO_MACOS_SDK}")
+        set(CMAKE_OSX_SYSROOT "${_HALO_MACOS_SDK}" CACHE PATH "macOS Sysroot" FORCE)
       endif()
     endif()
   endif()
-endif()
 
-if(APPLE)
+  # Force usage of system C++ headers when using Homebrew LLVM to avoid ABI mismatch with system libc++
+  if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_OSX_SYSROOT)
+     set(_sys_cxx_headers "${CMAKE_OSX_SYSROOT}/usr/include/c++/v1")
+     if(EXISTS "${_sys_cxx_headers}")
+       message(STATUS "Forcing system C++ headers from SDK: ${_sys_cxx_headers}")
+       # We must modify CMAKE_CXX_FLAGS so it propagates to third-party builds via ThirdpartyUtils
+       # Check if already present to avoid duplication
+       string(FIND "${CMAKE_CXX_FLAGS}" "-nostdinc++" _has_nostdinc)
+       if(_has_nostdinc EQUAL -1)
+         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nostdinc++ -I${_sys_cxx_headers}" CACHE STRING "Flags used by the CXX compiler" FORCE)
+       endif()
+     endif()
+  endif()
+
   add_compile_options(
     $<$<CONFIG:Debug>:-Wno-gnu-zero-variadic-macro-arguments>
     $<$<CONFIG:Debug>:-Wno-gnu-statement-expression>

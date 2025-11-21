@@ -20,17 +20,18 @@ class WangleIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Set up event base for async operations
-    eventBase = std::make_unique<folly::EventBase>();
+    event_base_ = std::make_unique<folly::EventBase>();
   }
 
-  void TearDown() override { eventBase.reset(); }
+  void TearDown() override { event_base_.reset(); }
 
-  std::unique_ptr<folly::EventBase> eventBase;
+  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
+  std::unique_ptr<folly::EventBase> event_base_;
 };
 
 TEST_F(WangleIntegrationTest, BasicLibraryLinking) {
   // Test that wangle library links correctly and basic classes are available
-  EXPECT_NE(eventBase, nullptr);
+  EXPECT_NE(event_base_, nullptr);
 
   // Test that we can create basic Wangle components
   auto pipeline = wangle::Pipeline<std::string>::create();
@@ -48,7 +49,6 @@ TEST_F(WangleIntegrationTest, PipelineCreation) {
   // Test pipeline functionality by creating input and verifying state
   EXPECT_NO_THROW({
     // Test that we can get the pipeline object
-    auto& pipelineRef = *pipeline;
     // Verify pipeline is in a valid state after codec addition
     EXPECT_TRUE(pipeline != nullptr);
   });
@@ -56,11 +56,11 @@ TEST_F(WangleIntegrationTest, PipelineCreation) {
   // Test pipeline with actual data flow
   EXPECT_NO_THROW({
     // Test pipeline creation and basic operations
-    auto testPipeline = wangle::Pipeline<std::string>::create();
-    testPipeline->addBack(wangle::StringCodec());
+    auto test_pipeline = wangle::Pipeline<std::string>::create();
+    test_pipeline->addBack(wangle::StringCodec());
 
     // Test pipeline state management without requiring full handler setup
-    EXPECT_NE(testPipeline, nullptr);
+    EXPECT_NE(test_pipeline, nullptr);
   });
 }
 
@@ -72,13 +72,13 @@ TEST_F(WangleIntegrationTest, CodecFunctionality) {
   // Test StringCodec properties
   EXPECT_NO_THROW({
     // StringCodec should be constructible and usable
-    wangle::StringCodec testCodec;
+    wangle::StringCodec test_codec;
   });
 
   // Test LineBasedFrameDecoder with specific buffer size
   EXPECT_NO_THROW({
-    wangle::LineBasedFrameDecoder testDecoder(2048);
-    wangle::LineBasedFrameDecoder smallDecoder(512);
+    wangle::LineBasedFrameDecoder test_decoder(2048);
+    wangle::LineBasedFrameDecoder small_decoder(512);
   });
 
   // Test that different buffer sizes work
@@ -101,12 +101,12 @@ TEST_F(WangleIntegrationTest, ServerBootstrapCreation) {
   // Test basic server configuration
   EXPECT_NO_THROW({
     // Test setting group (thread pool)
-    auto ioGroup = std::make_shared<folly::IOThreadPoolExecutor>(1);
-    server.group(ioGroup);
+    auto io_group = std::make_shared<folly::IOThreadPoolExecutor>(1);
+    server.group(io_group);
 
     // Test setting accept group
-    auto acceptGroup = std::make_shared<folly::IOThreadPoolExecutor>(1);
-    server.group(ioGroup, acceptGroup);
+    auto accept_group = std::make_shared<folly::IOThreadPoolExecutor>(1);
+    server.group(io_group, accept_group);
   });
 
   // Test server options configuration
@@ -129,35 +129,35 @@ TEST_F(WangleIntegrationTest, ClientBootstrapCreation) {
 
   // Test basic configuration
   EXPECT_NO_THROW({
-    auto ioGroup = std::make_shared<folly::IOThreadPoolExecutor>(1);
-    client.group(ioGroup);
+    auto io_group = std::make_shared<folly::IOThreadPoolExecutor>(1);
+    client.group(io_group);
   });
 
   // Test client-specific configurations
   EXPECT_NO_THROW({
     // Test that we can create multiple clients with different thread pools
-    auto anotherGroup = std::make_shared<folly::IOThreadPoolExecutor>(3);
-    wangle::ClientBootstrap<TestPipeline> anotherClient;
-    anotherClient.group(anotherGroup);
-    anotherGroup->join();
+    auto another_group = std::make_shared<folly::IOThreadPoolExecutor>(3);
+    wangle::ClientBootstrap<TestPipeline> another_client;
+    another_client.group(another_group);
+    another_group->join();
   });
 
   // Test that client state is valid after configuration
-  auto testGroup = std::make_shared<folly::IOThreadPoolExecutor>(2);
-  EXPECT_NO_THROW({ client.group(testGroup); });
+  auto test_group = std::make_shared<folly::IOThreadPoolExecutor>(2);
+  EXPECT_NO_THROW({ client.group(test_group); });
 
   // Clean up the executor
-  testGroup->join();
+  test_group->join();
 }
 
 TEST_F(WangleIntegrationTest, AsyncSocketHandlerCreation) {
   // Test AsyncSocketHandler creation (core Wangle component)
-  auto socket = folly::AsyncSocket::newSocket(eventBase.get());
+  auto socket = folly::AsyncSocket::newSocket(event_base_.get());
   EXPECT_NE(socket, nullptr);
 
   // Test socket basic properties
   EXPECT_FALSE(socket->good());  // Not connected yet
-  EXPECT_EQ(socket->getEventBase(), eventBase.get());
+  EXPECT_EQ(socket->getEventBase(), event_base_.get());
 
   // Test that we can create handlers with sockets
   EXPECT_NO_THROW({
@@ -170,15 +170,13 @@ TEST_F(WangleIntegrationTest, AsyncSocketHandlerCreation) {
 
   // Test socket state management
   EXPECT_NO_THROW({
-    auto anotherSocket = folly::AsyncSocket::newSocket(eventBase.get());
-    EXPECT_NE(anotherSocket, nullptr);
-    EXPECT_EQ(anotherSocket->getEventBase(), eventBase.get());
+    auto another_socket = folly::AsyncSocket::newSocket(event_base_.get());
+    EXPECT_NE(another_socket, nullptr);
+    EXPECT_EQ(another_socket->getEventBase(), event_base_.get());
   });
 }
 
 TEST_F(WangleIntegrationTest, StaticPipelineTest) {
-  using TestPipeline = wangle::Pipeline<folly::IOBufQueue&, std::string>;
-
   // Test StaticPipeline (memory-efficient pipeline)
   // This tests more advanced Wangle functionality
 
@@ -196,7 +194,7 @@ TEST_F(WangleIntegrationTest, StaticPipelineTest) {
 // Enhanced handler for testing purposes
 class EchoHandler : public wangle::HandlerAdapter<std::string> {
  public:
-  EchoHandler() : messageCount_(0) {}
+  EchoHandler() = default;
 
   void read(Context* ctx, std::string msg) override {
     messageCount_++;
@@ -206,11 +204,13 @@ class EchoHandler : public wangle::HandlerAdapter<std::string> {
   }
 
   // Test accessors
-  int getMessageCount() const { return messageCount_; }
-  const std::string& getLastMessage() const { return lastMessage_; }
+  [[nodiscard]] int GetMessageCount() const { return messageCount_; }
+  [[nodiscard]] const std::string& GetLastMessage() const {
+    return lastMessage_;
+  }
 
  private:
-  int messageCount_;
+  int messageCount_{0};
   std::string lastMessage_;
 };
 
@@ -220,9 +220,9 @@ TEST_F(WangleIntegrationTest, CustomHandlerIntegration) {
   EXPECT_NE(pipeline, nullptr);
 
   // Create and test our enhanced echo handler
-  auto echoHandler = std::make_shared<EchoHandler>();
-  EXPECT_EQ(echoHandler->getMessageCount(), 0);
-  EXPECT_TRUE(echoHandler->getLastMessage().empty());
+  auto echo_handler = std::make_shared<EchoHandler>();
+  EXPECT_EQ(echo_handler->GetMessageCount(), 0);
+  EXPECT_TRUE(echo_handler->GetLastMessage().empty());
 
   // Add custom handler to pipeline
   EXPECT_NO_THROW({
@@ -231,20 +231,17 @@ TEST_F(WangleIntegrationTest, CustomHandlerIntegration) {
   });
 
   // Test handler functionality
-  auto testHandler = std::make_shared<EchoHandler>();
-  EXPECT_EQ(testHandler->getMessageCount(), 0);
+  auto test_handler = std::make_shared<EchoHandler>();
+  EXPECT_EQ(test_handler->GetMessageCount(), 0);
 
   // Simulate a message (testing handler state)
-  std::string testMsg = "Hello Handler";
   // We can't easily send through pipeline without full setup,
   // but we can test handler creation and state management
-  EXPECT_TRUE(testHandler->getLastMessage().empty());
+  EXPECT_TRUE(test_handler->GetLastMessage().empty());
 }
 
 TEST_F(WangleIntegrationTest, ServiceInterfaceTest) {
   // Test Wangle's Service interface (RPC abstraction)
-  using Request = std::string;
-  using Response = std::string;
 
   // This tests that Service templates compile correctly
   // (We don't actually implement a service here, just test compilation)
@@ -262,12 +259,12 @@ TEST_F(WangleIntegrationTest, IOThreadPoolExecutorTest) {
   EXPECT_EQ(executor->numThreads(), 1);
 
   // Test basic executor operations
-  std::atomic<bool> taskExecuted{false};
-  std::atomic<int> taskCounter{0};
+  std::atomic<bool> task_executed{false};
+  std::atomic<int> task_counter{0};
 
-  executor->add([&taskExecuted, &taskCounter]() {
-    taskExecuted.store(true);
-    taskCounter.fetch_add(1);
+  executor->add([&task_executed, &task_counter]() {
+    task_executed.store(true);
+    task_counter.fetch_add(1);
   });
 
   // Give some time for task execution
@@ -275,14 +272,14 @@ TEST_F(WangleIntegrationTest, IOThreadPoolExecutorTest) {
 
   // Test multiple tasks
   for (int i = 0; i < 5; ++i) {
-    executor->add([&taskCounter]() { taskCounter.fetch_add(1); });
+    executor->add([&task_counter]() { task_counter.fetch_add(1); });
   }
 
   // Clean shutdown and verify execution
   executor->join();
 
-  EXPECT_TRUE(taskExecuted.load());
-  EXPECT_GE(taskCounter.load(), 1);  // At least one task should have executed
+  EXPECT_TRUE(task_executed.load());
+  EXPECT_GE(task_counter.load(), 1);  // At least one task should have executed
 }
 
 TEST_F(WangleIntegrationTest, CompilerOptimizationTest) {
@@ -317,8 +314,8 @@ TEST_F(WangleIntegrationTest, CompilerOptimizationTest) {
 
   // Test template parameter deduction
   using PipelineType = wangle::Pipeline<folly::IOBufQueue&, std::string>;
-  auto anotherPipeline = PipelineType::create();
-  EXPECT_NE(anotherPipeline, nullptr);
+  auto another_pipeline = PipelineType::create();
+  EXPECT_NE(another_pipeline, nullptr);
 }
 
 TEST_F(WangleIntegrationTest, MemoryManagementTest) {
@@ -353,33 +350,33 @@ TEST_F(WangleIntegrationTest, MemoryManagementTest) {
   }
 
   // Test partial cleanup
-  size_t halfSize = NUM_PIPELINES / 2;
-  pipelines.resize(halfSize);
-  EXPECT_EQ(pipelines.size(), halfSize);
+  size_t half_size = NUM_PIPELINES / 2;
+  pipelines.resize(half_size);
+  EXPECT_EQ(pipelines.size(), half_size);
 
   // Clean up should happen automatically
   pipelines.clear();
   EXPECT_TRUE(pipelines.empty());
 
   // Test that we can still create new pipelines after cleanup
-  auto newPipeline = wangle::Pipeline<std::string>::create();
-  EXPECT_NE(newPipeline, nullptr);
+  auto new_pipeline = wangle::Pipeline<std::string>::create();
+  EXPECT_NE(new_pipeline, nullptr);
 }
 
 // Additional comprehensive tests
 TEST_F(WangleIntegrationTest, EventBaseIntegration) {
   // Test EventBase integration with Wangle components
-  EXPECT_NE(eventBase, nullptr);
-  EXPECT_FALSE(eventBase->isRunning());
+  EXPECT_NE(event_base_, nullptr);
+  EXPECT_FALSE(event_base_->isRunning());
 
   // Test that we can create sockets with our event base
-  auto socket1 = folly::AsyncSocket::newSocket(eventBase.get());
-  auto socket2 = folly::AsyncSocket::newSocket(eventBase.get());
+  auto socket1 = folly::AsyncSocket::newSocket(event_base_.get());
+  auto socket2 = folly::AsyncSocket::newSocket(event_base_.get());
 
   EXPECT_NE(socket1, nullptr);
   EXPECT_NE(socket2, nullptr);
-  EXPECT_EQ(socket1->getEventBase(), eventBase.get());
-  EXPECT_EQ(socket2->getEventBase(), eventBase.get());
+  EXPECT_EQ(socket1->getEventBase(), event_base_.get());
+  EXPECT_EQ(socket2->getEventBase(), event_base_.get());
 
   // Test socket properties
   EXPECT_FALSE(socket1->good());  // Not connected
@@ -388,19 +385,19 @@ TEST_F(WangleIntegrationTest, EventBaseIntegration) {
 
 TEST_F(WangleIntegrationTest, MultipleCodecTypes) {
   // Test that different codec combinations work
-  auto stringPipeline = wangle::Pipeline<std::string>::create();
-  auto bufferPipeline =
+  auto string_pipeline = wangle::Pipeline<std::string>::create();
+  auto buffer_pipeline =
       wangle::Pipeline<folly::IOBufQueue&, std::string>::create();
 
-  EXPECT_NE(stringPipeline, nullptr);
-  EXPECT_NE(bufferPipeline, nullptr);
+  EXPECT_NE(string_pipeline, nullptr);
+  EXPECT_NE(buffer_pipeline, nullptr);
 
   // Test different codec combinations
   EXPECT_NO_THROW({
-    stringPipeline->addBack(wangle::StringCodec());
+    string_pipeline->addBack(wangle::StringCodec());
 
-    bufferPipeline->addBack(wangle::LineBasedFrameDecoder(1024));
-    bufferPipeline->addBack(wangle::StringCodec());
+    buffer_pipeline->addBack(wangle::LineBasedFrameDecoder(1024));
+    buffer_pipeline->addBack(wangle::StringCodec());
   });
 
   // Test codec with different buffer sizes
@@ -423,9 +420,9 @@ TEST_F(WangleIntegrationTest, HandlerChaining) {
   auto handler2 = std::make_shared<EchoHandler>();
   auto handler3 = std::make_shared<EchoHandler>();
 
-  EXPECT_EQ(handler1->getMessageCount(), 0);
-  EXPECT_EQ(handler2->getMessageCount(), 0);
-  EXPECT_EQ(handler3->getMessageCount(), 0);
+  EXPECT_EQ(handler1->GetMessageCount(), 0);
+  EXPECT_EQ(handler2->GetMessageCount(), 0);
+  EXPECT_EQ(handler3->GetMessageCount(), 0);
 
   // Add handlers in sequence
   EXPECT_NO_THROW({
@@ -436,30 +433,30 @@ TEST_F(WangleIntegrationTest, HandlerChaining) {
   });
 
   // Verify handlers are still in valid state
-  EXPECT_TRUE(handler1->getLastMessage().empty());
-  EXPECT_TRUE(handler2->getLastMessage().empty());
-  EXPECT_TRUE(handler3->getLastMessage().empty());
+  EXPECT_TRUE(handler1->GetLastMessage().empty());
+  EXPECT_TRUE(handler2->GetLastMessage().empty());
+  EXPECT_TRUE(handler3->GetLastMessage().empty());
 }
 
 TEST_F(WangleIntegrationTest, ThreadPoolExecutorScaling) {
   // Test executor with different thread counts
   std::vector<std::shared_ptr<folly::IOThreadPoolExecutor>> executors;
 
-  for (int threadCount = 1; threadCount <= 4; ++threadCount) {
-    auto executor = std::make_shared<folly::IOThreadPoolExecutor>(threadCount);
+  for (int thread_count = 1; thread_count <= 4; ++thread_count) {
+    auto executor = std::make_shared<folly::IOThreadPoolExecutor>(thread_count);
     EXPECT_NE(executor, nullptr);
-    EXPECT_EQ(executor->numThreads(), threadCount);
+    EXPECT_EQ(executor->numThreads(), thread_count);
 
     executors.push_back(executor);
   }
 
   // Test task execution on different executors
-  std::atomic<int> totalTasks{0};
+  std::atomic<int> total_tasks{0};
 
   for (auto& executor : executors) {
     for (int i = 0; i < 10; ++i) {
-      executor->add([&totalTasks]() {
-        totalTasks.fetch_add(1);
+      executor->add([&total_tasks]() {
+        total_tasks.fetch_add(1);
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
       });
     }
@@ -470,5 +467,5 @@ TEST_F(WangleIntegrationTest, ThreadPoolExecutorScaling) {
     executor->join();
   }
 
-  EXPECT_GE(totalTasks.load(), 40);  // Should have executed 4*10 = 40 tasks
+  EXPECT_GE(total_tasks.load(), 40);  // Should have executed 4*10 = 40 tasks
 }

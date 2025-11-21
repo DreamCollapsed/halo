@@ -13,7 +13,7 @@ else()
 endif()
 
 # Combine base libc++ flags with fizz-specific jemalloc flags via utility
-thirdparty_combine_flags(_FIZZ_COMBINED_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_FIZZ_JEMALLOC_FLAGS}")
+thirdparty_combine_flags(_FIZZ_COMBINED_CXX_FLAGS FRAGMENTS "${HALO_CMAKE_CXX_FLAGS_BASE}" "${_FIZZ_JEMALLOC_FLAGS}" "-DGLOG_USE_GLOG_EXPORT")
 
 set(_fizz_args
     -DCMAKE_INSTALL_PREFIX=${FIZZ_INSTALL_DIR}

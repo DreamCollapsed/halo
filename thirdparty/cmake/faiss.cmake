@@ -6,12 +6,8 @@ thirdparty_setup_directories("faiss")
 # Get OpenMP path from llvm-project dependency
 set(_openmp_dir "${THIRDPARTY_INSTALL_DIR}/llvm-project")
 
-# On Linux with libstdc++, use the filtered include directory to avoid conflicts
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    set(_openmp_include_dir "${_openmp_dir}/include_filtered")
-else()
-    set(_openmp_include_dir "${_openmp_dir}/include")
-endif()
+set(_openmp_include_dir "${_openmp_dir}/include")
+set(_openmp_lib_dir "${_openmp_dir}/lib")
 
 # Get OpenBLAS path for BLAS operations
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -46,14 +42,14 @@ set(_faiss_cmake_cache_args
     "OpenMP_FOUND=TRUE"
     "OpenMP_C_FOUND=TRUE"
     "OpenMP_CXX_FOUND=TRUE"
-    "OpenMP_VERSION=5.0"
-    "OpenMP_C_VERSION=5.0"
-    "OpenMP_CXX_VERSION=5.0"
+    "OpenMP_VERSION=5.1"
+    "OpenMP_C_VERSION=5.1"
+    "OpenMP_CXX_VERSION=5.1"
     "OpenMP_C_FLAGS=-fopenmp=libomp"
     "OpenMP_CXX_FLAGS=-fopenmp=libomp"
     "OpenMP_C_LIB_NAMES=omp"
     "OpenMP_CXX_LIB_NAMES=omp"
-    "OpenMP_omp_LIBRARY=${_openmp_dir}/lib/libomp.a"
+    "OpenMP_omp_LIBRARY=${_openmp_lib_dir}/libomp.a"
     "OpenMP_CXX_INCLUDE_DIR=${_openmp_include_dir}"
 )
 

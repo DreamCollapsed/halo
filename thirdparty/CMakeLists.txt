@@ -60,7 +60,6 @@ target_link_libraries(halo_thirdparty_core
     absl::civil_time
     absl::status
     absl::statusor
-    Boost::system
     Boost::filesystem
     Boost::thread
     Boost::chrono

@@ -224,7 +224,7 @@ thirdparty_register_component(boost
     VERSION "${BOOST_VERSION}"
     URL "${BOOST_URL}"
     SHA256 "${BOOST_SHA256}"
-    DEPENDS_ON xz zlib cares zstd
+    DEPENDS_ON xz zlib cares zstd llvm-project
 )
 thirdparty_register_component(faiss
     VERSION "${FAISS_VERSION}"
@@ -257,7 +257,7 @@ thirdparty_register_component(glog
     VERSION "${GLOG_VERSION}"
     URL "${GLOG_URL}"
     SHA256 "${GLOG_SHA256}"
-    DEPENDS_ON gflags gtest
+    DEPENDS_ON gflags gtest llvm-project
 )
 
 # Register jemalloc component
@@ -313,7 +313,7 @@ thirdparty_register_component(folly
     VERSION "${FOLLY_VERSION}"
     URL "${FOLLY_URL}"
     SHA256 "${FOLLY_SHA256}"
-    DEPENDS_ON gflags glog double-conversion libevent openssl zstd lz4 snappy boost jemalloc fast-float fmt zlib xz bzip2 libsodium
+    DEPENDS_ON gflags glog double-conversion libevent openssl zstd lz4 snappy boost jemalloc fast-float fmt zlib xz bzip2 libsodium llvm-project
 )
 
 # Register fizz component

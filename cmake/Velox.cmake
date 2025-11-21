@@ -8,7 +8,7 @@
     include(cmake/Velox.cmake)
     add_subdirectory(velox)
 ]]
-set(VELOX_SHA256 "7274da53db330bb8ad691d394818248809c10ca8")
+set(VELOX_SHA256 "9bc0ce3b5f84936f64bd16ee2c0e8464e760aaa4")
 
 include_guard(GLOBAL)
 

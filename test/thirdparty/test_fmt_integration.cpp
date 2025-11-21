@@ -99,7 +99,7 @@ TEST_F(FmtIntegrationTest, TimeFormatting) {
   auto now = std::chrono::system_clock::now();
   auto time_value = std::chrono::system_clock::to_time_t(now);
   std::tm time_info{};
-#if defined(_WIN32)
+#ifdef _WIN32
   localtime_s(&time_info, &time_value);
 #else
   localtime_r(&time_value, &time_info);

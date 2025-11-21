@@ -100,6 +100,13 @@ thirdparty_build_cmake_library("folly"
         -DLIBSODIUM_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/libsodium/include
         -DLIBSODIUM_LIBRARY=${THIRDPARTY_INSTALL_DIR}/libsodium/lib/libsodium.a
 
+        # LIBUNWIND
+        -DFOLLY_HAVE_LIBUNWIND=ON
+        -DLIBUNWIND_INCLUDE_DIR=${THIRDPARTY_INSTALL_DIR}/llvm-project/include
+        -DLIBUNWIND_INCLUDE_DIRS=${THIRDPARTY_INSTALL_DIR}/llvm-project/include
+        -DLIBUNWIND_LIBRARIES=${THIRDPARTY_INSTALL_DIR}/llvm-project/lib/libunwind.a
+        -DLIBUNWIND_FOUND=ON
+
         # GFLAGS
         -DFOLLY_HAVE_LIBGFLAGS:BOOL=ON
 

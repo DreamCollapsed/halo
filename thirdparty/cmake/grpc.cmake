@@ -14,6 +14,7 @@ thirdparty_build_cmake_library("grpc"
         -DgRPC_PROTOBUF_PROVIDER=package
         -DgRPC_RE2_PROVIDER=package
         -DgRPC_ZLIB_PROVIDER=package
+        -DZLIB_USE_STATIC_LIBS=ON
         -DgRPC_SSL_PROVIDER=package
         -DgRPC_CARES_PROVIDER=package
         -DgRPC_GFLAGS_PROVIDER=package

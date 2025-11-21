@@ -17,6 +17,7 @@ thirdparty_build_cmake_library("geos"
         -DGEOS_BUILD_TESTS=OFF
         -DGEOS_BUILD_BENCHMARKS=OFF
         -DGEOS_ENABLE_TESTS=OFF
+        -DBUILD_GEOSOP=OFF
     FILE_REPLACEMENTS
         "include/geos/operation/overlay/snap/SnapOverlayOp.h"
         "#include <geos/operation/overlay/OverlayOp.h> // for enums"

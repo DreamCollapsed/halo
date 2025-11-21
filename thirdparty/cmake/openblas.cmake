@@ -11,6 +11,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             -DUSE_THREAD=ON
             -DBUILD_WITHOUT_LAPACK=OFF
             -DBUILD_RELAPACK=OFF
+            -DNOFORTRAN=1
+            -DC_LAPACK=1
         VALIDATION_FILES
             "${OPENBLAS_INSTALL_DIR}/lib/libopenblas.a"
             "${OPENBLAS_INSTALL_DIR}/include/openblas/openblas_config.h"

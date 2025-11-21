@@ -5,6 +5,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <numbers>
 #include <thread>
 #include <vector>
 
@@ -31,16 +32,14 @@ class GlogIntegrationTest : public ::testing::Test {
     google::ShutdownGoogleLogging();
 
     // Clean up test log files
-    try {
-      std::filesystem::remove_all(test_log_dir_);
-    } catch (const std::exception& e) {
-      // Ignore cleanup errors in tests
-    }
+    std::error_code error_code;
+    std::filesystem::remove_all(test_log_dir_, error_code);
   }
 
   // Helper method to count log messages in a file
-  int CountLogMessages(const std::string& filename,
-                       const std::string& pattern) {
+  // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
+  static int CountLogMessages(const std::string& filename,
+                              const std::string& pattern) {
     std::ifstream file(filename);
     if (!file.is_open()) {
       return 0;
@@ -56,6 +55,7 @@ class GlogIntegrationTest : public ::testing::Test {
     return count;
   }
 
+  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
   std::filesystem::path test_log_dir_;
 };
 
@@ -134,14 +134,14 @@ TEST_F(GlogIntegrationTest, VerboseLogging) {
 
 // Test CHECK macros (these will abort on failure, so use carefully)
 TEST_F(GlogIntegrationTest, CheckMacros) {
-  int a = 5;
-  int b = 10;
+  int val_a = 5;
+  int val_b = 10;
 
   // These should pass
-  CHECK_LT(a, b) << "a should be less than b";
-  CHECK_GT(b, a) << "b should be greater than a";
-  CHECK_EQ(a, 5) << "a should equal 5";
-  CHECK_NE(a, b) << "a should not equal b";
+  CHECK_LT(val_a, val_b) << "a should be less than b";
+  CHECK_GT(val_b, val_a) << "b should be greater than a";
+  CHECK_EQ(val_a, 5) << "a should equal 5";
+  CHECK_NE(val_a, val_b) << "a should not equal b";
 
   // Test CHECK with pointer
   std::string value = "test";
@@ -155,11 +155,11 @@ TEST_F(GlogIntegrationTest, CheckMacros) {
 TEST_F(GlogIntegrationTest, StringFormatting) {
   std::string name = "World";
   int number = 42;
-  double pi = 3.14159;
+  double pi_val = std::numbers::pi;
 
   // Test various formatting scenarios
   LOG(INFO) << "Hello, " << name << "!";
-  LOG(INFO) << "Number: " << number << ", Pi: " << pi;
+  LOG(INFO) << "Number: " << number << ", Pi: " << pi_val;
   LOG(INFO) << "Formatted message with multiple types";
 
   google::FlushLogFiles(google::GLOG_INFO);
@@ -192,13 +192,14 @@ TEST_F(GlogIntegrationTest, PerformanceLogging) {
 TEST_F(GlogIntegrationTest, ThreadSafety) {
   // Create multiple threads that log simultaneously
   std::vector<std::thread> threads;
-  const int num_threads = 4;
-  const int messages_per_thread = 100;
+  const int NUM_THREADS = 4;
+  const int MESSAGES_PER_THREAD = 100;
 
-  for (int t = 0; t < num_threads; ++t) {
-    threads.emplace_back([t, messages_per_thread]() {
-      for (int i = 0; i < messages_per_thread; ++i) {
-        LOG(INFO) << "Thread " << t << " message " << i;
+  threads.reserve(NUM_THREADS);
+  for (int thread_idx = 0; thread_idx < NUM_THREADS; ++thread_idx) {
+    threads.emplace_back([thread_idx]() {
+      for (int i = 0; i < MESSAGES_PER_THREAD; ++i) {
+        LOG(INFO) << "Thread " << thread_idx << " message " << i;
       }
     });
   }

@@ -29,7 +29,16 @@
 #include <string>
 #include <vector>
 
-using namespace icu;
+using icu::BreakIterator;
+using icu::Calendar;
+using icu::Collator;
+using icu::DateFormat;
+using icu::Locale;
+using icu::Normalizer2;
+using icu::NumberFormat;
+using icu::RegexMatcher;
+using icu::Transliterator;
+using icu::UnicodeString;
 
 class ICUIntegrationTest : public ::testing::Test {
  protected:
@@ -48,17 +57,19 @@ class ICUIntegrationTest : public ::testing::Test {
 
 // Test ICU version and basic functionality
 TEST_F(ICUIntegrationTest, VersionInfo) {
-  UVersionInfo versionArray;
-  u_getVersion(versionArray);
+  UVersionInfo version_array;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+  u_getVersion(version_array);
 
-  char versionString[U_MAX_VERSION_STRING_LENGTH];
-  u_versionToString(versionArray, versionString);
+  std::array<char, U_MAX_VERSION_STRING_LENGTH> version_string{};
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+  u_versionToString(version_array, version_string.data());
 
-  std::cout << "ICU Version: " << versionString << std::endl;
+  std::cout << "ICU Version: " << version_string.data() << "\n";
 
   // Verify we have a reasonable version (should be 77.x)
-  EXPECT_GE(versionArray[0], 77);
-  EXPECT_LT(versionArray[0], 100);  // Sanity check
+  EXPECT_GE(version_array[0], 77);
+  EXPECT_LT(version_array[0], 100);  // Sanity check
 }
 
 // Test Unicode string operations
@@ -80,16 +91,16 @@ TEST_F(ICUIntegrationTest, UnicodeStringOperations) {
 
 // Test UTF-8 conversion
 TEST_F(ICUIntegrationTest, UTF8Conversion) {
-  UnicodeString unicodeStr("Hello, 世界! 🌍");
-  std::string utf8Str;
+  UnicodeString unicode_str("Hello, 世界! 🌍");
+  std::string utf8_str;
 
   // Convert to UTF-8
-  unicodeStr.toUTF8String(utf8Str);
-  EXPECT_GT(utf8Str.length(), 0);
+  unicode_str.toUTF8String(utf8_str);
+  EXPECT_GT(utf8_str.length(), 0);
 
   // Convert back to Unicode
-  UnicodeString roundTrip = UnicodeString::fromUTF8(utf8Str);
-  EXPECT_EQ(unicodeStr, roundTrip);
+  UnicodeString round_trip = UnicodeString::fromUTF8(utf8_str);
+  EXPECT_EQ(unicode_str, round_trip);
 }
 
 // Test text normalization
@@ -103,49 +114,50 @@ TEST_F(ICUIntegrationTest, TextNormalization) {
   UnicodeString composed("é");          // Single character
   UnicodeString decomposed("e\u0301");  // e + combining acute accent
 
-  UnicodeString normalizedComposed = nfc->normalize(composed, status);
-  UnicodeString normalizedDecomposed = nfc->normalize(decomposed, status);
+  UnicodeString normalized_composed = nfc->normalize(composed, status);
+  UnicodeString normalized_decomposed = nfc->normalize(decomposed, status);
 
   EXPECT_TRUE(U_SUCCESS(status));
-  EXPECT_EQ(normalizedComposed, normalizedDecomposed);
+  EXPECT_EQ(normalized_composed, normalized_decomposed);
 }
 
 // Test regular expressions
 TEST_F(ICUIntegrationTest, RegularExpressions) {
   UErrorCode status = U_ZERO_ERROR;
-  UnicodeString pattern("\\b\\w+@\\w+\\.\\w+\\b");  // Simple email pattern
+  UnicodeString pattern(R"(\b\w+@\w+\.\w+\b)");  // Simple email pattern
   UnicodeString text("Contact us at support@example.com or info@test.org");
 
   RegexMatcher matcher(pattern, text, 0, status);
   ASSERT_TRUE(U_SUCCESS(status));
 
-  int matchCount = 0;
+  int match_count = 0;
+  // NOLINTNEXTLINE(readability-implicit-bool-conversion)
   while (matcher.find(status) && U_SUCCESS(status)) {
-    matchCount++;
+    match_count++;
     UnicodeString match = matcher.group(status);
     EXPECT_GT(match.length(), 0);
   }
 
-  EXPECT_EQ(matchCount, 2);  // Should find 2 email addresses
+  EXPECT_EQ(match_count, 2);  // Should find 2 email addresses
 }
 
 // Test locale-specific operations
 TEST_F(ICUIntegrationTest, LocaleOperations) {
   // Test different locales
-  Locale usLocale("en_US");
-  Locale chineseLocale("zh_CN");
-  Locale frenchLocale("fr_FR");
+  Locale us_locale("en_US");
+  Locale chinese_locale("zh_CN");
+  Locale french_locale("fr_FR");
 
-  EXPECT_STREQ(usLocale.getLanguage(), "en");
-  EXPECT_STREQ(usLocale.getCountry(), "US");
+  EXPECT_STREQ(us_locale.getLanguage(), "en");
+  EXPECT_STREQ(us_locale.getCountry(), "US");
 
-  EXPECT_STREQ(chineseLocale.getLanguage(), "zh");
-  EXPECT_STREQ(chineseLocale.getCountry(), "CN");
+  EXPECT_STREQ(chinese_locale.getLanguage(), "zh");
+  EXPECT_STREQ(chinese_locale.getCountry(), "CN");
 
   // Test locale display names
-  UnicodeString displayName;
-  usLocale.getDisplayName(usLocale, displayName);
-  EXPECT_GT(displayName.length(), 0);
+  UnicodeString display_name;
+  us_locale.getDisplayName(us_locale, display_name);
+  EXPECT_GT(display_name.length(), 0);
 }
 
 // Test number formatting
@@ -153,28 +165,28 @@ TEST_F(ICUIntegrationTest, NumberFormatting) {
   UErrorCode status = U_ZERO_ERROR;
 
   // Test US number formatting
-  Locale usLocale("en_US");
-  std::unique_ptr<NumberFormat> usFormatter(
-      NumberFormat::createInstance(usLocale, status));
+  Locale us_locale("en_US");
+  std::unique_ptr<NumberFormat> us_formatter(
+      NumberFormat::createInstance(us_locale, status));
   ASSERT_TRUE(U_SUCCESS(status));
-  ASSERT_NE(usFormatter.get(), nullptr);
+  ASSERT_NE(us_formatter.get(), nullptr);
 
-  UnicodeString usFormatted;
-  usFormatter->format(1234567.89, usFormatted);
-  EXPECT_GT(usFormatted.length(), 0);
+  UnicodeString us_formatted;
+  us_formatter->format(1234567.89, us_formatted);
+  EXPECT_GT(us_formatted.length(), 0);
 
   // Test German number formatting (uses comma for decimal separator)
-  Locale germanLocale("de_DE");
-  std::unique_ptr<NumberFormat> germanFormatter(
-      NumberFormat::createInstance(germanLocale, status));
+  Locale german_locale("de_DE");
+  std::unique_ptr<NumberFormat> german_formatter(
+      NumberFormat::createInstance(german_locale, status));
   ASSERT_TRUE(U_SUCCESS(status));
 
-  UnicodeString germanFormatted;
-  germanFormatter->format(1234567.89, germanFormatted);
-  EXPECT_GT(germanFormatted.length(), 0);
+  UnicodeString german_formatted;
+  german_formatter->format(1234567.89, german_formatted);
+  EXPECT_GT(german_formatted.length(), 0);
 
   // They should be different due to different locale conventions
-  EXPECT_NE(usFormatted, germanFormatted);
+  EXPECT_NE(us_formatted, german_formatted);
 }
 
 // Test date formatting
@@ -182,36 +194,34 @@ TEST_F(ICUIntegrationTest, DateFormatting) {
   UErrorCode status = U_ZERO_ERROR;
 
   // Create a specific date
-  Calendar* calendar = Calendar::createInstance(status);
+  std::unique_ptr<Calendar> calendar(Calendar::createInstance(status));
   ASSERT_TRUE(U_SUCCESS(status));
   ASSERT_NE(calendar, nullptr);
 
   calendar->clear();
   calendar->set(2025, UCAL_JULY, 23, 10, 30, 0);  // July 23, 2025, 10:30:00
-  UDate testDate = calendar->getTime(status);
+  UDate test_date = calendar->getTime(status);
   ASSERT_TRUE(U_SUCCESS(status));
 
   // Test US date formatting
-  Locale usLocale("en_US");
-  std::unique_ptr<DateFormat> usFormatter(DateFormat::createDateTimeInstance(
-      DateFormat::MEDIUM, DateFormat::SHORT, usLocale));
-  ASSERT_NE(usFormatter.get(), nullptr);
+  Locale us_locale("en_US");
+  std::unique_ptr<DateFormat> us_formatter(DateFormat::createDateTimeInstance(
+      DateFormat::MEDIUM, DateFormat::SHORT, us_locale));
+  ASSERT_NE(us_formatter.get(), nullptr);
 
-  UnicodeString usFormatted;
-  usFormatter->format(testDate, usFormatted);
-  EXPECT_GT(usFormatted.length(), 0);
+  UnicodeString us_formatted;
+  us_formatter->format(test_date, us_formatted);
+  EXPECT_GT(us_formatted.length(), 0);
 
   // Test ISO date formatting
-  Locale isoLocale("en_US_POSIX");
-  std::unique_ptr<DateFormat> isoFormatter(DateFormat::createDateTimeInstance(
-      DateFormat::SHORT, DateFormat::SHORT, isoLocale));
-  ASSERT_NE(isoFormatter.get(), nullptr);
+  Locale iso_locale("en_US_POSIX");
+  std::unique_ptr<DateFormat> iso_formatter(DateFormat::createDateTimeInstance(
+      DateFormat::SHORT, DateFormat::SHORT, iso_locale));
+  ASSERT_NE(iso_formatter.get(), nullptr);
 
-  UnicodeString isoFormatted;
-  isoFormatter->format(testDate, isoFormatted);
-  EXPECT_GT(isoFormatted.length(), 0);
-
-  delete calendar;
+  UnicodeString iso_formatted;
+  iso_formatter->format(test_date, iso_formatted);
+  EXPECT_GT(iso_formatted.length(), 0);
 }
 
 // Test collation (string comparison)
@@ -219,26 +229,26 @@ TEST_F(ICUIntegrationTest, Collation) {
   UErrorCode status = U_ZERO_ERROR;
 
   // Test English collation
-  Locale enLocale("en_US");
-  std::unique_ptr<Collator> enCollator(
-      Collator::createInstance(enLocale, status));
+  Locale en_locale("en_US");
+  std::unique_ptr<Collator> en_collator(
+      Collator::createInstance(en_locale, status));
   ASSERT_TRUE(U_SUCCESS(status));
-  ASSERT_NE(enCollator.get(), nullptr);
+  ASSERT_NE(en_collator.get(), nullptr);
 
   UnicodeString str1("apple");
   UnicodeString str2("Apple");
   UnicodeString str3("banana");
 
   // Case-sensitive comparison
-  enCollator->setStrength(Collator::TERTIARY);
-  int cmp = enCollator->compare(str1, str2);
+  en_collator->setStrength(Collator::TERTIARY);
+  int cmp = en_collator->compare(str1, str2);
   // Expect strings differ (apple vs Apple)
   EXPECT_NE(cmp, 0);
-  EXPECT_LT(enCollator->compare(str1, str3), 0);  // "apple" < "banana"
+  EXPECT_LT(en_collator->compare(str1, str3), 0);  // "apple" < "banana"
 
   // Case-insensitive comparison
-  enCollator->setStrength(Collator::SECONDARY);
-  EXPECT_EQ(enCollator->compare(str1, str2), 0);  // "apple" == "Apple"
+  en_collator->setStrength(Collator::SECONDARY);
+  EXPECT_EQ(en_collator->compare(str1, str2), 0);  // "apple" == "Apple"
 }
 
 // Test text boundaries (word/sentence breaking)
@@ -247,43 +257,43 @@ TEST_F(ICUIntegrationTest, TextBoundaries) {
   UnicodeString text("Hello world! How are you today? I'm fine, thanks.");
 
   // Test word boundaries
-  std::unique_ptr<BreakIterator> wordBreaker(
+  std::unique_ptr<BreakIterator> word_breaker(
       BreakIterator::createWordInstance(Locale::getUS(), status));
   ASSERT_TRUE(U_SUCCESS(status));
-  ASSERT_NE(wordBreaker.get(), nullptr);
+  ASSERT_NE(word_breaker.get(), nullptr);
 
-  wordBreaker->setText(text);
+  word_breaker->setText(text);
 
-  int wordCount = 0;
-  int32_t start = wordBreaker->first();
-  for (int32_t end = wordBreaker->next(); end != BreakIterator::DONE;
-       start = end, end = wordBreaker->next()) {
+  int word_count = 0;
+  int32_t start = word_breaker->first();
+  for (int32_t end = word_breaker->next(); end != BreakIterator::DONE;
+       start = end, end = word_breaker->next()) {
     UnicodeString word = text.tempSubString(start, end - start);
-    if (word.trim().length() > 0 && u_isalpha(word.charAt(0))) {
-      wordCount++;
+    if (word.trim().length() > 0 && (u_isalpha(word.charAt(0)) != 0)) {
+      word_count++;
     }
   }
 
-  EXPECT_GT(wordCount, 5);  // Should find several words
+  EXPECT_GT(word_count, 5);  // Should find several words
 
   // Test sentence boundaries
-  std::unique_ptr<BreakIterator> sentenceBreaker(
+  std::unique_ptr<BreakIterator> sentence_breaker(
       BreakIterator::createSentenceInstance(Locale::getUS(), status));
   ASSERT_TRUE(U_SUCCESS(status));
 
-  sentenceBreaker->setText(text);
+  sentence_breaker->setText(text);
 
-  int sentenceCount = 0;
-  start = sentenceBreaker->first();
-  for (int32_t end = sentenceBreaker->next(); end != BreakIterator::DONE;
-       start = end, end = sentenceBreaker->next()) {
+  int sentence_count = 0;
+  start = sentence_breaker->first();
+  for (int32_t end = sentence_breaker->next(); end != BreakIterator::DONE;
+       start = end, end = sentence_breaker->next()) {
     UnicodeString sentence = text.tempSubString(start, end - start);
     if (sentence.trim().length() > 0) {
-      sentenceCount++;
+      sentence_count++;
     }
   }
 
-  EXPECT_GE(sentenceCount, 3);  // Should find at least 3 sentences
+  EXPECT_GE(sentence_count, 3);  // Should find at least 3 sentences
 }
 
 // Test transliteration
@@ -291,13 +301,14 @@ TEST_F(ICUIntegrationTest, Transliteration) {
   UErrorCode status = U_ZERO_ERROR;
 
   // Test Latin to ASCII transliteration
-  std::unique_ptr<Transliterator> latinToAscii(
+  std::unique_ptr<Transliterator> latin_to_ascii(
       Transliterator::createInstance("Latin-ASCII", UTRANS_FORWARD, status));
 
-  if (U_SUCCESS(status) && latinToAscii.get() != nullptr) {
+  // NOLINTNEXTLINE(readability-implicit-bool-conversion)
+  if (U_SUCCESS(status) && latin_to_ascii != nullptr) {
     UnicodeString input("naïve café résumé");
     UnicodeString output = input;
-    latinToAscii->transliterate(output);
+    latin_to_ascii->transliterate(output);
 
     EXPECT_NE(input, output);
     EXPECT_GT(output.length(), 0);
@@ -316,20 +327,20 @@ TEST_F(ICUIntegrationTest, Transliteration) {
 TEST_F(ICUIntegrationTest, CharacterProperties) {
   // Test various Unicode character properties
   UChar32 ch_a = 'a';
-  UChar32 ch_A = 'A';
+  UChar32 ch_upper_a = 'A';
   UChar32 ch_0 = '0';
   UChar32 ch_space = ' ';
   UChar32 ch_chinese = 0x4E00;  // CJK unified ideograph
 
   EXPECT_TRUE(u_isalpha(ch_a));
-  EXPECT_TRUE(u_isalpha(ch_A));
+  EXPECT_TRUE(u_isalpha(ch_upper_a));
   EXPECT_FALSE(u_isalpha(ch_0));
   EXPECT_FALSE(u_isalpha(ch_space));
   EXPECT_TRUE(u_isalpha(ch_chinese));
 
   EXPECT_TRUE(u_islower(ch_a));
-  EXPECT_FALSE(u_islower(ch_A));
-  EXPECT_TRUE(u_isupper(ch_A));
+  EXPECT_FALSE(u_islower(ch_upper_a));
+  EXPECT_TRUE(u_isupper(ch_upper_a));
   EXPECT_FALSE(u_isupper(ch_a));
 
   EXPECT_TRUE(u_isdigit(ch_0));
@@ -339,8 +350,8 @@ TEST_F(ICUIntegrationTest, CharacterProperties) {
   EXPECT_FALSE(u_isspace(ch_a));
 
   // Test case conversion
-  EXPECT_EQ(u_toupper(ch_a), ch_A);
-  EXPECT_EQ(u_tolower(ch_A), ch_a);
+  EXPECT_EQ(u_toupper(ch_a), ch_upper_a);
+  EXPECT_EQ(u_tolower(ch_upper_a), ch_a);
 }
 
 // Test script detection
@@ -391,22 +402,22 @@ TEST_F(ICUIntegrationTest, IntegratedWorkflow) {
   // 3. Convert to UTF-8 and back
   std::string utf8;
   normalized.toUTF8String(utf8);
-  UnicodeString roundTrip = UnicodeString::fromUTF8(utf8);
-  EXPECT_EQ(normalized, roundTrip);
+  UnicodeString round_trip = UnicodeString::fromUTF8(utf8);
+  EXPECT_EQ(normalized, round_trip);
 
   // 4. Break into words
-  std::unique_ptr<BreakIterator> wordBreaker(
+  std::unique_ptr<BreakIterator> word_breaker(
       BreakIterator::createWordInstance(Locale::getUS(), status));
   ASSERT_TRUE(U_SUCCESS(status));
 
-  wordBreaker->setText(normalized);
+  word_breaker->setText(normalized);
   std::vector<UnicodeString> words;
 
-  int32_t start = wordBreaker->first();
-  for (int32_t end = wordBreaker->next(); end != BreakIterator::DONE;
-       start = end, end = wordBreaker->next()) {
+  int32_t start = word_breaker->first();
+  for (int32_t end = word_breaker->next(); end != BreakIterator::DONE;
+       start = end, end = word_breaker->next()) {
     UnicodeString word = normalized.tempSubString(start, end - start);
-    if (word.trim().length() > 0 && u_isalpha(word.charAt(0))) {
+    if (word.trim().length() > 0 && (u_isalpha(word.charAt(0)) != 0)) {
       words.push_back(word);
     }
   }
@@ -418,10 +429,12 @@ TEST_F(ICUIntegrationTest, IntegratedWorkflow) {
   std::unique_ptr<Collator> collator(Collator::createInstance(locale, status));
   ASSERT_TRUE(U_SUCCESS(status));
 
-  std::sort(words.begin(), words.end(),
-            [&collator](const UnicodeString& a, const UnicodeString& b) {
-              return collator->compare(a, b) < 0;
-            });
+  // NOLINTNEXTLINE(modernize-use-ranges)
+  std::sort(
+      words.begin(), words.end(),
+      [&collator](const UnicodeString& str_a, const UnicodeString& str_b) {
+        return collator->compare(str_a, str_b) < 0;
+      });
 
   EXPECT_GE(words.size(), 4);
 }

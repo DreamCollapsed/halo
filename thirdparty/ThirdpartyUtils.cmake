@@ -1132,6 +1132,10 @@ function(thirdparty_get_optimization_flags output_var)
         list(APPEND _opt_flags
             -DCMAKE_OSX_DEPLOYMENT_TARGET=${_macos_target}
         )
+
+        if(DEFINED CMAKE_OSX_SYSROOT AND CMAKE_OSX_SYSROOT)
+            list(APPEND _opt_flags -DCMAKE_OSX_SYSROOT=${CMAKE_OSX_SYSROOT})
+        endif()
     endif()
     
     # --- ccache Support for faster rebuilds ---

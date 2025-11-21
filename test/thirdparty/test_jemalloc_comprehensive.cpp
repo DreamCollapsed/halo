@@ -33,15 +33,21 @@ TEST_F(JemallocComprehensiveTest, VerifyDropInModeWorking) {
 
   // Additional runtime sanity: even if macro says drop-in, verify behavior.
   {
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
     void* probe = malloc(8);
-    ASSERT_NE(probe, nullptr) << "malloc probe failed";
-    size_t us = malloc_usable_size(probe);
+    if (probe == nullptr) {
+      FAIL() << "malloc probe failed";
+    }
+    size_t usable_size = malloc_usable_size(probe);
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
     free(probe);
-    ASSERT_GT(us, 0u) << "jemalloc drop-in runtime verification failed "
-                         "(malloc_usable_size=0)";
+    ASSERT_GT(usable_size, 0U)
+        << "jemalloc drop-in runtime verification failed "
+           "(malloc_usable_size=0)";
   }
 
   // Test malloc/free drop-in replacement
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   void* ptr = malloc(1024);
   EXPECT_NE(ptr, nullptr);
   std::cout << "   > malloc(1024) succeeded\n";
@@ -60,10 +66,12 @@ TEST_F(JemallocComprehensiveTest, VerifyDropInModeWorking) {
     FAIL() << "jemalloc drop-in replacement is not working";
   }
 
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   free(ptr);
   std::cout << "   > free() succeeded\n";
 
   // Test new/delete drop-in replacement
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   int* new_ptr = new int[256];
   EXPECT_NE(new_ptr, nullptr);
   std::cout << "   > new int[256] succeeded\n";
@@ -78,17 +86,21 @@ TEST_F(JemallocComprehensiveTest, VerifyDropInModeWorking) {
     FAIL() << "jemalloc drop-in replacement for new/delete is not working";
   }
 
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   delete[] new_ptr;
   std::cout << "   > delete[] succeeded\n";
 
   // Test aligned allocation
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   void* aligned_ptr = aligned_alloc(64, 1024);
   EXPECT_NE(aligned_ptr, nullptr);
-  if (aligned_ptr) {
+  if (aligned_ptr != nullptr) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     EXPECT_EQ(reinterpret_cast<uintptr_t>(aligned_ptr) % 64, 0);
     size_t aligned_usable = malloc_usable_size(aligned_ptr);
     std::cout << "   > aligned_alloc(64, 1024) usable size: " << aligned_usable
               << " bytes\n";
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
     free(aligned_ptr);
   }
 }
@@ -99,6 +111,7 @@ TEST_F(JemallocComprehensiveTest, VerifyPublicAPI) {
 
   // Use jemalloc extended allocation API (mallocx)
   // Flags: 0 => default tcache & alignment; could add MALLOCX_ZERO if desired.
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   void* ptr = mallocx(2048, 0);
   EXPECT_NE(ptr, nullptr);
   std::cout << "   > mallocx(2048, 0) succeeded\n";
@@ -113,9 +126,11 @@ TEST_F(JemallocComprehensiveTest, VerifyPublicAPI) {
   // Test jemalloc version information
   const char* version = nullptr;
   size_t version_len = sizeof(version);
-  int result = mallctl("version", &version, &version_len, nullptr, 0);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  int result = mallctl("version", reinterpret_cast<void*>(&version),
+                       &version_len, nullptr, 0);
 
-  if (result == 0 && version) {
+  if (result == 0 && version != nullptr) {
     std::cout << "   > jemalloc version: " << version << "\n";
   }
 }
@@ -125,7 +140,9 @@ TEST_F(JemallocComprehensiveTest, VerifyDualModeCompatibility) {
   std::cout << "\n3. Testing dual mode compatibility...\n";
 
   // Allocate memory using both methods
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   void* malloc_ptr = malloc(1000);
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   void* mallocx_ptr = mallocx(1000, 0);
 
   EXPECT_NE(malloc_ptr, nullptr);
@@ -142,6 +159,7 @@ TEST_F(JemallocComprehensiveTest, VerifyDualModeCompatibility) {
   EXPECT_GT(mallocx_usable, 0) << "mallocx memory not tracked by jemalloc";
 
   // Cross-release test (should both work)
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   free(malloc_ptr);         // Release malloc allocation via standard free
   dallocx(mallocx_ptr, 0);  // Release mallocx allocation via dallocx
 
@@ -154,8 +172,8 @@ TEST_F(JemallocComprehensiveTest, VerifyCppContainersUseJemalloc) {
 
   // Get initial allocation statistics
   size_t allocated_before = 0;
-  size_t sz = sizeof(allocated_before);
-  mallctl("stats.allocated", &allocated_before, &sz, nullptr, 0);
+  size_t size_val = sizeof(allocated_before);
+  mallctl("stats.allocated", &allocated_before, &size_val, nullptr, 0);
 
   {
     // Create large containers to trigger significant memory allocation
@@ -186,7 +204,7 @@ TEST_F(JemallocComprehensiveTest, VerifyCppContainersUseJemalloc) {
 
   // Get final allocation statistics
   size_t allocated_after = 0;
-  mallctl("stats.allocated", &allocated_after, &sz, nullptr, 0);
+  mallctl("stats.allocated", &allocated_after, &size_val, nullptr, 0);
 
   if (allocated_after > allocated_before) {
     std::cout << "   C++ containers are using jemalloc\n";
@@ -204,8 +222,11 @@ TEST_F(JemallocComprehensiveTest, VerifyJemallocConfiguration) {
   // Check version
   const char* version = nullptr;
   size_t version_len = sizeof(version);
-  if (mallctl("version", &version, &version_len, nullptr, 0) == 0) {
-    std::cout << "   > Version: " << (version ? version : "unknown") << "\n";
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  if (mallctl("version", reinterpret_cast<void*>(&version), &version_len,
+              nullptr, 0) == 0) {
+    std::cout << "   > Version: " << (version != nullptr ? version : "unknown")
+              << "\n";
   }
 
   // Check statistics functionality
@@ -224,18 +245,20 @@ TEST_F(JemallocComprehensiveTest, VerifyJemallocConfiguration) {
   }
 
   // Get current memory statistics
-  size_t allocated = 0, active = 0, resident = 0;
-  size_t sz = sizeof(size_t);
+  size_t allocated = 0;
+  size_t active = 0;
+  size_t resident = 0;
+  size_t size_val = sizeof(size_t);
 
-  if (mallctl("stats.allocated", &allocated, &sz, nullptr, 0) == 0) {
+  if (mallctl("stats.allocated", &allocated, &size_val, nullptr, 0) == 0) {
     std::cout << "   > Total allocated: " << allocated << " bytes\n";
   }
 
-  if (mallctl("stats.active", &active, &sz, nullptr, 0) == 0) {
+  if (mallctl("stats.active", &active, &size_val, nullptr, 0) == 0) {
     std::cout << "   > Active memory: " << active << " bytes\n";
   }
 
-  if (mallctl("stats.resident", &resident, &sz, nullptr, 0) == 0) {
+  if (mallctl("stats.resident", &resident, &size_val, nullptr, 0) == 0) {
     std::cout << "   > Resident memory: " << resident << " bytes\n";
   }
 }
@@ -244,17 +267,18 @@ TEST_F(JemallocComprehensiveTest, VerifyJemallocConfiguration) {
 TEST_F(JemallocComprehensiveTest, StressTestAndPerformance) {
   std::cout << "\n6. Running stress test...\n";
 
-  const int num_allocs = 1000;
+  const int NUM_ALLOCS = 1000;
   std::vector<void*> ptrs;
-  ptrs.reserve(num_allocs);
+  ptrs.reserve(NUM_ALLOCS);
 
   // Allocate many memory blocks of different sizes
-  for (int i = 0; i < num_allocs; ++i) {
-    size_t size = (i % 10 + 1) * 64;  // 64 to 640 bytes
+  for (int i = 0; i < NUM_ALLOCS; ++i) {
+    size_t size = (static_cast<size_t>(i) % 10 + 1) * 64;  // 64 to 640 bytes
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
     void* ptr = malloc(size);
     EXPECT_NE(ptr, nullptr);
 
-    if (ptr) {
+    if (ptr != nullptr) {
       // Verify each allocation is tracked by jemalloc
       size_t usable = malloc_usable_size(ptr);
       EXPECT_GE(usable, size);
@@ -266,6 +290,7 @@ TEST_F(JemallocComprehensiveTest, StressTestAndPerformance) {
 
   // Free all memory
   for (void* ptr : ptrs) {
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
     free(ptr);
   }
 
@@ -278,10 +303,14 @@ TEST_F(JemallocComprehensiveTest, AdvancedAllocatorFrontends) {
   std::cout << "\n7. Testing advanced allocator frontends...\n";
 
   // calloc zero-initialization
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   void* cptr = calloc(128, 32);  // 4096 bytes
-  ASSERT_NE(cptr, nullptr);
+  if (cptr == nullptr) {
+    FAIL() << "calloc failed";
+  }
   bool zero = true;
   for (size_t i = 0; i < 4096; ++i) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
     if (static_cast<unsigned char*>(cptr)[i] != 0) {
       zero = false;
       break;
@@ -289,18 +318,20 @@ TEST_F(JemallocComprehensiveTest, AdvancedAllocatorFrontends) {
   }
   EXPECT_TRUE(zero) << "calloc did not zero-initialize memory";
   size_t cusable = malloc_usable_size(cptr);
-  EXPECT_GE(cusable, 4096u);
+  EXPECT_GE(cusable, 4096U);
 
   // realloc growth & preserve prefix
   memset(cptr, 0xAB, 256);
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   void* rptr = realloc(cptr, 16384);  // grow
   ASSERT_NE(rptr, nullptr);
   size_t rusable = malloc_usable_size(rptr);
-  EXPECT_GE(rusable, 16384u);
-  unsigned char* uc = static_cast<unsigned char*>(rptr);
+  EXPECT_GE(rusable, 16384U);
+  auto* bytes = static_cast<unsigned char*>(rptr);
   bool preserved = true;
   for (int i = 0; i < 256; ++i) {
-    if (uc[i] != 0xAB) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    if (bytes[i] != 0xAB) {
       preserved = false;
       break;
     }
@@ -312,10 +343,11 @@ TEST_F(JemallocComprehensiveTest, AdvancedAllocatorFrontends) {
   int pa_rc = posix_memalign(&aptr, 256, 4096);
   ASSERT_EQ(pa_rc, 0) << "posix_memalign failed";
   ASSERT_NE(aptr, nullptr);
-  EXPECT_EQ(reinterpret_cast<uintptr_t>(aptr) % 256, 0u)
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  EXPECT_EQ(reinterpret_cast<uintptr_t>(aptr) % 256, 0U)
       << "posix_memalign alignment failed";
   size_t ausable = malloc_usable_size(aptr);
-  EXPECT_GE(ausable, 4096u);
+  EXPECT_GE(ausable, 4096U);
 
   // Negative mallctl query
   int bad_rc = mallctl("nonexistent.node", nullptr, nullptr, nullptr, 0);
@@ -331,62 +363,83 @@ TEST_F(JemallocComprehensiveTest, AdvancedAllocatorFrontends) {
   // allocate some memory
   std::vector<void*> blocks;
   blocks.reserve(64);
-  for (int i = 0; i < 64; ++i) blocks.push_back(malloc(1024));
+  for (int i = 0; i < 64; ++i) {
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+    void* ptr = malloc(1024);
+    blocks.push_back(ptr);
+  }
   mallctl("epoch", &epoch, &esz, &epoch, sizeof(epoch));
   size_t after = 0;
   mallctl("stats.allocated", &after, &ssz, nullptr, 0);
   EXPECT_GT(after, before)
       << "stats.allocated did not increase after allocations";
-  for (void* b : blocks) free(b);
+  for (void* block : blocks) {
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+    free(block);
+  }
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   free(rptr);
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   free(aptr);
 }
 
 // Test 8: Multithreaded allocation stress (arena/tcache concurrency sanity)
 TEST_F(JemallocComprehensiveTest, MultithreadedAllocationStress) {
   std::cout << "\n8. Multithreaded allocation stress...\n";
-  unsigned hc = std::thread::hardware_concurrency();
+  unsigned hardware_concurrency = std::thread::hardware_concurrency();
   // Fallback if hardware_concurrency returns 0.
-  if (hc == 0) hc = 4;
+  if (hardware_concurrency == 0) {
+    hardware_concurrency = 4;
+  }
   // Bound threads to avoid oversubscription on very large systems.
-  const unsigned threads = std::min<unsigned>(hc, 16);
+  const unsigned THREADS = std::min<unsigned>(hardware_concurrency, 16);
   // Scale iterations modestly with threads but cap to keep test fast.
-  const int iters = (threads <= 4 ? 2500 : 2000);
-  std::cout << "   > Using " << threads << " threads (hw_conc=" << hc << ")"
-            << std::endl;
-  std::atomic<size_t> totalAllocated{0};
+  const int ITERS = (THREADS <= 4 ? 2500 : 2000);
+  std::cout << "   > Using " << THREADS
+            << " threads (hw_conc=" << hardware_concurrency << ")" << "\n";
+  std::atomic<size_t> total_allocated{0};
   auto worker = [&]() {
     size_t local = 0;
-    for (int i = 0; i < iters; ++i) {
-      size_t sz = ((i % 13) + 1) * 48;  // variable size
-      void* p = malloc(sz);
-      if (!p) continue;
-      size_t us = malloc_usable_size(p);
-      EXPECT_GE(us, sz);
-      local += us;
+    for (int i = 0; i < ITERS; ++i) {
+      size_t alloc_size =
+          ((static_cast<size_t>(i) % 13) + 1) * 48;  // variable size
+      // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+      void* ptr = malloc(alloc_size);
+      if (ptr == nullptr) {
+        continue;
+      }
+      size_t usable_size = malloc_usable_size(ptr);
+      EXPECT_GE(usable_size, alloc_size);
+      local += usable_size;
       if ((i % 5) == 0) {
         // occasional realloc
-        void* np = realloc(p, sz * 2);
-        if (np) {
-          p = np;
-          size_t us2 = malloc_usable_size(p);
-          EXPECT_GE(us2, sz * 2);
-          local += us2;
+        // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+        void* new_ptr = realloc(ptr, alloc_size * 2);
+        if (new_ptr != nullptr) {
+          ptr = new_ptr;
+          size_t usable_size2 = malloc_usable_size(ptr);
+          EXPECT_GE(usable_size2, alloc_size * 2);
+          local += usable_size2;
         }
       }
-      free(p);
+      // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+      free(ptr);
     }
-    totalAllocated.fetch_add(local, std::memory_order_relaxed);
+    total_allocated.fetch_add(local, std::memory_order_relaxed);
   };
 
   std::vector<std::thread> pool;
-  pool.reserve(threads);
-  for (int t = 0; t < threads; ++t) pool.emplace_back(worker);
-  for (auto& th : pool) th.join();
+  pool.reserve(THREADS);
+  for (unsigned thread_idx = 0; thread_idx < THREADS; ++thread_idx) {
+    pool.emplace_back(worker);
+  }
+  for (auto& thread : pool) {
+    thread.join();
+  }
 
   std::cout << "   > Total (approx) allocated/checked over threads: "
-            << totalAllocated.load() << " bytes\n";
-  EXPECT_GT(totalAllocated.load(), 0u);
+            << total_allocated.load() << " bytes\n";
+  EXPECT_GT(total_allocated.load(), 0U);
 }
 
 // Final report test
@@ -396,14 +449,19 @@ TEST_F(JemallocComprehensiveTest, FinalReport) {
   std::cout << std::string(60, '=') << "\n";
 
   // Final verification of drop-in mode
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   void* test_ptr = malloc(100);
   bool drop_in_works = (malloc_usable_size(test_ptr) > 0);
+  // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
   free(test_ptr);
 
   // Verify public API
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   void* ext_ptr = mallocx(100, 0);
   bool public_api_works = (ext_ptr != nullptr);
-  if (ext_ptr) dallocx(ext_ptr, 0);
+  if (ext_ptr != nullptr) {
+    dallocx(ext_ptr, 0);
+  }
 
   if (drop_in_works) {
     std::cout << "DROP-IN MODE: WORKING\n";
@@ -423,8 +481,8 @@ TEST_F(JemallocComprehensiveTest, FinalReport) {
 
   // Get final statistics
   size_t allocated = 0;
-  size_t sz = sizeof(allocated);
-  if (mallctl("stats.allocated", &allocated, &sz, nullptr, 0) == 0) {
+  size_t size_val = sizeof(allocated);
+  if (mallctl("stats.allocated", &allocated, &size_val, nullptr, 0) == 0) {
     std::cout << "CURRENT MEMORY: " << allocated << " bytes allocated\n";
   }
 

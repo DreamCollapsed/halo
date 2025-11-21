@@ -3,6 +3,7 @@
 #include <grpcpp/health_check_service_interface.h>
 #include <gtest/gtest.h>
 
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
@@ -51,9 +52,9 @@ class GrpcIntegrationTest : public ::testing::Test {
     }
     if (cq_) {
       cq_->Shutdown();
-      void* tag;
-      bool ok;
-      while (cq_->Next(&tag, &ok)) {
+      void* tag = nullptr;
+      bool is_ok = false;
+      while (cq_->Next(&tag, &is_ok)) {
         // Drain completion queue
       }
     }
@@ -62,6 +63,7 @@ class GrpcIntegrationTest : public ::testing::Test {
     std::filesystem::remove_all(test_dir);
   }
 
+  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
   grpc::ServerBuilder builder_;
   std::unique_ptr<grpc::AsyncGenericService> async_generic_service_;
   std::unique_ptr<grpc::CompletionQueue> cq_;
@@ -70,8 +72,11 @@ class GrpcIntegrationTest : public ::testing::Test {
   int selected_port_ = 0;
 
   // Binary tool test variables
+  // NOLINTBEGIN(readability-identifier-naming)
   std::filesystem::path test_dir;
   std::string grpc_cpp_plugin_path;
+  // NOLINTEND(readability-identifier-naming)
+  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
 };
 
 // Basic channel creation and connection tests
@@ -103,9 +108,9 @@ TEST_F(GrpcIntegrationTest, MultipleChannelsToSameServer) {
   std::string target = "127.0.0.1:" + std::to_string(selected_port_);
 
   std::vector<std::shared_ptr<grpc::Channel>> channels;
-  const int num_channels = 5;
+  const int NUM_CHANNELS = 5;
 
-  for (int i = 0; i < num_channels; ++i) {
+  for (int i = 0; i < NUM_CHANNELS; ++i) {
     auto chan = grpc::CreateChannel(target, grpc::InsecureChannelCredentials());
     ASSERT_NE(chan, nullptr);
     channels.push_back(chan);
@@ -174,16 +179,18 @@ TEST_F(GrpcIntegrationTest, CompressionAlgorithms) {
 
 // Load and performance tests
 TEST_F(GrpcIntegrationTest, ConcurrentChannelCreation) {
-  const int num_threads = 10;
-  const int channels_per_thread = 5;
+  const int NUM_THREADS = 10;
+  const int CHANNELS_PER_THREAD = 5;
   std::string target = "127.0.0.1:" + std::to_string(selected_port_);
 
   std::vector<std::future<void>> futures;
   std::atomic<int> success_count{0};
 
-  for (int t = 0; t < num_threads; ++t) {
-    futures.emplace_back(std::async(std::launch::async, [&, t]() {
-      for (int c = 0; c < channels_per_thread; ++c) {
+  futures.reserve(NUM_THREADS);
+  for (int thread_idx = 0; thread_idx < NUM_THREADS; ++thread_idx) {
+    futures.emplace_back(std::async(std::launch::async, [&]() {
+      for (int channel_idx = 0; channel_idx < CHANNELS_PER_THREAD;
+           ++channel_idx) {
         auto channel =
             grpc::CreateChannel(target, grpc::InsecureChannelCredentials());
         if (channel) {
@@ -193,22 +200,22 @@ TEST_F(GrpcIntegrationTest, ConcurrentChannelCreation) {
     }));
   }
 
-  for (auto& f : futures) {
-    f.get();
+  for (auto& future : futures) {
+    future.get();
   }
 
-  EXPECT_EQ(success_count.load(), num_threads * channels_per_thread);
+  EXPECT_EQ(success_count.load(), NUM_THREADS * CHANNELS_PER_THREAD);
 }
 
 TEST_F(GrpcIntegrationTest, ChannelMemoryStress) {
   std::string target = "127.0.0.1:" + std::to_string(selected_port_);
   std::vector<std::shared_ptr<grpc::Channel>> channels;
 
-  const int num_channels = 100;
-  channels.reserve(num_channels);
+  const int NUM_CHANNELS = 100;
+  channels.reserve(NUM_CHANNELS);
 
   // Create many channels
-  for (int i = 0; i < num_channels; ++i) {
+  for (int i = 0; i < NUM_CHANNELS; ++i) {
     auto channel =
         grpc::CreateChannel(target, grpc::InsecureChannelCredentials());
     ASSERT_NE(channel, nullptr);
@@ -267,9 +274,9 @@ TEST_F(GrpcIntegrationTest, ServerResourceLimits) {
 
   test_server->Shutdown();
   test_cq->Shutdown();
-  void* tag;
-  bool ok;
-  while (test_cq->Next(&tag, &ok)) {
+  void* tag = nullptr;
+  bool is_ok = false;
+  while (test_cq->Next(&tag, &is_ok)) {
     // Drain completion queue
   }
 }
@@ -294,9 +301,9 @@ TEST_F(GrpcIntegrationTest, ServerStartupShutdownCycle) {
     // Immediate shutdown
     cycle_server->Shutdown();
     cycle_cq->Shutdown();
-    void* tag;
-    bool ok;
-    while (cycle_cq->Next(&tag, &ok)) {
+    void* tag = nullptr;
+    bool is_ok = false;
+    while (cycle_cq->Next(&tag, &is_ok)) {
       // Drain completion queue
     }
   }
@@ -338,14 +345,14 @@ TEST_F(GrpcIntegrationTest, ChannelTimeout) {
 // Performance measurement tests
 TEST_F(GrpcIntegrationTest, ChannelCreationPerformance) {
   std::string target = "127.0.0.1:" + std::to_string(selected_port_);
-  const int num_channels = 100;
+  const int NUM_CHANNELS = 100;
 
   auto start = std::chrono::high_resolution_clock::now();
 
   std::vector<std::shared_ptr<grpc::Channel>> perf_channels;
-  perf_channels.reserve(num_channels);
+  perf_channels.reserve(NUM_CHANNELS);
 
-  for (int i = 0; i < num_channels; ++i) {
+  for (int i = 0; i < NUM_CHANNELS; ++i) {
     auto channel =
         grpc::CreateChannel(target, grpc::InsecureChannelCredentials());
     perf_channels.push_back(channel);
@@ -355,8 +362,8 @@ TEST_F(GrpcIntegrationTest, ChannelCreationPerformance) {
   auto duration =
       std::chrono::duration_cast<std::chrono::microseconds>(end - start);
 
-  std::cout << "Created " << num_channels << " channels in " << duration.count()
-            << " microseconds" << std::endl;
+  std::cout << "Created " << NUM_CHANNELS << " channels in " << duration.count()
+            << " microseconds\n";
 
   // Should be able to create channels reasonably quickly
   EXPECT_LT(duration.count(), 10000000);  // Less than 10 seconds
@@ -396,17 +403,17 @@ TEST(ThirdpartyGrpcIntegration, BuildServerAndShutdown) {
 
   grpc::AsyncGenericService async_generic_service;
   builder.RegisterAsyncGenericService(&async_generic_service);
-  auto cq = builder.AddCompletionQueue();
+  auto completion_queue = builder.AddCompletionQueue();
 
   std::unique_ptr<grpc::Server> server = builder.BuildAndStart();
   ASSERT_NE(server, nullptr);
   ASSERT_GT(selected_port, 0);
 
   server->Shutdown();
-  cq->Shutdown();
-  void* tag;
-  bool ok;
-  while (cq->Next(&tag, &ok)) {
+  completion_queue->Shutdown();
+  void* tag = nullptr;
+  bool is_ok = false;
+  while (completion_queue->Next(&tag, &is_ok)) {
     // Drain completion queue
   }
 }
@@ -438,10 +445,10 @@ TEST_F(GrpcIntegrationTest, GrpcCppPluginTest) {
   FILE* pipe = popen(popen_help_command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[1024];
+  std::array<char, 1024> buffer{};
   std::string help_output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    help_output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    help_output += buffer.data();
   }
   pclose(pipe);
 
@@ -449,7 +456,7 @@ TEST_F(GrpcIntegrationTest, GrpcCppPluginTest) {
   EXPECT_TRUE(help_output.find("cpp") != std::string::npos ||
               help_output.find("C++") != std::string::npos ||
               help_output.find("grpc") != std::string::npos ||
-              help_output.length() > 0)
+              !help_output.empty())
       << "Plugin should provide some form of help or output";
 }
 
@@ -500,10 +507,10 @@ service TestService {
   FILE* pipe = popen(command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[256];
+  std::array<char, 256> buffer{};
   std::string output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    output += buffer.data();
   }
   int result = pclose(pipe);
 

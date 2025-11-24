@@ -9,16 +9,26 @@ class ZlibIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Test data for compression/decompression
-    original_data =
+    std::string data =
         "Hello, World! This is a test string for zlib compression. "
         "It should be long enough to show compression benefits. "
         "Zlib is a software library used for data compression. "
         "It was written by Jean-loup Gailly and Mark Adler and is "
         "an abstraction of the DEFLATE compression algorithm used in "
         "their gzip file compression program.";
+    original_data_.assign(data.begin(), data.end());
   }
 
-  std::string original_data;
+  [[nodiscard]] const std::vector<Bytef>& GetOriginalData() const {
+    return original_data_;
+  }
+
+  // Helper to get non-const data for zlib APIs that require it (though they
+  // don't modify it)
+  std::vector<Bytef>& GetOriginalDataMutable() { return original_data_; }
+
+ private:
+  std::vector<Bytef> original_data_;
 };
 
 // Test zlib version information
@@ -33,22 +43,21 @@ TEST_F(ZlibIntegrationTest, ZlibVersionTest) {
       << "Version: " << version_str;
 
   // Test version consistency
-  EXPECT_EQ(ZLIB_VERSION[0], version[0]) << "Major version should match";
+  EXPECT_EQ(*ZLIB_VERSION, *version) << "Major version should match";
 }
 
 // Test basic compression and decompression
 TEST_F(ZlibIntegrationTest, BasicCompressionTest) {
   // Prepare source data
-  const char* source = original_data.c_str();
-  uLong source_len = original_data.length();
+  const Bytef* source = GetOriginalData().data();
+  uLong source_len = GetOriginalData().size();
 
   // Calculate destination buffer size
   uLong dest_len = compressBound(source_len);
   std::vector<Bytef> dest(dest_len);
 
   // Compress the data
-  int result = compress(dest.data(), &dest_len,
-                        reinterpret_cast<const Bytef*>(source), source_len);
+  int result = compress(dest.data(), &dest_len, source, source_len);
 
   EXPECT_EQ(result, Z_OK) << "Compression should succeed";
   EXPECT_LT(dest_len, source_len)
@@ -65,20 +74,19 @@ TEST_F(ZlibIntegrationTest, BasicCompressionTest) {
       << "Decompressed size should match original";
 
   // Verify decompressed data matches original
-  std::string decompressed(reinterpret_cast<char*>(decomp.data()), decomp_len);
-  EXPECT_EQ(decompressed, original_data)
+  EXPECT_EQ(decomp, GetOriginalData())
       << "Decompressed data should match original";
 }
 
 // Test different compression levels
 TEST_F(ZlibIntegrationTest, CompressionLevelsTest) {
-  const char* source = original_data.c_str();
-  uLong source_len = original_data.length();
+  const Bytef* source = GetOriginalData().data();
+  uLong source_len = GetOriginalData().size();
 
   struct CompressionResult {
-    int level;
-    uLong compressed_size;
-    int result_code;
+    int level_;
+    uLong compressed_size_;
+    int result_code_;
   };
 
   std::vector<CompressionResult> results;
@@ -88,9 +96,7 @@ TEST_F(ZlibIntegrationTest, CompressionLevelsTest) {
     uLong dest_len = compressBound(source_len);
     std::vector<Bytef> dest(dest_len);
 
-    int result =
-        compress2(dest.data(), &dest_len,
-                  reinterpret_cast<const Bytef*>(source), source_len, level);
+    int result = compress2(dest.data(), &dest_len, source, source_len, level);
 
     results.push_back({level, dest_len, result});
 
@@ -104,18 +110,18 @@ TEST_F(ZlibIntegrationTest, CompressionLevelsTest) {
 
   // Test that all compressions produced valid results
   for (const auto& res : results) {
-    EXPECT_EQ(res.result_code, Z_OK)
-        << "Compression level " << res.level << " should succeed";
-    EXPECT_GT(res.compressed_size, 0) << "Compressed size should be positive";
-    EXPECT_LT(res.compressed_size, source_len)
+    EXPECT_EQ(res.result_code_, Z_OK)
+        << "Compression level " << res.level_ << " should succeed";
+    EXPECT_GT(res.compressed_size_, 0) << "Compressed size should be positive";
+    EXPECT_LT(res.compressed_size_, source_len)
         << "Compressed size should be smaller than original";
   }
 }
 
 // Test streaming compression/decompression
 TEST_F(ZlibIntegrationTest, StreamingCompressionTest) {
-  const char* source = original_data.c_str();
-  uLong source_len = original_data.length();
+  Bytef* source = GetOriginalDataMutable().data();
+  uLong source_len = GetOriginalDataMutable().size();
 
   // Initialize compression stream
   z_stream strm;
@@ -126,26 +132,31 @@ TEST_F(ZlibIntegrationTest, StreamingCompressionTest) {
 
   // Prepare buffers
   std::vector<Bytef> compressed_data;
-  const size_t chunk_size = 256;
-  std::vector<Bytef> output_buffer(chunk_size);
+  constexpr size_t CHUNK_SIZE = 256;
+  std::vector<Bytef> output_buffer(CHUNK_SIZE);
 
   // Set up input
   strm.avail_in = source_len;
-  strm.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(source));
+  strm.next_in = source;
 
   // Compress data
-  do {
-    strm.avail_out = chunk_size;
+  while (true) {
+    strm.avail_out = CHUNK_SIZE;
     strm.next_out = output_buffer.data();
 
     result = deflate(&strm, Z_FINISH);
     EXPECT_TRUE(result == Z_OK || result == Z_STREAM_END)
         << "deflate should succeed or signal end";
 
-    size_t have = chunk_size - strm.avail_out;
-    compressed_data.insert(compressed_data.end(), output_buffer.begin(),
-                           output_buffer.begin() + have);
-  } while (strm.avail_out == 0);
+    size_t have = CHUNK_SIZE - strm.avail_out;
+    compressed_data.insert(
+        compressed_data.end(), output_buffer.begin(),
+        output_buffer.begin() + static_cast<std::ptrdiff_t>(have));
+
+    if (strm.avail_out != 0) {
+      break;
+    }
+  }
 
   EXPECT_EQ(result, Z_STREAM_END) << "Compression should complete";
 
@@ -163,18 +174,23 @@ TEST_F(ZlibIntegrationTest, StreamingCompressionTest) {
   strm.avail_in = compressed_data.size();
   strm.next_in = compressed_data.data();
 
-  do {
-    strm.avail_out = chunk_size;
+  while (true) {
+    strm.avail_out = CHUNK_SIZE;
     strm.next_out = output_buffer.data();
 
     result = inflate(&strm, Z_NO_FLUSH);
     EXPECT_TRUE(result == Z_OK || result == Z_STREAM_END)
         << "inflate should succeed or signal end";
 
-    size_t have = chunk_size - strm.avail_out;
-    decompressed_data.insert(decompressed_data.end(), output_buffer.begin(),
-                             output_buffer.begin() + have);
-  } while (strm.avail_out == 0);
+    size_t have = CHUNK_SIZE - strm.avail_out;
+    decompressed_data.insert(
+        decompressed_data.end(), output_buffer.begin(),
+        output_buffer.begin() + static_cast<std::ptrdiff_t>(have));
+
+    if (strm.avail_out != 0) {
+      break;
+    }
+  }
 
   EXPECT_EQ(result, Z_STREAM_END) << "Decompression should complete";
 
@@ -186,26 +202,24 @@ TEST_F(ZlibIntegrationTest, StreamingCompressionTest) {
   EXPECT_EQ(decompressed_data.size(), source_len)
       << "Decompressed size should match original";
 
-  std::string decompressed(reinterpret_cast<char*>(decompressed_data.data()),
-                           decompressed_data.size());
-  EXPECT_EQ(decompressed, original_data)
+  EXPECT_EQ(decompressed_data, GetOriginalData())
       << "Decompressed data should match original";
 }
 
 // Test CRC32 functionality
 TEST_F(ZlibIntegrationTest, CRC32Test) {
-  const char* data = original_data.c_str();
-  uLong len = original_data.length();
+  const Bytef* data = GetOriginalData().data();
+  uLong len = GetOriginalData().size();
 
   // Calculate CRC32
   uLong crc = crc32(0L, Z_NULL, 0);
-  crc = crc32(crc, reinterpret_cast<const Bytef*>(data), len);
+  crc = crc32(crc, data, len);
 
   EXPECT_NE(crc, 0) << "CRC32 should not be zero for non-empty data";
 
   // Test CRC32 consistency
   uLong crc2 = crc32(0L, Z_NULL, 0);
-  crc2 = crc32(crc2, reinterpret_cast<const Bytef*>(data), len);
+  crc2 = crc32(crc2, data, len);
 
   EXPECT_EQ(crc, crc2) << "CRC32 should be consistent";
 
@@ -213,11 +227,9 @@ TEST_F(ZlibIntegrationTest, CRC32Test) {
   uLong crc_incremental = crc32(0L, Z_NULL, 0);
   size_t half_len = len / 2;
 
+  crc_incremental = crc32(crc_incremental, data, half_len);
   crc_incremental =
-      crc32(crc_incremental, reinterpret_cast<const Bytef*>(data), half_len);
-  crc_incremental =
-      crc32(crc_incremental, reinterpret_cast<const Bytef*>(data + half_len),
-            len - half_len);
+      crc32(crc_incremental, &GetOriginalData()[half_len], len - half_len);
 
   EXPECT_EQ(crc, crc_incremental)
       << "Incremental CRC32 should match full CRC32";
@@ -227,13 +239,13 @@ TEST_F(ZlibIntegrationTest, CRC32Test) {
 TEST_F(ZlibIntegrationTest, ErrorHandlingTest) {
   // Test compression with invalid parameters
   uLong dest_len = 0;  // Too small buffer
-  Bytef dest;
+  Bytef dest = 0;
 
-  const char* source = "test";
-  uLong source_len = 4;
+  std::array<Bytef, 4> source_arr = {'t', 'e', 's', 't'};
+  const Bytef* source = source_arr.data();
+  uLong source_len = source_arr.size();
 
-  int result = compress(&dest, &dest_len,
-                        reinterpret_cast<const Bytef*>(source), source_len);
+  int result = compress(&dest, &dest_len, source, source_len);
 
   EXPECT_EQ(result, Z_BUF_ERROR)
       << "Should return buffer error for too small buffer";

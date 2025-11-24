@@ -15,7 +15,7 @@ TEST(SimdjsonIntegration, VersionAPILoad) {
     (void)named_impl;
     ++impl_count;
   }
-  ASSERT_GT(impl_count, 0u);
+  ASSERT_GT(impl_count, 0);
 }
 
 // Parse a simple JSON string
@@ -35,14 +35,14 @@ TEST(SimdjsonIntegration, SimpleParse) {
   auto arr_res = doc_res.value()["array"].get_array();
   ASSERT_EQ(arr_res.error(), simdjson::SUCCESS);
   std::vector<int64_t> values;
-  for (auto v : arr_res.value()) {
-    auto v_int = int64_t(v.get_int64().value());
+  for (auto value_item : arr_res.value()) {
+    auto v_int = static_cast<int64_t>(value_item.get_int64().value());
     values.push_back(v_int);
   }
   EXPECT_EQ(answer_res.value(), 42);
   EXPECT_TRUE(ok_res.value());
   EXPECT_NEAR(pi_res.value(), 3.14159, 1e-6);
-  ASSERT_EQ(values.size(), 3u);
+  ASSERT_EQ(values.size(), 3);
   EXPECT_EQ(values[0], 1);
   EXPECT_EQ(values[1], 2);
   EXPECT_EQ(values[2], 3);
@@ -65,13 +65,13 @@ TEST(SimdjsonIntegration, ManyDocuments) {
       parser.iterate_many(stream);  // simdjson_result<document_stream>
   ASSERT_EQ(docs_result.error(), simdjson::SUCCESS);
   for (auto doc : docs_result.value()) {
-    int64_t i = doc["i"].get_int64();
+    int64_t i_item = doc["i"].get_int64();
     int64_t value = doc["value"].get_int64();
-    EXPECT_EQ(value, i * i);
-    sum += size_t(value);
+    EXPECT_EQ(value, i_item * i_item);
+    sum += static_cast<size_t>(value);
     ++count;
   }
-  EXPECT_EQ(count, 100u);
+  EXPECT_EQ(count, 100);
   // Sum of squares 0..99 = 99*100*199/6
   size_t expected = 99 * 100 * 199 / 6;
   EXPECT_EQ(sum, expected);

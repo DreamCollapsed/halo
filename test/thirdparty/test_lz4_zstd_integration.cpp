@@ -11,20 +11,28 @@ class Lz4ZstdIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Prepare test data
-    original_data =
+    original_data_ =
         "This is a test string that will be used for compression testing. "
         "LZ4 supports dictionary compression which can be combined with "
         "Zstandard Dictionary Builder for better compression ratios. "
         "This functionality demonstrates the integration between LZ4 and Zstd.";
 
     // Create dictionary data
-    dictionary_data =
+    dictionary_data_ =
         "test string compression dictionary better ratios functionality "
         "integration";
   }
+  [[nodiscard]] const std::string& OriginalData() const {
+    return original_data_;
+  }
 
-  std::string original_data;
-  std::string dictionary_data;
+  [[nodiscard]] const std::string& DictionaryData() const {
+    return dictionary_data_;
+  }
+
+ private:
+  std::string original_data_;
+  std::string dictionary_data_;
 };
 
 // Test LZ4 dictionary functionality
@@ -34,27 +42,30 @@ TEST_F(Lz4ZstdIntegrationTest, LZ4DictionaryCompressionTest) {
   ASSERT_NE(stream, nullptr);
 
   // Load dictionary
-  int dict_loaded =
-      LZ4_loadDict(stream, dictionary_data.c_str(), dictionary_data.length());
+  int dict_loaded = LZ4_loadDict(stream, DictionaryData().c_str(),
+                                 static_cast<int>(DictionaryData().length()));
   EXPECT_GT(dict_loaded, 0);
 
   // Compress data
-  std::vector<char> compressed(LZ4_compressBound(original_data.length()));
+  std::vector<char> compressed(
+      LZ4_compressBound(static_cast<int>(OriginalData().length())));
   int compressed_size = LZ4_compress_fast_continue(
-      stream, original_data.c_str(), compressed.data(), original_data.length(),
-      compressed.size(), 1);
+      stream, OriginalData().c_str(), compressed.data(),
+      static_cast<int>(OriginalData().length()),
+      static_cast<int>(compressed.size()), 1);
 
   EXPECT_GT(compressed_size, 0);
-  EXPECT_LT(compressed_size, static_cast<int>(original_data.length()));
-
+  EXPECT_LT(compressed_size, static_cast<int>(OriginalData().length()));
   // Decompress
-  std::vector<char> decompressed(original_data.length());
+  std::vector<char> decompressed(OriginalData().length());
   int decompressed_size = LZ4_decompress_safe_usingDict(
       compressed.data(), decompressed.data(), compressed_size,
-      decompressed.size(), dictionary_data.c_str(), dictionary_data.length());
+      static_cast<int>(decompressed.size()), DictionaryData().c_str(),
+      static_cast<int>(DictionaryData().length()));
 
-  EXPECT_EQ(decompressed_size, static_cast<int>(original_data.length()));
-  EXPECT_EQ(std::string(decompressed.data(), decompressed_size), original_data);
+  EXPECT_EQ(decompressed_size, static_cast<int>(OriginalData().length()));
+  EXPECT_EQ(std::string(decompressed.data(), decompressed_size),
+            OriginalData());
 
   LZ4_freeStream(stream);
 }
@@ -99,7 +110,7 @@ TEST_F(Lz4ZstdIntegrationTest, ZstdDictionaryBuilderTest) {
   ZSTD_CDict* cdict = ZSTD_createCDict(dictionary.data(), dict_size, 1);
   EXPECT_NE(cdict, nullptr);
 
-  if (cdict) {
+  if (cdict != nullptr) {
     ZSTD_freeCDict(cdict);
   }
 }
@@ -145,15 +156,17 @@ TEST_F(Lz4ZstdIntegrationTest, LZ4ZstdDictionaryCompatibilityTest) {
 
   // Use partial dictionary data (skip Zstd-specific header information)
   const char* dict_content = training_data.c_str();
-  int dict_loaded =
-      LZ4_loadDict(lz4_stream, dict_content, training_data.length());
+  int dict_loaded = LZ4_loadDict(lz4_stream, dict_content,
+                                 static_cast<int>(training_data.length()));
   EXPECT_GT(dict_loaded, 0);
 
   // Test compression
-  std::vector<char> compressed(LZ4_compressBound(original_data.length()));
+  std::vector<char> compressed(
+      LZ4_compressBound(static_cast<int>(OriginalData().length())));
   int compressed_size = LZ4_compress_fast_continue(
-      lz4_stream, original_data.c_str(), compressed.data(),
-      original_data.length(), compressed.size(), 1);
+      lz4_stream, OriginalData().c_str(), compressed.data(),
+      static_cast<int>(OriginalData().length()),
+      static_cast<int>(compressed.size()), 1);
 
   EXPECT_GT(compressed_size, 0);
 
@@ -164,10 +177,11 @@ TEST_F(Lz4ZstdIntegrationTest, LZ4ZstdDictionaryCompatibilityTest) {
 TEST_F(Lz4ZstdIntegrationTest, DictionaryCompressionEfficiencyTest) {
   // Compression without dictionary
   std::vector<char> compressed_no_dict(
-      LZ4_compressBound(original_data.length()));
+      LZ4_compressBound(static_cast<int>(OriginalData().length())));
   int size_no_dict =
-      LZ4_compress_default(original_data.c_str(), compressed_no_dict.data(),
-                           original_data.length(), compressed_no_dict.size());
+      LZ4_compress_default(OriginalData().c_str(), compressed_no_dict.data(),
+                           static_cast<int>(OriginalData().length()),
+                           static_cast<int>(compressed_no_dict.size()));
 
   EXPECT_GT(size_no_dict, 0);
 
@@ -175,25 +189,25 @@ TEST_F(Lz4ZstdIntegrationTest, DictionaryCompressionEfficiencyTest) {
   LZ4_stream_t* stream = LZ4_createStream();
   ASSERT_NE(stream, nullptr);
 
-  int dict_loaded =
-      LZ4_loadDict(stream, dictionary_data.c_str(), dictionary_data.length());
+  int dict_loaded = LZ4_loadDict(stream, DictionaryData().c_str(),
+                                 static_cast<int>(DictionaryData().length()));
   EXPECT_GT(dict_loaded, 0);
 
   std::vector<char> compressed_with_dict(
-      LZ4_compressBound(original_data.length()));
+      LZ4_compressBound(static_cast<int>(OriginalData().length())));
   int size_with_dict = LZ4_compress_fast_continue(
-      stream, original_data.c_str(), compressed_with_dict.data(),
-      original_data.length(), compressed_with_dict.size(), 1);
+      stream, OriginalData().c_str(), compressed_with_dict.data(),
+      static_cast<int>(OriginalData().length()),
+      static_cast<int>(compressed_with_dict.size()), 1);
 
   EXPECT_GT(size_with_dict, 0);
 
   // Dictionary compression should be more effective (in ideal cases)
   std::cout << "Compression without dictionary: " << size_no_dict << " bytes"
-            << std::endl;
+            << "\n";
   std::cout << "Compression with dictionary: " << size_with_dict << " bytes"
-            << std::endl;
-  std::cout << "Dictionary size: " << dictionary_data.length() << " bytes"
-            << std::endl;
-
+            << "\n";
+  std::cout << "Dictionary size: " << DictionaryData().length() << " bytes"
+            << "\n";
   LZ4_freeStream(stream);
 }

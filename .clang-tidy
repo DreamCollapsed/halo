@@ -1,21 +1,22 @@
 # Google C++ Style Guide clang-tidy configuration
 Checks: >
   -*,
-  google-*,
-  modernize-*,
-  readability-*,
-  performance-*,
   bugprone-*,
   cppcoreguidelines-*,
   clang-analyzer-*,
+  google-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-macro-usage,
+  -google-runtime-int,
   -modernize-use-trailing-return-type,
   -readability-named-parameter,
   -readability-magic-numbers,
   -readability-duplicate-include,
-  -readability-function-cognitive-complexity,
-  -clang-analyzer-optin.core.EnumCastOutOfRange,
-  -cppcoreguidelines-avoid-magic-numbers,
-  -cppcoreguidelines-macro-usage
+  -readability-function-cognitive-complexity
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(^|.*/)(src|test)/'

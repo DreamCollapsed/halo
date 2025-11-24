@@ -9,7 +9,7 @@ class XzIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Set up test data
-    original_data =
+    std::string data =
         "This is a test string for xz/lzma compression and decompression. "
         "It should be long enough to demonstrate the compression capabilities. "
         "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
@@ -23,13 +23,19 @@ class XzIntegrationTest : public ::testing::Test {
         "accusantium doloremque laudantium, totam rem aperiam, eaque ipsa "
         "quae ab illo inventore veritatis et quasi architecto beatae vitae "
         "dicta sunt explicabo.";
+    original_data_.assign(data.begin(), data.end());
   }
 
   void TearDown() override {
     // Clean up if needed
   }
 
-  std::string original_data;
+  [[nodiscard]] const std::vector<uint8_t>& GetOriginalData() const {
+    return original_data_;
+  }
+
+ private:
+  std::vector<uint8_t> original_data_;
 };
 
 // Test xz version and basic functionality
@@ -61,9 +67,8 @@ TEST_F(XzIntegrationTest, BasicCompressionTest) {
   ASSERT_EQ(ret, LZMA_OK) << "Failed to initialize encoder";
 
   // Prepare input data
-  const uint8_t* input =
-      reinterpret_cast<const uint8_t*>(original_data.c_str());
-  size_t input_size = original_data.size();
+  const auto* input = GetOriginalData().data();
+  size_t input_size = GetOriginalData().size();
 
   // Prepare output buffer
   std::vector<uint8_t> compressed_data(input_size * 2);  // Generous buffer
@@ -111,19 +116,21 @@ TEST_F(XzIntegrationTest, BasicCompressionTest) {
   EXPECT_EQ(decompressed_size, input_size);
 
   // Verify data integrity
-  std::string decompressed_string(
-      reinterpret_cast<const char*>(decompressed_data.data()),
-      decompressed_size);
-  EXPECT_EQ(decompressed_string, original_data);
+  std::vector<uint8_t> decompressed_vec(
+      decompressed_data.begin(),
+      decompressed_data.begin() +
+          static_cast<std::ptrdiff_t>(decompressed_size));
+  EXPECT_EQ(decompressed_vec, GetOriginalData());
 
   // Clean up decoder
   lzma_end(&decomp_strm);
 
   // Print compression ratio for information
-  double compression_ratio = static_cast<double>(compressed_size) / input_size;
-  std::cout << "Original size: " << input_size << " bytes" << std::endl;
-  std::cout << "Compressed size: " << compressed_size << " bytes" << std::endl;
-  std::cout << "Compression ratio: " << compression_ratio << std::endl;
+  double compression_ratio =
+      static_cast<double>(compressed_size) / static_cast<double>(input_size);
+  std::cout << "Original size: " << input_size << " bytes\n";
+  std::cout << "Compressed size: " << compressed_size << " bytes\n";
+  std::cout << "Compression ratio: " << compression_ratio << "\n";
 }
 
 // Test different compression levels
@@ -136,9 +143,8 @@ TEST_F(XzIntegrationTest, CompressionLevelsTest) {
       9   // Best compression
   };
 
-  const uint8_t* input =
-      reinterpret_cast<const uint8_t*>(original_data.c_str());
-  size_t input_size = original_data.size();
+  const auto* input = GetOriginalData().data();
+  size_t input_size = GetOriginalData().size();
 
   for (uint32_t preset : presets) {
     lzma_stream strm = LZMA_STREAM_INIT;
@@ -163,8 +169,7 @@ TEST_F(XzIntegrationTest, CompressionLevelsTest) {
 
     lzma_end(&strm);
 
-    std::cout << "Preset " << preset << ": " << compressed_size << " bytes"
-              << std::endl;
+    std::cout << "Preset " << preset << ": " << compressed_size << " bytes\n";
   }
 }
 
@@ -182,7 +187,7 @@ TEST_F(XzIntegrationTest, MemoryUsageTest) {
 
     std::cout << "Preset " << preset << " - Encoder memory: " << mem_usage
               << " bytes"
-              << ", Decoder memory: " << mem_limit << " bytes" << std::endl;
+              << ", Decoder memory: " << mem_limit << " bytes\n";
   }
 }
 
@@ -191,15 +196,13 @@ TEST_F(XzIntegrationTest, CheckTypesTest) {
   std::vector<lzma_check> check_types = {LZMA_CHECK_NONE, LZMA_CHECK_CRC32,
                                          LZMA_CHECK_CRC64, LZMA_CHECK_SHA256};
 
-  const uint8_t* input =
-      reinterpret_cast<const uint8_t*>(original_data.c_str());
-  size_t input_size = original_data.size();
+  const auto* input = GetOriginalData().data();
+  size_t input_size = GetOriginalData().size();
 
   for (lzma_check check : check_types) {
     // Skip unsupported check types
-    if (!lzma_check_is_supported(check)) {
-      std::cout << "Check type " << check << " is not supported, skipping."
-                << std::endl;
+    if (lzma_check_is_supported(check) == 0) {
+      std::cout << "Check type " << check << " is not supported, skipping.\n";
       continue;
     }
 
@@ -225,20 +228,20 @@ TEST_F(XzIntegrationTest, CheckTypesTest) {
 
     lzma_end(&strm);
 
-    std::cout << "Check type " << check << ": " << compressed_size << " bytes"
-              << std::endl;
+    std::cout << "Check type " << check << ": " << compressed_size
+              << " bytes\n";
   }
 }
 
 // Test stream information
 TEST_F(XzIntegrationTest, StreamInfoTest) {
   // Test that we can check if a buffer looks like XZ data
-  const uint8_t xz_magic[] = {0xFD, 0x37, 0x7A,
-                              0x58, 0x5A, 0x00};  // XZ magic number
+  constexpr std::array<uint8_t, 6> XZ_MAGIC = {0xFD, 0x37, 0x7A, 0x58,
+                                               0x5A, 0x00};  // XZ magic number
 
   // This is a simple test to ensure the header constants are available
   // In a real scenario, you would compress data first and then check the header
-  EXPECT_EQ(sizeof(xz_magic), 6);
+  EXPECT_EQ(XZ_MAGIC.size(), 6);
 
   // Test that we can get information about check types
   EXPECT_TRUE(lzma_check_is_supported(LZMA_CHECK_CRC64));

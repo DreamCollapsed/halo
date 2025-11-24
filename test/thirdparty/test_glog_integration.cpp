@@ -4,7 +4,6 @@
 
 #include <chrono>
 #include <filesystem>
-#include <fstream>
 #include <numbers>
 #include <thread>
 #include <vector>
@@ -36,26 +35,7 @@ class GlogIntegrationTest : public ::testing::Test {
     std::filesystem::remove_all(test_log_dir_, error_code);
   }
 
-  // Helper method to count log messages in a file
-  // NOLINTNEXTLINE(bugprone-easily-swappable-parameters)
-  static int CountLogMessages(const std::string& filename,
-                              const std::string& pattern) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-      return 0;
-    }
-
-    std::string line;
-    int count = 0;
-    while (std::getline(file, line)) {
-      if (line.find(pattern) != std::string::npos) {
-        count++;
-      }
-    }
-    return count;
-  }
-
-  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
+ private:
   std::filesystem::path test_log_dir_;
 };
 

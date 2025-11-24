@@ -7,23 +7,16 @@
 #include <iostream>
 
 int main() {
-  std::cout << absl::StrCat("Message: ", "Hello, World!") << std::endl;
-
-  // Simple jemalloc verification
-  void* ptr = malloc(1000);
-  if (ptr && malloc_usable_size(ptr) < 0) {
-    std::cout << "jemalloc drop-in mode: INACTIVE" << std::endl;
-  }
-  free(ptr);
+  std::cout << absl::StrCat("Message: ", "Hello, World!") << '\n';
 
   // Simple Velox integration test
   try {
-    auto intType = facebook::velox::TypeFactory<
+    auto int_type = facebook::velox::TypeFactory<
         facebook::velox::TypeKind::INTEGER>::create();
     std::cout << "Velox integration successful! Created INTEGER type: "
-              << intType->toString() << std::endl;
+              << int_type->toString() << '\n';
   } catch (const std::exception& e) {
-    std::cout << "Velox integration error: " << e.what() << std::endl;
+    std::cout << "Velox integration error: " << e.what() << '\n';
     return 1;
   }
 

@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <numbers>
 #include <string>
 #include <thread>
 #include <vector>
@@ -260,7 +261,7 @@ TEST(FbthriftIntegration, SerializerTemplates) {
   // Test with simple types using serializer utilities
   std::string test_string = "Serializer测试";
   int32_t test_int = 42;
-  double test_double = 3.14159;  // NOLINT(modernize-use-std-numbers)
+  double test_double = std::numbers::pi;
 
   // While we don't have custom structs, we can test basic serialization
   // primitives through protocol writers/readers which are the foundation of
@@ -367,8 +368,7 @@ TEST(FbthriftIntegration, NumericTypeSerialization) {
     int16_t short_value_ = -32768;
     int32_t int_value_ = -2147483648;
     int64_t long_value_ = -9223372036854775807LL - 1;
-    double double_value_ =
-        3.141592653589793;  // NOLINT(modernize-use-std-numbers)
+    double double_value_ = std::numbers::pi;
   };
 
   TestCase original;

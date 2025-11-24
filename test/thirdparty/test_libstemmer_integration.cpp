@@ -2,6 +2,7 @@
 #include <libstemmer.h>
 
 #include <cstring>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -24,13 +25,16 @@ TEST_F(LibstemmerIntegrationTest, BasicStemming) {
   ASSERT_NE(stemmer, nullptr);
 
   // Test stemming a simple word
-  const char* word = "running";
-  const sb_symbol* stemmed = sb_stemmer_stem(
-      stemmer, reinterpret_cast<const sb_symbol*>(word), std::strlen(word));
+  std::string word_str = "running";
+  std::vector<sb_symbol> word(word_str.begin(), word_str.end());
+
+  const sb_symbol* stemmed =
+      sb_stemmer_stem(stemmer, word.data(), static_cast<int>(word.size()));
 
   ASSERT_NE(stemmed, nullptr);
 
-  std::string result(reinterpret_cast<const char*>(stemmed));
+  int len = sb_stemmer_length(stemmer);
+  std::string result(stemmed, std::next(stemmed, len));
   EXPECT_EQ(result, "run");
 
   sb_stemmer_delete(stemmer);
@@ -42,12 +46,14 @@ TEST_F(LibstemmerIntegrationTest, MultipleLanguages) {
   struct sb_stemmer* en_stemmer = sb_stemmer_new("english", "UTF_8");
   ASSERT_NE(en_stemmer, nullptr);
 
-  const char* en_word = "running";
-  const sb_symbol* en_stemmed =
-      sb_stemmer_stem(en_stemmer, reinterpret_cast<const sb_symbol*>(en_word),
-                      std::strlen(en_word));
+  std::string en_word_str = "running";
+  std::vector<sb_symbol> en_word(en_word_str.begin(), en_word_str.end());
 
-  std::string en_result(reinterpret_cast<const char*>(en_stemmed));
+  const sb_symbol* en_stemmed = sb_stemmer_stem(
+      en_stemmer, en_word.data(), static_cast<int>(en_word.size()));
+
+  int en_len = sb_stemmer_length(en_stemmer);
+  std::string en_result(en_stemmed, std::next(en_stemmed, en_len));
   EXPECT_EQ(en_result, "run");
 
   sb_stemmer_delete(en_stemmer);
@@ -56,12 +62,14 @@ TEST_F(LibstemmerIntegrationTest, MultipleLanguages) {
   struct sb_stemmer* fr_stemmer = sb_stemmer_new("french", "UTF_8");
   ASSERT_NE(fr_stemmer, nullptr);
 
-  const char* fr_word = "courant";
-  const sb_symbol* fr_stemmed =
-      sb_stemmer_stem(fr_stemmer, reinterpret_cast<const sb_symbol*>(fr_word),
-                      std::strlen(fr_word));
+  std::string fr_word_str = "courant";
+  std::vector<sb_symbol> fr_word(fr_word_str.begin(), fr_word_str.end());
 
-  std::string fr_result(reinterpret_cast<const char*>(fr_stemmed));
+  const sb_symbol* fr_stemmed = sb_stemmer_stem(
+      fr_stemmer, fr_word.data(), static_cast<int>(fr_word.size()));
+
+  int fr_len = sb_stemmer_length(fr_stemmer);
+  std::string fr_result(fr_stemmed, std::next(fr_stemmed, fr_len));
   EXPECT_EQ(fr_result, "cour");
 
   sb_stemmer_delete(fr_stemmer);
@@ -77,13 +85,21 @@ TEST_F(LibstemmerIntegrationTest, ListLanguages) {
   bool found_french = false;
   bool found_german = false;
 
-  for (int i = 0; languages[i] != nullptr; i++) {
-    std::string lang(languages[i]);
-    if (lang == "english") found_english = true;
-    if (lang == "french") found_french = true;
-    if (lang == "german") found_german = true;
+  const char** current = languages;
+  while (*current != nullptr) {
+    std::string lang(*current);
+    if (lang == "english") {
+      found_english = true;
+    }
+    if (lang == "french") {
+      found_french = true;
+    }
+    if (lang == "german") {
+      found_german = true;
+    }
 
-    std::cout << "Available language: " << lang << std::endl;
+    std::cout << "Available language: " << lang << '\n';
+    current = std::next(current);
   }
 
   EXPECT_TRUE(found_english);
@@ -113,18 +129,20 @@ TEST_F(LibstemmerIntegrationTest, VariousWordForms) {
       {"colonizer", "colon"},    {"plotted", "plot"}};
 
   for (const auto& test_case : test_cases) {
-    const std::string& word = test_case.first;
+    const std::string& word_str = test_case.first;
     const std::string& expected = test_case.second;
 
-    const sb_symbol* stemmed = sb_stemmer_stem(
-        stemmer, reinterpret_cast<const sb_symbol*>(word.c_str()),
-        word.length());
+    std::vector<sb_symbol> word(word_str.begin(), word_str.end());
 
-    ASSERT_NE(stemmed, nullptr) << "Failed to stem word: " << word;
+    const sb_symbol* stemmed =
+        sb_stemmer_stem(stemmer, word.data(), static_cast<int>(word.size()));
 
-    std::string result(reinterpret_cast<const char*>(stemmed));
+    ASSERT_NE(stemmed, nullptr) << "Failed to stem word: " << word_str;
+
+    int len = sb_stemmer_length(stemmer);
+    std::string result(stemmed, std::next(stemmed, len));
     EXPECT_EQ(result, expected)
-        << "Word: " << word << " -> Expected: " << expected
+        << "Word: " << word_str << " -> Expected: " << expected
         << " Got: " << result;
   }
 
@@ -137,12 +155,14 @@ TEST_F(LibstemmerIntegrationTest, EncodingSupport) {
   struct sb_stemmer* utf8_stemmer = sb_stemmer_new("english", "UTF_8");
   ASSERT_NE(utf8_stemmer, nullptr);
 
-  const char* word = "running";
-  const sb_symbol* stemmed =
-      sb_stemmer_stem(utf8_stemmer, reinterpret_cast<const sb_symbol*>(word),
-                      std::strlen(word));
+  std::string word_str = "running";
+  std::vector<sb_symbol> word(word_str.begin(), word_str.end());
 
-  std::string result(reinterpret_cast<const char*>(stemmed));
+  const sb_symbol* stemmed =
+      sb_stemmer_stem(utf8_stemmer, word.data(), static_cast<int>(word.size()));
+
+  int len = sb_stemmer_length(utf8_stemmer);
+  std::string result(stemmed, std::next(stemmed, len));
   EXPECT_EQ(result, "run");
 
   sb_stemmer_delete(utf8_stemmer);
@@ -151,10 +171,11 @@ TEST_F(LibstemmerIntegrationTest, EncodingSupport) {
   struct sb_stemmer* iso_stemmer = sb_stemmer_new("english", "ISO_8859_1");
   ASSERT_NE(iso_stemmer, nullptr);
 
-  const sb_symbol* iso_stemmed = sb_stemmer_stem(
-      iso_stemmer, reinterpret_cast<const sb_symbol*>(word), std::strlen(word));
+  const sb_symbol* iso_stemmed =
+      sb_stemmer_stem(iso_stemmer, word.data(), static_cast<int>(word.size()));
 
-  std::string iso_result(reinterpret_cast<const char*>(iso_stemmed));
+  int iso_len = sb_stemmer_length(iso_stemmer);
+  std::string iso_result(iso_stemmed, std::next(iso_stemmed, iso_len));
   EXPECT_EQ(iso_result, "run");
 
   sb_stemmer_delete(iso_stemmer);
@@ -177,8 +198,9 @@ TEST_F(LibstemmerIntegrationTest, ErrorHandling) {
   ASSERT_NE(stemmer, nullptr);
 
   // Test stemming empty string
+  std::vector<sb_symbol> empty_word;
   const sb_symbol* empty_result =
-      sb_stemmer_stem(stemmer, reinterpret_cast<const sb_symbol*>(""), 0);
+      sb_stemmer_stem(stemmer, empty_word.data(), 0);
   EXPECT_NE(empty_result, nullptr);
 
   // Test stemming null - this should be handled gracefully
@@ -198,13 +220,15 @@ TEST_F(LibstemmerIntegrationTest, StemmerReuse) {
   std::vector<std::string> expected = {"run", "walk", "jump", "fli", "swim"};
 
   for (size_t i = 0; i < words.size(); i++) {
-    const sb_symbol* stemmed = sb_stemmer_stem(
-        stemmer, reinterpret_cast<const sb_symbol*>(words[i].c_str()),
-        words[i].length());
+    std::vector<sb_symbol> word(words[i].begin(), words[i].end());
+
+    const sb_symbol* stemmed =
+        sb_stemmer_stem(stemmer, word.data(), static_cast<int>(word.size()));
 
     ASSERT_NE(stemmed, nullptr);
 
-    std::string result(reinterpret_cast<const char*>(stemmed));
+    int len = sb_stemmer_length(stemmer);
+    std::string result(stemmed, std::next(stemmed, len));
     EXPECT_EQ(result, expected[i]) << "Word: " << words[i];
   }
 
@@ -218,16 +242,17 @@ TEST_F(LibstemmerIntegrationTest, PerformanceTest) {
 
   // Test with 1000 words
   std::vector<std::string> test_words;
+  test_words.reserve(1000);
   for (int i = 0; i < 1000; i++) {
     test_words.push_back("running" + std::to_string(i));
   }
 
   auto start_time = std::chrono::high_resolution_clock::now();
 
-  for (const auto& word : test_words) {
-    const sb_symbol* stemmed = sb_stemmer_stem(
-        stemmer, reinterpret_cast<const sb_symbol*>(word.c_str()),
-        word.length());
+  for (const auto& word_str : test_words) {
+    std::vector<sb_symbol> word(word_str.begin(), word_str.end());
+    const sb_symbol* stemmed =
+        sb_stemmer_stem(stemmer, word.data(), static_cast<int>(word.size()));
 
     ASSERT_NE(stemmed, nullptr);
     // Don't need to check the result, just ensure it doesn't crash
@@ -238,7 +263,7 @@ TEST_F(LibstemmerIntegrationTest, PerformanceTest) {
       end_time - start_time);
 
   std::cout << "Stemmed " << test_words.size() << " words in "
-            << duration.count() << " ms" << std::endl;
+            << duration.count() << " ms" << '\n';
 
   // Should complete within reasonable time (adjust as needed)
   EXPECT_LT(duration.count(), 1000);  // Less than 1 second
@@ -256,20 +281,26 @@ TEST_F(LibstemmerIntegrationTest, ThreadSafety) {
   ASSERT_NE(stemmer2, nullptr);
 
   // Use them simultaneously (basic test)
-  const char* word1 = "running";
-  const char* word2 = "walking";
+  std::string word1_str = "running";
+  std::vector<sb_symbol> word1(word1_str.begin(), word1_str.end());
 
-  const sb_symbol* result1 = sb_stemmer_stem(
-      stemmer1, reinterpret_cast<const sb_symbol*>(word1), std::strlen(word1));
+  std::string word2_str = "walking";
+  std::vector<sb_symbol> word2(word2_str.begin(), word2_str.end());
 
-  const sb_symbol* result2 = sb_stemmer_stem(
-      stemmer2, reinterpret_cast<const sb_symbol*>(word2), std::strlen(word2));
+  const sb_symbol* result1 =
+      sb_stemmer_stem(stemmer1, word1.data(), static_cast<int>(word1.size()));
+
+  const sb_symbol* result2 =
+      sb_stemmer_stem(stemmer2, word2.data(), static_cast<int>(word2.size()));
 
   ASSERT_NE(result1, nullptr);
   ASSERT_NE(result2, nullptr);
 
-  std::string stem1(reinterpret_cast<const char*>(result1));
-  std::string stem2(reinterpret_cast<const char*>(result2));
+  int len1 = sb_stemmer_length(stemmer1);
+  std::string stem1(result1, std::next(result1, len1));
+
+  int len2 = sb_stemmer_length(stemmer2);
+  std::string stem2(result2, std::next(result2, len2));
 
   EXPECT_EQ(stem1, "run");
   EXPECT_EQ(stem2, "walk");

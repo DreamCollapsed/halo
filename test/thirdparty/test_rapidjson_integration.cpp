@@ -12,15 +12,14 @@
 
 TEST(RapidJSONIntegration, ParseAndStringify) {
   const char* json = R"({"a":1,"b":[true,false,null],"s":"hi"})";
-  rapidjson::Document d;
-  d.Parse(json);
-  ASSERT_FALSE(d.HasParseError());
-  ASSERT_TRUE(d.HasMember("a"));
-  ASSERT_TRUE(d["b"].IsArray());
-
+  rapidjson::Document doc;
+  doc.Parse(json);
+  ASSERT_FALSE(doc.HasParseError());
+  ASSERT_TRUE(doc.HasMember("a"));
+  ASSERT_TRUE(doc["b"].IsArray());
   rapidjson::StringBuffer buffer;
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
-  d.Accept(writer);
+  doc.Accept(writer);
   std::string out = buffer.GetString();
   ASSERT_FALSE(out.empty());
 }
@@ -209,8 +208,8 @@ TEST(RapidJSONIntegration, LargeNumberHandling) {
                 allocator);
   doc.AddMember("uint64_val", static_cast<uint64_t>(18446744073709551615ULL),
                 allocator);
-  doc.AddMember("float_val", 3.14159f, allocator);
-  doc.AddMember("double_val", 2.718281828459045, allocator);
+  doc.AddMember("float_val", 123.456F, allocator);
+  doc.AddMember("double_val", 789.012, allocator);
 
   // Serialize and parse back
   rapidjson::StringBuffer buffer;
@@ -229,7 +228,7 @@ TEST(RapidJSONIntegration, LargeNumberHandling) {
     EXPECT_EQ(parsed["int64_val"].GetInt64(), 9223372036854775807LL);
   }
 
-  EXPECT_NEAR(parsed["double_val"].GetDouble(), 2.718281828459045, 1e-15);
+  EXPECT_NEAR(parsed["double_val"].GetDouble(), 789.012, 1e-15);
 }
 
 TEST(RapidJSONIntegration, MemberIterationAndModification) {

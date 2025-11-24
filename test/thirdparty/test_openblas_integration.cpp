@@ -1,10 +1,11 @@
-#include <cblas.h>
 #include <gtest/gtest.h>
+
+#ifdef __linux__
+#include <cblas.h>
 
 #include <array>
 #include <string>
 
-#ifdef __linux__
 // Basic OpenBLAS library integration test
 TEST(OpenBLASIntegrationTest, BasicHeaderAndFunction) {
   // Test basic BLAS function availability

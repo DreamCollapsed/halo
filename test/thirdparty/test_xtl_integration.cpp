@@ -8,48 +8,48 @@
 #include <xtl/xspan.hpp>
 
 TEST(XtlIntegration, OptionalBasic) {
-  xtl::xoptional<int> oi = 42;
-  ASSERT_TRUE(oi.has_value());
-  EXPECT_EQ(oi.value(), 42);
+  xtl::xoptional<int> xoi = 42;
+  ASSERT_TRUE(xoi.has_value());
+  EXPECT_EQ(xoi.value(), 42);
 
-  oi = xtl::missing<int>();
-  EXPECT_FALSE(oi.has_value());
+  xoi = xtl::missing<int>();
+  EXPECT_FALSE(xoi.has_value());
 }
 
 TEST(XtlIntegration, SpanView) {
-  std::vector<int> v{1, 2, 3, 4, 5};
-  xtl::span<int> s{v};
-  ASSERT_EQ(s.size(), 5);
-  s[0] = 10;
-  EXPECT_EQ(v[0], 10);
+  std::vector<int> xvi{1, 2, 3, 4, 5};
+  xtl::span<int> xsi{xvi};
+  ASSERT_EQ(xsi.size(), 5);
+  xsi[0] = 10;
+  EXPECT_EQ(xvi[0], 10);
 }
 
 TEST(XtlIntegration, OptionalChaining) {
-  xtl::xoptional<int> a = 5;
-  xtl::xoptional<int> b = 10;
-  xtl::xoptional<int> c = xtl::missing<int>();
+  xtl::xoptional<int> xoa = 5;
+  xtl::xoptional<int> xob = 10;
+  xtl::xoptional<int> xoc = xtl::missing<int>();
 
   // Test arithmetic with optional values
-  auto sum_ab = a.has_value() && b.has_value()
-                    ? xtl::xoptional<int>(a.value() + b.value())
+  auto sum_ab = xoa.has_value() && xob.has_value()
+                    ? xtl::xoptional<int>(xoa.value() + xob.value())
                     : xtl::missing<int>();
   ASSERT_TRUE(sum_ab.has_value());
   EXPECT_EQ(sum_ab.value(), 15);
 
   // Test with missing value
-  auto sum_ac = a.has_value() && c.has_value()
-                    ? xtl::xoptional<int>(a.value() + c.value())
+  auto sum_ac = xoa.has_value() && xoc.has_value()
+                    ? xtl::xoptional<int>(xoa.value() + xoc.value())
                     : xtl::missing<int>();
   EXPECT_FALSE(sum_ac.has_value());
 }
 
 TEST(XtlIntegration, OptionalCollections) {
   std::vector<xtl::xoptional<double>> data;
-  data.push_back(1.5);
-  data.push_back(xtl::missing<double>());
-  data.push_back(3.7);
-  data.push_back(2.1);
-  data.push_back(xtl::missing<double>());
+  data.emplace_back(1.5);
+  data.emplace_back(xtl::missing<double>());
+  data.emplace_back(3.7);
+  data.emplace_back(2.1);
+  data.emplace_back(xtl::missing<double>());
 
   // Count valid values
   std::size_t valid_count = 0;
@@ -65,36 +65,37 @@ TEST(XtlIntegration, OptionalCollections) {
   EXPECT_DOUBLE_EQ(sum, 7.3);
 
   // Calculate average of valid values
-  double average = valid_count > 0 ? sum / valid_count : 0.0;
+  double average =
+      valid_count > 0 ? sum / static_cast<double>(valid_count) : 0.0;
   EXPECT_DOUBLE_EQ(average, 7.3 / 3.0);
 }
 
 TEST(XtlIntegration, ComplexNumbers) {
-  xtl::xcomplex<float> c1(3.0f, 4.0f);
-  xtl::xcomplex<float> c2(1.0f, 2.0f);
+  xtl::xcomplex<float> xc1(3.0F, 4.0F);
+  xtl::xcomplex<float> xc2(1.0F, 2.0F);
 
   // Test basic operations
-  auto sum = c1 + c2;
-  EXPECT_FLOAT_EQ(sum.real(), 4.0f);
-  EXPECT_FLOAT_EQ(sum.imag(), 6.0f);
+  auto sum = xc1 + xc2;
+  EXPECT_FLOAT_EQ(sum.real(), 4.0F);
+  EXPECT_FLOAT_EQ(sum.imag(), 6.0F);
 
-  auto product = c1 * c2;
+  auto product = xc1 * xc2;
   // (3+4i) * (1+2i) = 3 + 6i + 4i + 8i^2 = 3 + 10i - 8 = -5 + 10i
-  EXPECT_FLOAT_EQ(product.real(), -5.0f);
-  EXPECT_FLOAT_EQ(product.imag(), 10.0f);
+  EXPECT_FLOAT_EQ(product.real(), -5.0F);
+  EXPECT_FLOAT_EQ(product.imag(), 10.0F);
 
   // Test magnitude
-  auto magnitude_sq = c1.real() * c1.real() + c1.imag() * c1.imag();
-  EXPECT_FLOAT_EQ(magnitude_sq, 25.0f);  // 3^2 + 4^2 = 9 + 16 = 25
+  auto magnitude_sq = (xc1.real() * xc1.real()) + (xc1.imag() * xc1.imag());
+  EXPECT_FLOAT_EQ(magnitude_sq, 25.0F);  // 3^2 + 4^2 = 9 + 16 = 25
 }
 
 TEST(XtlIntegration, ComplexOptionalCombination) {
   std::vector<xtl::xoptional<xtl::xcomplex<double>>> complex_data;
 
-  complex_data.push_back(xtl::xcomplex<double>(1.0, 1.0));
-  complex_data.push_back(xtl::missing<xtl::xcomplex<double>>());
-  complex_data.push_back(xtl::xcomplex<double>(2.0, -1.0));
-  complex_data.push_back(xtl::xcomplex<double>(-1.0, 2.0));
+  complex_data.emplace_back(xtl::xcomplex<double>(1.0, 1.0));
+  complex_data.emplace_back(xtl::missing<xtl::xcomplex<double>>());
+  complex_data.emplace_back(xtl::xcomplex<double>(2.0, -1.0));
+  complex_data.emplace_back(xtl::xcomplex<double>(-1.0, 2.0));
 
   // Process only valid complex numbers
   std::vector<xtl::xcomplex<double>> valid_numbers;
@@ -108,9 +109,9 @@ TEST(XtlIntegration, ComplexOptionalCombination) {
 
   // Calculate sum of valid complex numbers
   xtl::xcomplex<double> total(0.0, 0.0);
-  for (const auto& c : valid_numbers) {
-    total =
-        xtl::xcomplex<double>(total.real() + c.real(), total.imag() + c.imag());
+  for (const auto& xcd : valid_numbers) {
+    total = xtl::xcomplex<double>(total.real() + xcd.real(),
+                                  total.imag() + xcd.imag());
   }
 
   EXPECT_DOUBLE_EQ(total.real(), 2.0);  // 1 + 2 + (-1) = 2

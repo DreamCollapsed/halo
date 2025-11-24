@@ -4,31 +4,36 @@
 #include <velox/type/Type.h>
 #include <velox/type/Variant.h>
 
-using namespace facebook::velox;
-
 TEST(VeloxIntegration, BasicTypeCreation) {
-  auto intType = TypeFactory<TypeKind::INTEGER>::create();
-  ASSERT_NE(intType, nullptr);
-  EXPECT_EQ(intType->kind(), TypeKind::INTEGER);
-  EXPECT_EQ(intType->toString(), "INTEGER");
+  auto int_type = facebook::velox::TypeFactory<
+      facebook::velox::TypeKind::INTEGER>::create();
+  ASSERT_NE(int_type, nullptr);
+  EXPECT_EQ(int_type->kind(), facebook::velox::TypeKind::INTEGER);
+  EXPECT_EQ(int_type->toString(), "INTEGER");
 }
 
 TEST(VeloxIntegration, MultipleTypeKinds) {
-  auto bigintType = TypeFactory<TypeKind::BIGINT>::create();
-  auto doubleType = TypeFactory<TypeKind::DOUBLE>::create();
-  auto varcharType = TypeFactory<TypeKind::VARCHAR>::create();
-  ASSERT_NE(bigintType, nullptr);
-  ASSERT_NE(doubleType, nullptr);
-  ASSERT_NE(varcharType, nullptr);
-  EXPECT_EQ(bigintType->kind(), TypeKind::BIGINT);
-  EXPECT_EQ(doubleType->kind(), TypeKind::DOUBLE);
-  EXPECT_EQ(varcharType->kind(), TypeKind::VARCHAR);
+  auto bigint_type =
+      facebook::velox::TypeFactory<facebook::velox::TypeKind::BIGINT>::create();
+  auto double_type =
+      facebook::velox::TypeFactory<facebook::velox::TypeKind::DOUBLE>::create();
+  auto varchar_type = facebook::velox::TypeFactory<
+      facebook::velox::TypeKind::VARCHAR>::create();
+  ASSERT_NE(bigint_type, nullptr);
+  ASSERT_NE(double_type, nullptr);
+  ASSERT_NE(varchar_type, nullptr);
+  EXPECT_EQ(bigint_type->kind(), facebook::velox::TypeKind::BIGINT);
+  EXPECT_EQ(double_type->kind(), facebook::velox::TypeKind::DOUBLE);
+  EXPECT_EQ(varchar_type->kind(), facebook::velox::TypeKind::VARCHAR);
 }
 
 TEST(VeloxIntegration, TypeComparison) {
-  auto intType1 = TypeFactory<TypeKind::INTEGER>::create();
-  auto intType2 = TypeFactory<TypeKind::INTEGER>::create();
-  auto bigintType = TypeFactory<TypeKind::BIGINT>::create();
-  EXPECT_TRUE(intType1->equivalent(*intType2));
-  EXPECT_FALSE(intType1->equivalent(*bigintType));
+  auto int_type1 = facebook::velox::TypeFactory<
+      facebook::velox::TypeKind::INTEGER>::create();
+  auto int_type2 = facebook::velox::TypeFactory<
+      facebook::velox::TypeKind::INTEGER>::create();
+  auto bigint_type =
+      facebook::velox::TypeFactory<facebook::velox::TypeKind::BIGINT>::create();
+  EXPECT_TRUE(int_type1->equivalent(*int_type2));
+  EXPECT_FALSE(int_type1->equivalent(*bigint_type));
 }

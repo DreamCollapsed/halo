@@ -55,30 +55,37 @@ static void AddrinfoCallback(void* arg, int status, int /*timeouts*/,
 // Helper state for socket callback driven loop
 struct LoopState {
   std::vector<ares_socket_t> active_sockets_;
+
+  struct SocketFlags {
+    int readable_;
+    int writable_;
+  };
+
+  void UpdateSocketState(ares_socket_t socket_fd, SocketFlags flags) {
+    auto socket_iter = std::ranges::find(active_sockets_, socket_fd);
+    if (flags.readable_ == 0 && flags.writable_ == 0) {
+      if (socket_iter != active_sockets_.end()) {
+        active_sockets_.erase(socket_iter);
+      }
+    } else if (socket_iter == active_sockets_.end()) {
+      active_sockets_.push_back(socket_fd);
+    }
+  }
 };
 
-// NOLINTBEGIN(readability-suspicious-call-argument)
-// NOLINTBEGIN(bugprone-easily-swappable-parameters)
+template <typename T>
 static void SocketStateCallback(void* data, ares_socket_t socket_fd,
-                                int readable_flag, int writable_flag) {
-  auto* loop_state = static_cast<LoopState*>(data);
-  auto socket_iter = std::ranges::find(loop_state->active_sockets_, socket_fd);
-  if (readable_flag == 0 && writable_flag == 0) {
-    if (socket_iter != loop_state->active_sockets_.end()) {
-      loop_state->active_sockets_.erase(socket_iter);
-    }
-  } else if (socket_iter == loop_state->active_sockets_.end()) {
-    loop_state->active_sockets_.push_back(socket_fd);
-  }
+                                T readable_flag, T writable_flag) {
+  static_cast<LoopState*>(data)->UpdateSocketState(
+      socket_fd, {.readable_ = static_cast<int>(readable_flag),
+                  .writable_ = static_cast<int>(writable_flag)});
 }
-// NOLINTEND(bugprone-easily-swappable-parameters)
-// NOLINTEND(readability-suspicious-call-argument)
 
 TEST(CaresIntegration, CanResolveLocalhostWithGetAddrInfo) {
   ares_channel channel = nullptr;
   LoopState loop_state;
   ares_options options{};  // zero-init
-  options.sock_state_cb = SocketStateCallback;
+  options.sock_state_cb = SocketStateCallback<int>;
   options.sock_state_cb_data = &loop_state;
   int optmask = ARES_OPT_SOCK_STATE_CB;  // enable socket state callback
   ASSERT_EQ(ARES_SUCCESS, ares_init_options(&channel, &options, optmask));

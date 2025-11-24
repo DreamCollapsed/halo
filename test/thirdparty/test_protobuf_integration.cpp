@@ -19,21 +19,30 @@ class ProtobufIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Setup code if needed
-    test_dir = std::filesystem::temp_directory_path() / "protobuf_test";
-    std::filesystem::create_directories(test_dir);
+    test_dir_ = std::filesystem::temp_directory_path() / "protobuf_test";
+    std::filesystem::create_directories(test_dir_);
 
 #ifdef PROTOC_EXECUTABLE_PATH
-    protoc_path = PROTOC_EXECUTABLE_PATH;
+    protoc_path_ = PROTOC_EXECUTABLE_PATH;
 #endif
   }
 
   void TearDown() override {
     // Cleanup code if needed
-    std::filesystem::remove_all(test_dir);
+    std::filesystem::remove_all(test_dir_);
   }
 
-  std::filesystem::path test_dir;
-  std::string protoc_path;
+  [[nodiscard]] const std::filesystem::path& GetTestDir() const {
+    return test_dir_;
+  }
+
+  [[nodiscard]] const std::string& GetProtocPath() const {
+    return protoc_path_;
+  }
+
+ private:
+  std::filesystem::path test_dir_;
+  std::string protoc_path_;
 };
 
 // Test basic protobuf library initialization
@@ -42,7 +51,7 @@ TEST_F(ProtobufIntegrationTest, LibraryInitialization) {
   EXPECT_GT(GOOGLE_PROTOBUF_VERSION, 0);
   // In newer protobuf versions, GetVersionString() may not be available
   // Instead, we can test that the version constant is defined properly
-  std::cout << "Protobuf version: " << GOOGLE_PROTOBUF_VERSION << std::endl;
+  std::cout << "Protobuf version: " << GOOGLE_PROTOBUF_VERSION << "\n";
 }
 
 // Test basic descriptor functionality
@@ -227,8 +236,10 @@ TEST_F(ProtobufIntegrationTest, ProtobufLiteFunctionality) {
 // Test reflection capabilities
 TEST_F(ProtobufIntegrationTest, ReflectionCapabilities) {
   google::protobuf::FileDescriptorProto file_desc;
-  const google::protobuf::Reflection* reflection = file_desc.GetReflection();
-  const google::protobuf::Descriptor* descriptor = file_desc.GetDescriptor();
+  const google::protobuf::Reflection* reflection =
+      google::protobuf::FileDescriptorProto::GetReflection();
+  const google::protobuf::Descriptor* descriptor =
+      google::protobuf::FileDescriptorProto::descriptor();
 
   ASSERT_NE(reflection, nullptr);
   ASSERT_NE(descriptor, nullptr);
@@ -256,26 +267,26 @@ TEST_F(ProtobufIntegrationTest, ReflectionCapabilities) {
 
 // Test protoc executable availability and version
 TEST_F(ProtobufIntegrationTest, ProtocVersionTest) {
-  ASSERT_FALSE(protoc_path.empty())
+  ASSERT_FALSE(GetProtocPath().empty())
       << "protoc executable path must be configured";
 
-  ASSERT_TRUE(std::filesystem::exists(protoc_path))
-      << "protoc executable must exist at: " << protoc_path;
-
+  ASSERT_TRUE(std::filesystem::exists(GetProtocPath()))
+      << "protoc executable must exist at: " << GetProtocPath();
   // Test that protoc executable is available
-  std::string version_command = protoc_path + " --version > /dev/null 2>&1";
+  std::string version_command = GetProtocPath() + " --version > /dev/null 2>&1";
   int result = std::system(version_command.c_str());
   EXPECT_EQ(result, 0) << "protoc executable should be available";
 
   // Test that we can get version information
-  std::string popen_command = protoc_path + " --version 2>/dev/null";
+  std::string popen_command = GetProtocPath() + " --version 2>/dev/null";
   FILE* pipe = popen(popen_command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[256];
+  std::array<char, 256> buffer{};
   std::string version_output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    version_output += buffer;
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) !=
+         nullptr) {
+    version_output += buffer.data();
   }
   pclose(pipe);
 
@@ -286,26 +297,26 @@ TEST_F(ProtobufIntegrationTest, ProtocVersionTest) {
 
 // Test protoc help output
 TEST_F(ProtobufIntegrationTest, ProtocHelpTest) {
-  ASSERT_FALSE(protoc_path.empty())
+  ASSERT_FALSE(GetProtocPath().empty())
       << "protoc executable path must be configured";
 
-  ASSERT_TRUE(std::filesystem::exists(protoc_path))
-      << "protoc executable must exist at: " << protoc_path;
-
+  ASSERT_TRUE(std::filesystem::exists(GetProtocPath()))
+      << "protoc executable must exist at: " << GetProtocPath();
   // Test that protoc shows help when called with --help
-  std::string help_command = protoc_path + " --help > /dev/null 2>&1";
+  std::string help_command = GetProtocPath() + " --help > /dev/null 2>&1";
   int result = std::system(help_command.c_str());
   EXPECT_EQ(result, 0) << "protoc --help should work";
 
   // Capture help output
-  std::string popen_help_command = protoc_path + " --help 2>/dev/null";
+  std::string popen_help_command = GetProtocPath() + " --help 2>/dev/null";
   FILE* pipe = popen(popen_help_command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[1024];
+  std::array<char, 1024> buffer{};
   std::string help_output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    help_output += buffer;
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) !=
+         nullptr) {
+    help_output += buffer.data();
   }
   pclose(pipe);
 
@@ -320,14 +331,13 @@ TEST_F(ProtobufIntegrationTest, ProtocHelpTest) {
 
 // Test basic proto file compilation
 TEST_F(ProtobufIntegrationTest, BasicProtoCompilationTest) {
-  ASSERT_FALSE(protoc_path.empty())
+  ASSERT_FALSE(GetProtocPath().empty())
       << "protoc executable path must be configured";
 
-  ASSERT_TRUE(std::filesystem::exists(protoc_path))
-      << "protoc executable must exist at: " << protoc_path;
-
+  ASSERT_TRUE(std::filesystem::exists(GetProtocPath()))
+      << "protoc executable must exist at: " << GetProtocPath();
   // Create a simple .proto file
-  std::filesystem::path proto_file = test_dir / "test.proto";
+  std::filesystem::path proto_file = GetTestDir() / "test.proto";
   std::ofstream file(proto_file);
   file << R"(
 syntax = "proto3";
@@ -350,17 +360,19 @@ service TestService {
       << "Test proto file should exist";
 
   // Test that protoc can compile the proto without errors
-  std::string command = protoc_path + " --cpp_out=" + test_dir.string() +
-                        " --proto_path=" + test_dir.string() + " " +
+  std::string command = GetProtocPath() +
+                        " --cpp_out=" + GetTestDir().string() +
+                        " --proto_path=" + GetTestDir().string() + " " +
                         proto_file.filename().string() + " 2>&1";
 
   FILE* pipe = popen(command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[256];
+  std::array<char, 256> buffer{};
   std::string output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    output += buffer;
+  while (fgets(buffer.data(), static_cast<int>(buffer.size()), pipe) !=
+         nullptr) {
+    output += buffer.data();
   }
   int result = pclose(pipe);
 
@@ -369,8 +381,8 @@ service TestService {
                        << output;
 
   // Check that output files were generated
-  EXPECT_TRUE(std::filesystem::exists(test_dir / "test.pb.h"))
+  EXPECT_TRUE(std::filesystem::exists(GetTestDir() / "test.pb.h"))
       << "protoc should generate header file";
-  EXPECT_TRUE(std::filesystem::exists(test_dir / "test.pb.cc"))
+  EXPECT_TRUE(std::filesystem::exists(GetTestDir() / "test.pb.cc"))
       << "protoc should generate source file";
 }

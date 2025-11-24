@@ -58,12 +58,10 @@ class ICUIntegrationTest : public ::testing::Test {
 // Test ICU version and basic functionality
 TEST_F(ICUIntegrationTest, VersionInfo) {
   UVersionInfo version_array;
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-  u_getVersion(version_array);
+  u_getVersion(&version_array[0]);
 
   std::array<char, U_MAX_VERSION_STRING_LENGTH> version_string{};
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-  u_versionToString(version_array, version_string.data());
+  u_versionToString(&version_array[0], version_string.data());
 
   std::cout << "ICU Version: " << version_string.data() << "\n";
 
@@ -131,8 +129,7 @@ TEST_F(ICUIntegrationTest, RegularExpressions) {
   ASSERT_TRUE(U_SUCCESS(status));
 
   int match_count = 0;
-  // NOLINTNEXTLINE(readability-implicit-bool-conversion)
-  while (matcher.find(status) && U_SUCCESS(status)) {
+  while (matcher.find(status) != 0 && U_SUCCESS(status) != 0) {
     match_count++;
     UnicodeString match = matcher.group(status);
     EXPECT_GT(match.length(), 0);
@@ -304,8 +301,7 @@ TEST_F(ICUIntegrationTest, Transliteration) {
   std::unique_ptr<Transliterator> latin_to_ascii(
       Transliterator::createInstance("Latin-ASCII", UTRANS_FORWARD, status));
 
-  // NOLINTNEXTLINE(readability-implicit-bool-conversion)
-  if (U_SUCCESS(status) && latin_to_ascii != nullptr) {
+  if (U_SUCCESS(status) != 0 && latin_to_ascii != nullptr) {
     UnicodeString input("naïve café résumé");
     UnicodeString output = input;
     latin_to_ascii->transliterate(output);
@@ -429,12 +425,10 @@ TEST_F(ICUIntegrationTest, IntegratedWorkflow) {
   std::unique_ptr<Collator> collator(Collator::createInstance(locale, status));
   ASSERT_TRUE(U_SUCCESS(status));
 
-  // NOLINTNEXTLINE(modernize-use-ranges)
-  std::sort(
-      words.begin(), words.end(),
-      [&collator](const UnicodeString& str_a, const UnicodeString& str_b) {
-        return collator->compare(str_a, str_b) < 0;
-      });
+  std::ranges::sort(words, [&collator](const UnicodeString& str_a,
+                                       const UnicodeString& str_b) {
+    return collator->compare(str_a, str_b) < 0;
+  });
 
   EXPECT_GE(words.size(), 4);
 }

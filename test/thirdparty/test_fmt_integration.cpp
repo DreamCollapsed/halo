@@ -7,6 +7,7 @@
 #include <chrono>
 #include <ctime>
 #include <map>
+#include <numbers>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -31,8 +32,7 @@ TEST_F(FmtIntegrationTest, BasicFormatting) {
   result = fmt::format("Number: {}", 42);
   EXPECT_EQ(result, "Number: 42");
 
-  result = fmt::format("Float: {:.2f}",
-                       3.14159);  // NOLINT(modernize-use-std-numbers)
+  result = fmt::format("Float: {:.2f}", std::numbers::pi);
   EXPECT_EQ(result, "Float: 3.14");
 }
 

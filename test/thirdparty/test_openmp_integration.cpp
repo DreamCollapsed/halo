@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <numeric>
+#include <cstdint>
 #include <thread>
 #include <vector>
 
@@ -21,7 +21,10 @@ class OpenMPIntegrationTest : public ::testing::Test {
     omp_set_num_threads(original_num_threads_);
   }
 
-  int original_num_threads_;
+  [[nodiscard]] int OriginalNumThreads() const { return original_num_threads_; }
+
+ private:
+  int original_num_threads_ = 0;
 };
 
 // Test basic OpenMP functionality
@@ -42,45 +45,47 @@ TEST_F(OpenMPIntegrationTest, BasicOpenMPTest) {
 
 // Test parallel for loop
 TEST_F(OpenMPIntegrationTest, ParallelForLoop) {
-  const int N = 10000;
-  std::vector<int> data(N);
+  int data_size = 10000;
+  std::vector<int> data(data_size);
 
 // Initialize data with sequential values
 #pragma omp parallel for
-  for (int i = 0; i < N; ++i) {
+  for (int i = 0; i < data_size; ++i) {
     data[i] = i * 2;
   }
 
   // Verify results
-  for (int i = 0; i < N; ++i) {
+  for (int i = 0; i < data_size; ++i) {
     EXPECT_EQ(data[i], i * 2);
   }
 }
 
 // Test parallel reduction
 TEST_F(OpenMPIntegrationTest, ParallelReduction) {
-  const int N = 100000;
-  std::vector<int> data(N);
+  int data_size = 100000;
+  std::vector<int> data(data_size);
 
   // Initialize data
-  std::iota(data.begin(), data.end(), 1);  // 1, 2, 3, ..., N
+  for (int i = 0; i < data_size; ++i) {
+    data[i] = i + 1;
+  }
 
   // Calculate sum using OpenMP reduction
-  long long parallel_sum = 0;
+  int64_t parallel_sum = 0;
 #pragma omp parallel for reduction(+ : parallel_sum)
-  for (int i = 0; i < N; ++i) {
+  for (int i = 0; i < data_size; ++i) {
     parallel_sum += data[i];
   }
 
   // Calculate expected sum: 1 + 2 + ... + N = N*(N+1)/2
-  long long expected_sum = static_cast<long long>(N) * (N + 1) / 2;
+  int64_t expected_sum = static_cast<int64_t>(data_size) * (data_size + 1) / 2;
 
   EXPECT_EQ(parallel_sum, expected_sum);
 }
 
 // Test thread-private variables
 TEST_F(OpenMPIntegrationTest, ThreadPrivateVariables) {
-  const int num_threads = std::min(4, omp_get_max_threads());
+  int num_threads = std::min(4, omp_get_max_threads());
   omp_set_num_threads(num_threads);
 
   std::vector<int> thread_ids(num_threads, -1);
@@ -144,7 +149,7 @@ TEST_F(OpenMPIntegrationTest, ParallelSections) {
 
 // Test OpenMP critical sections
 TEST_F(OpenMPIntegrationTest, CriticalSections) {
-  const int num_iterations = 1000;
+  int num_iterations = 1000;
   int shared_counter = 0;
 
 #pragma omp parallel for
@@ -160,7 +165,7 @@ TEST_F(OpenMPIntegrationTest, CriticalSections) {
 
 // Test OpenMP atomic operations
 TEST_F(OpenMPIntegrationTest, AtomicOperations) {
-  const int num_iterations = 10000;
+  int num_iterations = 10000;
   int atomic_counter = 0;
 
 #pragma omp parallel for
@@ -174,7 +179,7 @@ TEST_F(OpenMPIntegrationTest, AtomicOperations) {
 
 // Test OpenMP barriers
 TEST_F(OpenMPIntegrationTest, Barriers) {
-  const int num_threads = std::min(4, omp_get_max_threads());
+  int num_threads = std::min(4, omp_get_max_threads());
   omp_set_num_threads(num_threads);
 
   std::vector<int> phase1_complete(num_threads, 0);
@@ -208,19 +213,19 @@ TEST_F(OpenMPIntegrationTest, Barriers) {
 
 // Performance test: Compare sequential vs parallel execution
 TEST_F(OpenMPIntegrationTest, PerformanceComparison) {
-  const int N = 1000000;
-  std::vector<double> data(N);
-  std::vector<double> result_seq(N);
-  std::vector<double> result_par(N);
+  int data_size = 1000000;
+  std::vector<double> data(data_size);
+  std::vector<double> result_seq(data_size);
+  std::vector<double> result_par(data_size);
 
   // Initialize data
-  for (int i = 0; i < N; ++i) {
+  for (int i = 0; i < data_size; ++i) {
     data[i] = static_cast<double>(i + 1);
   }
 
   // Sequential execution
   auto start_seq = std::chrono::high_resolution_clock::now();
-  for (int i = 0; i < N; ++i) {
+  for (int i = 0; i < data_size; ++i) {
     result_seq[i] = std::sqrt(data[i]) * std::sin(data[i] / 1000.0);
   }
   auto end_seq = std::chrono::high_resolution_clock::now();
@@ -228,7 +233,7 @@ TEST_F(OpenMPIntegrationTest, PerformanceComparison) {
   // Parallel execution
   auto start_par = std::chrono::high_resolution_clock::now();
 #pragma omp parallel for
-  for (int i = 0; i < N; ++i) {
+  for (int i = 0; i < data_size; ++i) {
     result_par[i] = std::sqrt(data[i]) * std::sin(data[i] / 1000.0);
   }
   auto end_par = std::chrono::high_resolution_clock::now();
@@ -240,19 +245,19 @@ TEST_F(OpenMPIntegrationTest, PerformanceComparison) {
       end_par - start_par);
 
   // Verify results are identical
-  for (int i = 0; i < N; ++i) {
+  for (int i = 0; i < data_size; ++i) {
     EXPECT_DOUBLE_EQ(result_seq[i], result_par[i]);
   }
 
   // Log performance information
   std::cout << "Sequential time: " << seq_duration.count() << " ms"
-            << std::endl;
-  std::cout << "Parallel time: " << par_duration.count() << " ms" << std::endl;
+            << "\n";
+  std::cout << "Parallel time: " << par_duration.count() << " ms" << "\n";
 
   if (omp_get_max_threads() > 1) {
-    double speedup =
-        static_cast<double>(seq_duration.count()) / par_duration.count();
-    std::cout << "Speedup: " << speedup << "x" << std::endl;
+    double speedup = static_cast<double>(seq_duration.count()) /
+                     static_cast<double>(par_duration.count());
+    std::cout << "Speedup: " << speedup << "x" << "\n";
 
     // Expect some speedup with multiple threads (very lenient test)
     EXPECT_GT(speedup, 0.5);  // Allow for overhead
@@ -264,7 +269,7 @@ TEST_F(OpenMPIntegrationTest, OpenMPVersionTest) {
 // Test OpenMP version using compile-time macro
 #ifdef _OPENMP
   int version = _OPENMP;
-  std::cout << "OpenMP version: " << version << std::endl;
+  std::cout << "OpenMP version: " << version << "\n";
 
   // OpenMP 4.0 was released in 2013, so we expect at least that
   EXPECT_GE(version, 201307);  // OpenMP 4.0
@@ -278,9 +283,9 @@ TEST_F(OpenMPIntegrationTest, NestedParallelism) {
   // Enable nested parallelism
   omp_set_nested(1);
 
-  bool nested_supported = omp_get_nested();
+  bool nested_supported = (omp_get_nested() != 0);
   std::cout << "Nested parallelism supported: "
-            << (nested_supported ? "Yes" : "No") << std::endl;
+            << (nested_supported ? "Yes" : "No") << "\n";
 
   if (nested_supported) {
     std::vector<int> outer_threads;
@@ -315,9 +320,9 @@ int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
 
   // Print OpenMP information
-  std::cout << "OpenMP max threads: " << omp_get_max_threads() << std::endl;
+  std::cout << "OpenMP max threads: " << omp_get_max_threads() << "\n";
 #ifdef _OPENMP
-  std::cout << "OpenMP version: " << _OPENMP << std::endl;
+  std::cout << "OpenMP version: " << _OPENMP << "\n";
 #endif
 
   return RUN_ALL_TESTS();

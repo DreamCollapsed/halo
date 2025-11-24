@@ -25,13 +25,15 @@ class WangleIntegrationTest : public ::testing::Test {
 
   void TearDown() override { event_base_.reset(); }
 
-  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
+  folly::EventBase* GetEventBase() { return event_base_.get(); }
+
+ private:
   std::unique_ptr<folly::EventBase> event_base_;
 };
 
 TEST_F(WangleIntegrationTest, BasicLibraryLinking) {
   // Test that wangle library links correctly and basic classes are available
-  EXPECT_NE(event_base_, nullptr);
+  EXPECT_NE(GetEventBase(), nullptr);
 
   // Test that we can create basic Wangle components
   auto pipeline = wangle::Pipeline<std::string>::create();
@@ -152,12 +154,12 @@ TEST_F(WangleIntegrationTest, ClientBootstrapCreation) {
 
 TEST_F(WangleIntegrationTest, AsyncSocketHandlerCreation) {
   // Test AsyncSocketHandler creation (core Wangle component)
-  auto socket = folly::AsyncSocket::newSocket(event_base_.get());
+  auto socket = folly::AsyncSocket::newSocket(GetEventBase());
   EXPECT_NE(socket, nullptr);
 
   // Test socket basic properties
   EXPECT_FALSE(socket->good());  // Not connected yet
-  EXPECT_EQ(socket->getEventBase(), event_base_.get());
+  EXPECT_EQ(socket->getEventBase(), GetEventBase());
 
   // Test that we can create handlers with sockets
   EXPECT_NO_THROW({
@@ -170,9 +172,9 @@ TEST_F(WangleIntegrationTest, AsyncSocketHandlerCreation) {
 
   // Test socket state management
   EXPECT_NO_THROW({
-    auto another_socket = folly::AsyncSocket::newSocket(event_base_.get());
+    auto another_socket = folly::AsyncSocket::newSocket(GetEventBase());
     EXPECT_NE(another_socket, nullptr);
-    EXPECT_EQ(another_socket->getEventBase(), event_base_.get());
+    EXPECT_EQ(another_socket->getEventBase(), GetEventBase());
   });
 }
 
@@ -366,17 +368,17 @@ TEST_F(WangleIntegrationTest, MemoryManagementTest) {
 // Additional comprehensive tests
 TEST_F(WangleIntegrationTest, EventBaseIntegration) {
   // Test EventBase integration with Wangle components
-  EXPECT_NE(event_base_, nullptr);
-  EXPECT_FALSE(event_base_->isRunning());
+  EXPECT_NE(GetEventBase(), nullptr);
+  EXPECT_FALSE(GetEventBase()->isRunning());
 
   // Test that we can create sockets with our event base
-  auto socket1 = folly::AsyncSocket::newSocket(event_base_.get());
-  auto socket2 = folly::AsyncSocket::newSocket(event_base_.get());
+  auto socket1 = folly::AsyncSocket::newSocket(GetEventBase());
+  auto socket2 = folly::AsyncSocket::newSocket(GetEventBase());
 
   EXPECT_NE(socket1, nullptr);
   EXPECT_NE(socket2, nullptr);
-  EXPECT_EQ(socket1->getEventBase(), event_base_.get());
-  EXPECT_EQ(socket2->getEventBase(), event_base_.get());
+  EXPECT_EQ(socket1->getEventBase(), GetEventBase());
+  EXPECT_EQ(socket2->getEventBase(), GetEventBase());
 
   // Test socket properties
   EXPECT_FALSE(socket1->good());  // Not connected

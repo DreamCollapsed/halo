@@ -9,7 +9,7 @@ class Lz4IntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Set up test data
-    original_data =
+    original_data_ =
         "This is a test string for lz4 compression and decompression. "
         "It should be long enough to demonstrate the compression capabilities. "
         "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
@@ -24,7 +24,12 @@ class Lz4IntegrationTest : public ::testing::Test {
     // Clean up if needed
   }
 
-  std::string original_data;
+  [[nodiscard]] const std::string& OriginalData() const {
+    return original_data_;
+  }
+
+ private:
+  std::string original_data_;
 };
 
 // Test lz4 version and basic functionality
@@ -46,104 +51,108 @@ TEST_F(Lz4IntegrationTest, Lz4VersionTest) {
 // Test basic compression functionality
 TEST_F(Lz4IntegrationTest, BasicCompressionTest) {
   // Get bounds for compression
-  int max_compressed_size = LZ4_compressBound(original_data.size());
+  int max_compressed_size =
+      LZ4_compressBound(static_cast<int>(OriginalData().size()));
   EXPECT_GT(max_compressed_size, 0);
 
   // Allocate buffer for compressed data
   std::vector<char> compressed_data(max_compressed_size);
 
   // Compress the data
-  int compressed_size =
-      LZ4_compress_default(original_data.data(), compressed_data.data(),
-                           original_data.size(), max_compressed_size);
+  int compressed_size = LZ4_compress_default(
+      OriginalData().data(), compressed_data.data(),
+      static_cast<int>(OriginalData().size()), max_compressed_size);
 
   // Check that compression was successful
   EXPECT_GT(compressed_size, 0);
   EXPECT_LT(compressed_size,
-            static_cast<int>(original_data.size()));  // Should be compressed
+            static_cast<int>(OriginalData().size()));  // Should be compressed
 
   // Resize the vector to actual compressed size
   compressed_data.resize(compressed_size);
 
   // Decompress the data
-  std::vector<char> decompressed_data(original_data.size());
-  int decompressed_size =
-      LZ4_decompress_safe(compressed_data.data(), decompressed_data.data(),
-                          compressed_size, original_data.size());
+  std::vector<char> decompressed_data(OriginalData().size());
+  int decompressed_size = LZ4_decompress_safe(
+      compressed_data.data(), decompressed_data.data(), compressed_size,
+      static_cast<int>(OriginalData().size()));
 
   // Check that decompression was successful
   EXPECT_GT(decompressed_size, 0);
-  EXPECT_EQ(decompressed_size, static_cast<int>(original_data.size()));
+  EXPECT_EQ(decompressed_size, static_cast<int>(OriginalData().size()));
 
   // Check that decompressed data matches original
   std::string decompressed_string(decompressed_data.data(), decompressed_size);
-  EXPECT_EQ(decompressed_string, original_data);
+  EXPECT_EQ(decompressed_string, OriginalData());
 }
 
 // Test fast compression
 TEST_F(Lz4IntegrationTest, FastCompressionTest) {
   // Get bounds for compression
-  int max_compressed_size = LZ4_compressBound(original_data.size());
+  int max_compressed_size =
+      LZ4_compressBound(static_cast<int>(OriginalData().size()));
   EXPECT_GT(max_compressed_size, 0);
 
   // Allocate buffer for compressed data
   std::vector<char> compressed_data(max_compressed_size);
 
   // Compress the data using fast compression
-  int compressed_size =
-      LZ4_compress_fast(original_data.data(), compressed_data.data(),
-                        original_data.size(), max_compressed_size,
-                        1  // acceleration parameter (1 = default)
-      );
+  int compressed_size = LZ4_compress_fast(
+      OriginalData().data(), compressed_data.data(),
+      static_cast<int>(OriginalData().size()), max_compressed_size,
+      1  // acceleration parameter (1 = default)
+  );
 
   // Check that compression was successful
   EXPECT_GT(compressed_size, 0);
 
   // Decompress the data
-  std::vector<char> decompressed_data(original_data.size());
-  int decompressed_size =
-      LZ4_decompress_safe(compressed_data.data(), decompressed_data.data(),
-                          compressed_size, original_data.size());
+  std::vector<char> decompressed_data(OriginalData().size());
+  int decompressed_size = LZ4_decompress_safe(
+      compressed_data.data(), decompressed_data.data(), compressed_size,
+      static_cast<int>(OriginalData().size()));
 
   // Check that decompression was successful
   EXPECT_GT(decompressed_size, 0);
-  EXPECT_EQ(decompressed_size, static_cast<int>(original_data.size()));
+  EXPECT_EQ(decompressed_size, static_cast<int>(OriginalData().size()));
 
   // Check that decompressed data matches original
   std::string decompressed_string(decompressed_data.data(), decompressed_size);
-  EXPECT_EQ(decompressed_string, original_data);
+  EXPECT_EQ(decompressed_string, OriginalData());
 }
 
 // Test high compression
 TEST_F(Lz4IntegrationTest, HighCompressionTest) {
   // Get bounds for compression
-  int max_compressed_size = LZ4_compressBound(original_data.size());
+  int max_compressed_size =
+      LZ4_compressBound(static_cast<int>(OriginalData().size()));
   EXPECT_GT(max_compressed_size, 0);
 
   // Allocate buffer for compressed data
   std::vector<char> compressed_data(max_compressed_size);
 
   // Compress the data using high compression
-  int compressed_size = LZ4_compress_HC(
-      original_data.data(), compressed_data.data(), original_data.size(),
-      max_compressed_size, LZ4HC_CLEVEL_DEFAULT);
+  int compressed_size =
+      LZ4_compress_HC(OriginalData().data(), compressed_data.data(),
+                      static_cast<int>(OriginalData().size()),
+                      max_compressed_size, LZ4HC_CLEVEL_DEFAULT);
 
   // Check that compression was successful
   EXPECT_GT(compressed_size, 0);
 
   // Decompress the data
-  std::vector<char> decompressed_data(original_data.size());
-  int decompressed_size =
-      LZ4_decompress_safe(compressed_data.data(), decompressed_data.data(),
-                          compressed_size, original_data.size());
+  std::vector<char> decompressed_data(OriginalData().size());
+  int decompressed_size = LZ4_decompress_safe(
+      compressed_data.data(), decompressed_data.data(), compressed_size,
+      static_cast<int>(OriginalData().size()));
 
   // Check that decompression was successful
   EXPECT_GT(decompressed_size, 0);
-  EXPECT_EQ(decompressed_size, static_cast<int>(original_data.size()));
+  EXPECT_EQ(decompressed_size, static_cast<int>(OriginalData().size()));
 
   // Check that decompressed data matches original
   std::string decompressed_string(decompressed_data.data(), decompressed_size);
-  EXPECT_EQ(decompressed_string, original_data);
+  EXPECT_EQ(decompressed_string, OriginalData());
 }
 
 // Test error handling
@@ -151,8 +160,9 @@ TEST_F(Lz4IntegrationTest, ErrorHandlingTest) {
   // Test compression with invalid parameters
   std::vector<char> small_buffer(1);  // Too small buffer
 
-  int result = LZ4_compress_default(original_data.data(), small_buffer.data(),
-                                    original_data.size(), small_buffer.size());
+  int result = LZ4_compress_default(OriginalData().data(), small_buffer.data(),
+                                    static_cast<int>(OriginalData().size()),
+                                    static_cast<int>(small_buffer.size()));
 
   // Should return 0 (failure)
   EXPECT_EQ(result, 0);
@@ -160,11 +170,12 @@ TEST_F(Lz4IntegrationTest, ErrorHandlingTest) {
   // Test decompression with invalid data
   std::vector<char> invalid_compressed_data(10,
                                             'x');  // Invalid compressed data
-  std::vector<char> decompressed_data(original_data.size());
+  std::vector<char> decompressed_data(OriginalData().size());
 
   int decompress_result = LZ4_decompress_safe(
       invalid_compressed_data.data(), decompressed_data.data(),
-      invalid_compressed_data.size(), decompressed_data.size());
+      static_cast<int>(invalid_compressed_data.size()),
+      static_cast<int>(decompressed_data.size()));
 
   // Should return negative value (failure)
   EXPECT_LT(decompress_result, 0);
@@ -180,13 +191,14 @@ TEST_F(Lz4IntegrationTest, StreamingTest) {
   EXPECT_NE(stream_state, nullptr);
 
   // Get bounds for compression
-  int max_compressed_size = LZ4_compressBound(original_data.size());
+  int max_compressed_size =
+      LZ4_compressBound(static_cast<int>(OriginalData().size()));
   std::vector<char> compressed_data(max_compressed_size);
 
   // Compress using streaming API
   int compressed_size = LZ4_compress_fast_continue(
-      stream_state, original_data.data(), compressed_data.data(),
-      original_data.size(), max_compressed_size, 1);
+      stream_state, OriginalData().data(), compressed_data.data(),
+      static_cast<int>(OriginalData().size()), max_compressed_size, 1);
 
   EXPECT_GT(compressed_size, 0);
 
@@ -194,15 +206,15 @@ TEST_F(Lz4IntegrationTest, StreamingTest) {
   LZ4_freeStream(stream_state);
 
   // Test decompression
-  std::vector<char> decompressed_data(original_data.size());
-  int decompressed_size =
-      LZ4_decompress_safe(compressed_data.data(), decompressed_data.data(),
-                          compressed_size, original_data.size());
+  std::vector<char> decompressed_data(OriginalData().size());
+  int decompressed_size = LZ4_decompress_safe(
+      compressed_data.data(), decompressed_data.data(), compressed_size,
+      static_cast<int>(OriginalData().size()));
 
   EXPECT_GT(decompressed_size, 0);
-  EXPECT_EQ(decompressed_size, static_cast<int>(original_data.size()));
+  EXPECT_EQ(decompressed_size, static_cast<int>(OriginalData().size()));
 
   // Check that decompressed data matches original
   std::string decompressed_string(decompressed_data.data(), decompressed_size);
-  EXPECT_EQ(decompressed_string, original_data);
+  EXPECT_EQ(decompressed_string, OriginalData());
 }

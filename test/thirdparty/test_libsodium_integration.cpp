@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 #include <sodium.h>
 
+#include <cstdint>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -30,7 +31,7 @@ TEST_F(LibsodiumIntegrationTest, BasicInitialization) {
   std::string version(sodium_version_string());
   EXPECT_FALSE(version.empty());
 
-  std::cout << "libsodium version: " << version << std::endl;
+  std::cout << "libsodium version: " << version << '\n';
 }
 
 // Test random number generation
@@ -57,7 +58,8 @@ TEST_F(LibsodiumIntegrationTest, RandomGeneration) {
 
 // Test secret key box (authenticated encryption)
 TEST_F(LibsodiumIntegrationTest, SecretKeyBox) {
-  const std::string message = "Hello, libsodium!";
+  std::string message_str = "Hello, libsodium!";
+  std::vector<unsigned char> message(message_str.begin(), message_str.end());
 
   // Generate a random key and nonce
   std::vector<unsigned char> key(crypto_secretbox_KEYBYTES);
@@ -69,10 +71,9 @@ TEST_F(LibsodiumIntegrationTest, SecretKeyBox) {
   // Encrypt the message
   std::vector<unsigned char> ciphertext(message.size() +
                                         crypto_secretbox_MACBYTES);
-  int encrypt_result = crypto_secretbox_easy(
-      ciphertext.data(),
-      reinterpret_cast<const unsigned char*>(message.c_str()), message.size(),
-      nonce.data(), key.data());
+  int encrypt_result =
+      crypto_secretbox_easy(ciphertext.data(), message.data(), message.size(),
+                            nonce.data(), key.data());
 
   EXPECT_EQ(encrypt_result, 0);
 
@@ -85,9 +86,7 @@ TEST_F(LibsodiumIntegrationTest, SecretKeyBox) {
   EXPECT_EQ(decrypt_result, 0);
 
   // Verify decrypted message matches original
-  std::string decrypted_message(reinterpret_cast<char*>(decrypted.data()),
-                                message.size());
-  EXPECT_EQ(decrypted_message, message);
+  EXPECT_EQ(decrypted, message);
 }
 
 // Test public key cryptography (key exchange)
@@ -102,7 +101,8 @@ TEST_F(LibsodiumIntegrationTest, PublicKeyCryptography) {
   std::vector<unsigned char> bob_sk(crypto_box_SECRETKEYBYTES);
   crypto_box_keypair(bob_pk.data(), bob_sk.data());
 
-  const std::string message = "Secret message from Alice to Bob";
+  std::string message_str = "Secret message from Alice to Bob";
+  std::vector<unsigned char> message(message_str.begin(), message_str.end());
 
   // Generate nonce
   std::vector<unsigned char> nonce(crypto_box_NONCEBYTES);
@@ -110,13 +110,11 @@ TEST_F(LibsodiumIntegrationTest, PublicKeyCryptography) {
 
   // Alice encrypts message for Bob
   std::vector<unsigned char> ciphertext(message.size() + crypto_box_MACBYTES);
-  int encrypt_result =
-      crypto_box_easy(ciphertext.data(),
-                      reinterpret_cast<const unsigned char*>(message.c_str()),
-                      message.size(), nonce.data(),
-                      bob_pk.data(),   // Bob's public key
-                      alice_sk.data()  // Alice's secret key
-      );
+  int encrypt_result = crypto_box_easy(ciphertext.data(), message.data(),
+                                       message.size(), nonce.data(),
+                                       bob_pk.data(),   // Bob's public key
+                                       alice_sk.data()  // Alice's secret key
+  );
 
   EXPECT_EQ(encrypt_result, 0);
 
@@ -131,75 +129,70 @@ TEST_F(LibsodiumIntegrationTest, PublicKeyCryptography) {
   EXPECT_EQ(decrypt_result, 0);
 
   // Verify decrypted message matches original
-  std::string decrypted_message(reinterpret_cast<char*>(decrypted.data()),
-                                message.size());
-  EXPECT_EQ(decrypted_message, message);
+  EXPECT_EQ(decrypted, message);
 }
 
 // Test digital signatures
 TEST_F(LibsodiumIntegrationTest, DigitalSignatures) {
   // Generate signing keypair
-  std::vector<unsigned char> pk(crypto_sign_PUBLICKEYBYTES);
-  std::vector<unsigned char> sk(crypto_sign_SECRETKEYBYTES);
-  crypto_sign_keypair(pk.data(), sk.data());
+  std::vector<unsigned char> pk_vec(crypto_sign_PUBLICKEYBYTES);
+  std::vector<unsigned char> sk_vec(crypto_sign_SECRETKEYBYTES);
+  crypto_sign_keypair(pk_vec.data(), sk_vec.data());
 
-  const std::string message = "This message needs to be signed";
+  std::string message_str = "This message needs to be signed";
+  std::vector<unsigned char> message(message_str.begin(), message_str.end());
 
   // Sign the message
   std::vector<unsigned char> signed_message(message.size() + crypto_sign_BYTES);
-  unsigned long long signed_message_len;
+  unsigned long long signed_message_len = 0;
 
-  int sign_result =
-      crypto_sign(signed_message.data(), &signed_message_len,
-                  reinterpret_cast<const unsigned char*>(message.c_str()),
-                  message.size(), sk.data());
+  int sign_result = crypto_sign(signed_message.data(), &signed_message_len,
+                                message.data(), message.size(), sk_vec.data());
 
   EXPECT_EQ(sign_result, 0);
   EXPECT_EQ(signed_message_len, message.size() + crypto_sign_BYTES);
 
   // Verify the signature
   std::vector<unsigned char> verified_message(message.size());
-  unsigned long long verified_message_len;
+  unsigned long long verified_message_len = 0;
 
-  int verify_result =
-      crypto_sign_open(verified_message.data(), &verified_message_len,
-                       signed_message.data(), signed_message_len, pk.data());
+  int verify_result = crypto_sign_open(
+      verified_message.data(), &verified_message_len, signed_message.data(),
+      signed_message_len, pk_vec.data());
 
   EXPECT_EQ(verify_result, 0);
   EXPECT_EQ(verified_message_len, message.size());
 
   // Verify the message content
-  std::string verified_message_str(
-      reinterpret_cast<char*>(verified_message.data()), verified_message_len);
-  EXPECT_EQ(verified_message_str, message);
+  EXPECT_EQ(verified_message, message);
 }
 
 // Test hashing functionality
 TEST_F(LibsodiumIntegrationTest, Hashing) {
-  const std::string message = "Message to hash";
+  std::string message_str = "Message to hash";
+  std::vector<unsigned char> message(message_str.begin(), message_str.end());
 
   // Test generic hash (BLAKE2b-based)
   std::vector<unsigned char> hash1(crypto_generichash_BYTES);
-  crypto_generichash(hash1.data(), crypto_generichash_BYTES,
-                     reinterpret_cast<const unsigned char*>(message.c_str()),
+  crypto_generichash(hash1.data(), crypto_generichash_BYTES, message.data(),
                      message.size(), nullptr, 0);
 
   // Hash the same message again
   std::vector<unsigned char> hash2(crypto_generichash_BYTES);
-  crypto_generichash(hash2.data(), crypto_generichash_BYTES,
-                     reinterpret_cast<const unsigned char*>(message.c_str()),
+  crypto_generichash(hash2.data(), crypto_generichash_BYTES, message.data(),
                      message.size(), nullptr, 0);
 
   // Hashes should be identical
   EXPECT_EQ(hash1, hash2);
 
   // Hash a different message
-  const std::string different_message = "Different message to hash";
+  std::string different_message_str = "Different message to hash";
+  std::vector<unsigned char> different_message(different_message_str.begin(),
+                                               different_message_str.end());
   std::vector<unsigned char> hash3(crypto_generichash_BYTES);
-  crypto_generichash(
-      hash3.data(), crypto_generichash_BYTES,
-      reinterpret_cast<const unsigned char*>(different_message.c_str()),
-      different_message.size(), nullptr, 0);
+  crypto_generichash(hash3.data(), crypto_generichash_BYTES,
+                     different_message.data(), different_message.size(),
+                     nullptr, 0);
 
   // Hash should be different
   EXPECT_NE(hash1, hash3);
@@ -207,7 +200,7 @@ TEST_F(LibsodiumIntegrationTest, Hashing) {
 
 // Test password hashing and verification
 TEST_F(LibsodiumIntegrationTest, PasswordHashing) {
-  const std::string password = "my_super_secret_password";
+  std::string password = "my_super_secret_password";
 
   // Hash the password
   std::vector<char> hashed_password(crypto_pwhash_STRBYTES);
@@ -224,7 +217,7 @@ TEST_F(LibsodiumIntegrationTest, PasswordHashing) {
   EXPECT_EQ(verify_result, 0);
 
   // Try with wrong password
-  const std::string wrong_password = "wrong_password";
+  std::string wrong_password = "wrong_password";
   int wrong_verify_result = crypto_pwhash_str_verify(
       hashed_password.data(), wrong_password.c_str(), wrong_password.length());
 
@@ -236,8 +229,7 @@ TEST_F(LibsodiumIntegrationTest, MemoryUtilities) {
   constexpr size_t BUFFER_SIZE = 64;
 
   // Test secure memory allocation
-  unsigned char* secure_buffer =
-      static_cast<unsigned char*>(sodium_malloc(BUFFER_SIZE));
+  auto* secure_buffer = static_cast<unsigned char*>(sodium_malloc(BUFFER_SIZE));
   EXPECT_NE(secure_buffer, nullptr);
 
   // Fill with some data
@@ -255,15 +247,15 @@ TEST_F(LibsodiumIntegrationTest, MemoryUtilities) {
   sodium_free(secure_buffer);
 
   // Test constant-time memory comparison
-  unsigned char buffer1[16] = {1, 2,  3,  4,  5,  6,  7,  8,
-                               9, 10, 11, 12, 13, 14, 15, 16};
-  unsigned char buffer2[16] = {1, 2,  3,  4,  5,  6,  7,  8,
-                               9, 10, 11, 12, 13, 14, 15, 16};
-  unsigned char buffer3[16] = {1, 2,  3,  4,  5,  6,  7,  8,
-                               9, 10, 11, 12, 13, 14, 15, 17};
+  std::array<unsigned char, 16> buffer1 = {1, 2,  3,  4,  5,  6,  7,  8,
+                                           9, 10, 11, 12, 13, 14, 15, 16};
+  std::array<unsigned char, 16> buffer2 = {1, 2,  3,  4,  5,  6,  7,  8,
+                                           9, 10, 11, 12, 13, 14, 15, 16};
+  std::array<unsigned char, 16> buffer3 = {1, 2,  3,  4,  5,  6,  7,  8,
+                                           9, 10, 11, 12, 13, 14, 15, 17};
 
-  EXPECT_EQ(sodium_memcmp(buffer1, buffer2, 16), 0);
-  EXPECT_NE(sodium_memcmp(buffer1, buffer3, 16), 0);
+  EXPECT_EQ(sodium_memcmp(buffer1.data(), buffer2.data(), 16), 0);
+  EXPECT_NE(sodium_memcmp(buffer1.data(), buffer3.data(), 16), 0);
 }
 
 // Test constant-time operations
@@ -271,16 +263,16 @@ TEST_F(LibsodiumIntegrationTest, ConstantTimeOperations) {
   // Test constant-time comparison
   EXPECT_EQ(sodium_is_zero(nullptr, 0), 1);
 
-  unsigned char zero_buffer[16] = {0};
-  unsigned char nonzero_buffer[16] = {0, 0, 0, 0, 0, 0, 0, 0,
-                                      0, 0, 0, 0, 0, 0, 0, 1};
+  std::array<unsigned char, 16> zero_buffer = {0};
+  std::array<unsigned char, 16> nonzero_buffer = {0, 0, 0, 0, 0, 0, 0, 0,
+                                                  0, 0, 0, 0, 0, 0, 0, 1};
 
-  EXPECT_EQ(sodium_is_zero(zero_buffer, 16), 1);
-  EXPECT_EQ(sodium_is_zero(nonzero_buffer, 16), 0);
+  EXPECT_EQ(sodium_is_zero(zero_buffer.data(), 16), 1);
+  EXPECT_EQ(sodium_is_zero(nonzero_buffer.data(), 16), 0);
 
   // Test increment function
-  unsigned char counter[8] = {255, 0, 0, 0, 0, 0, 0, 0};
-  sodium_increment(counter, 8);
+  std::array<unsigned char, 8> counter = {255, 0, 0, 0, 0, 0, 0, 0};
+  sodium_increment(counter.data(), 8);
 
   // Should have carried over to the next byte (little-endian)
   EXPECT_EQ(counter[0], 0);
@@ -327,7 +319,7 @@ TEST_F(LibsodiumIntegrationTest, PerformanceTest) {
 
   std::cout << "Performed " << NUM_ITERATIONS << " encrypt/decrypt cycles of "
             << MESSAGE_SIZE << " bytes in " << duration.count() << " ms"
-            << std::endl;
+            << '\n';
 
   // Should complete within reasonable time (adjust as needed)
   EXPECT_LT(duration.count(), 10000);  // Less than 10 seconds

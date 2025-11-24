@@ -7,6 +7,8 @@
 #include <velox/vector/ComplexVector.h>
 #include <velox/vector/FlatVector.h>
 
+#include <algorithm>
+
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
@@ -34,8 +36,12 @@ class VeloxVectorTest : public testing::Test {
   void SetUp() override {
     try {
       memory::MemoryManager::testingSetInstance({});
-    } catch (const std::exception& /*e*/) {  // NOLINT(bugprone-empty-catch)
-    } catch (...) {                          // NOLINT(bugprone-empty-catch)
+    } catch (const std::exception& /*e*/) {
+      // Ignore if already set
+      (void)0;
+    } catch (...) {
+      // Ignore other errors
+      (void)0;
     }
     static bool functions_registered = false;
     if (!functions_registered) {
@@ -45,21 +51,24 @@ class VeloxVectorTest : public testing::Test {
     auto& manager = *memory::MemoryManager::getInstance();
     pool_ = manager.addLeafPool("vector_pool");
   }
-  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
+
+  std::shared_ptr<memory::MemoryPool> GetPool() { return pool_; }
+
+ private:
   std::shared_ptr<memory::MemoryPool> pool_;
 };
 
 TEST_F(VeloxVectorTest, VectorArithmeticOperations) {
   vector_size_t vector_size = 5;
-  auto vec1 = BaseVector::create(INTEGER(), vector_size, pool_.get());
-  auto vec2 = BaseVector::create(INTEGER(), vector_size, pool_.get());
+  auto vec1 = BaseVector::create(INTEGER(), vector_size, GetPool().get());
+  auto vec2 = BaseVector::create(INTEGER(), vector_size, GetPool().get());
   auto* flat1 = vec1->as<FlatVector<int32_t>>();
   auto* flat2 = vec2->as<FlatVector<int32_t>>();
   for (int i = 0; i < vector_size; ++i) {
     flat1->set(i, (i + 1) * 10);
     flat2->set(i, i + 1);
   }
-  auto result = BaseVector::create(INTEGER(), vector_size, pool_.get());
+  auto result = BaseVector::create(INTEGER(), vector_size, GetPool().get());
   auto* flat_result = result->as<FlatVector<int32_t>>();
   int64_t total = 0;
   for (int i = 0; i < vector_size; ++i) {
@@ -88,12 +97,11 @@ TEST_F(VeloxVectorTest, ArrayDataProcessing) {
   EXPECT_EQ(sums[1], 9);
   EXPECT_EQ(sums[2], 30);
   EXPECT_EQ(total, 45);
-  // NOLINTNEXTLINE(modernize-use-ranges)
-  int32_t min_sum = *std::min_element(sums.begin(), sums.end());
-  // NOLINTNEXTLINE(modernize-use-ranges)
-  int32_t max_sum = *std::max_element(sums.begin(), sums.end());
-  // NOLINTNEXTLINE(bugprone-narrowing-conversions,cppcoreguidelines-narrowing-conversions)
-  double avg = static_cast<double>(total) / arrays.size();
+
+  int32_t min_sum = std::ranges::min(sums);
+  int32_t max_sum = std::ranges::max(sums);
+
+  double avg = static_cast<double>(total) / static_cast<double>(arrays.size());
   EXPECT_EQ(min_sum, 6);
   EXPECT_EQ(max_sum, 30);
   EXPECT_DOUBLE_EQ(avg, 15.0);
@@ -128,15 +136,16 @@ TEST_F(VeloxVectorTest, MemoryUsageCalculations) {
   }
   auto after = child->usedBytes();
   EXPECT_GT(after, before);
-  // NOLINTNEXTLINE(bugprone-narrowing-conversions,cppcoreguidelines-narrowing-conversions)
-  double ratio = static_cast<double>(after - before) / expected;
+
+  double ratio =
+      static_cast<double>(after - before) / static_cast<double>(expected);
   EXPECT_GT(ratio, 0.8);
   EXPECT_LT(ratio, 10.0);
   vectors.clear();
 }
 
 TEST_F(VeloxVectorTest, StringProcessingOperations) {
-  auto vec = BaseVector::create(VARCHAR(), 6, pool_.get());
+  auto vec = BaseVector::create(VARCHAR(), 6, GetPool().get());
   auto* flat = vec->as<FlatVector<StringView>>();
   std::vector<std::string> text_data = {"Hello", "World",  "Velox",
                                         "Query", "Engine", "Performance"};
@@ -163,7 +172,7 @@ TEST_F(VeloxVectorTest, NestedStructures) {
   auto inner = ROW({"x", "y"}, {INTEGER(), INTEGER()});
   auto arr = ARRAY(inner);
   auto outer = ROW({"id", "data"}, {BIGINT(), arr});
-  auto vec = BaseVector::create(outer, 2, pool_.get());
+  auto vec = BaseVector::create(outer, 2, GetPool().get());
   EXPECT_EQ(vec->type()->kind(), TypeKind::ROW);
   const auto& row_type = vec->type()->asRow();
   EXPECT_EQ(row_type.size(), 2);
@@ -196,8 +205,8 @@ TEST_F(VeloxVectorTest, PlanExecutionWithCalculations) {
     age_sum += emp.age_;
     max_salary = std::max(max_salary, total_sal);
   }
-  // NOLINTNEXTLINE(bugprone-narrowing-conversions,cppcoreguidelines-narrowing-conversions)
-  int32_t avg_age = age_sum / employees.size();
+
+  int32_t avg_age = age_sum / static_cast<int32_t>(employees.size());
   EXPECT_DOUBLE_EQ(bonuses[0], 2500);
   EXPECT_DOUBLE_EQ(bonuses[1], 7500);
   EXPECT_DOUBLE_EQ(total_salary, 363250);
@@ -228,12 +237,12 @@ TEST_F(VeloxVectorTest, QueryContextWithDataProcessing) {
     auto* flat_vec = vector->as<FlatVector<int32_t>>();
     int32_t sum = 0;
     for (size_t i = 0; i < batch.values_.size(); ++i) {
-      // NOLINTNEXTLINE(bugprone-narrowing-conversions,cppcoreguidelines-narrowing-conversions)
-      flat_vec->set(i, batch.values_[i]);
+      flat_vec->set(static_cast<vector_size_t>(i), batch.values_[i]);
       sum += batch.values_[i];
     }
-    // NOLINTNEXTLINE(bugprone-narrowing-conversions,cppcoreguidelines-narrowing-conversions)
-    double avg = static_cast<double>(sum) / batch.values_.size();
+
+    double avg =
+        static_cast<double>(sum) / static_cast<double>(batch.values_.size());
     avg_average += avg;
     max_size = std::max(max_size, batch.values_.size());
     auto after = pool->usedBytes();
@@ -241,8 +250,8 @@ TEST_F(VeloxVectorTest, QueryContextWithDataProcessing) {
     total_bytes += batch.bytes_;
     EXPECT_GT(batch.bytes_, 0);
   }
-  // NOLINTNEXTLINE(bugprone-narrowing-conversions,cppcoreguidelines-narrowing-conversions)
-  avg_average /= batch_list.size();
+
+  avg_average /= static_cast<double>(batch_list.size());
   EXPECT_EQ(max_size, 5);
   EXPECT_GT(total_bytes, 0);
   EXPECT_DOUBLE_EQ(avg_average, 225.0);

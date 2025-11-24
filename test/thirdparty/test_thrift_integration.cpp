@@ -23,21 +23,30 @@ class ThriftIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Initialize any test fixtures here
-    test_dir = std::filesystem::temp_directory_path() / "thrift_test";
-    std::filesystem::create_directories(test_dir);
+    test_dir_ = std::filesystem::temp_directory_path() / "thrift_test";
+    std::filesystem::create_directories(test_dir_);
 
 #ifdef THRIFT_EXECUTABLE_PATH
-    thrift_path = THRIFT_EXECUTABLE_PATH;
+    thrift_path_ = THRIFT_EXECUTABLE_PATH;
 #endif
   }
 
   void TearDown() override {
     // Clean up any test fixtures here
-    std::filesystem::remove_all(test_dir);
+    std::filesystem::remove_all(test_dir_);
   }
 
-  std::filesystem::path test_dir;
-  std::string thrift_path;
+  [[nodiscard]] const std::filesystem::path& GetTestDir() const {
+    return test_dir_;
+  }
+
+  [[nodiscard]] const std::string& GetThriftPath() const {
+    return thrift_path_;
+  }
+
+ private:
+  std::filesystem::path test_dir_;
+  std::string thrift_path_;
 };
 
 // Test 1: Library Initialization
@@ -64,23 +73,23 @@ TEST_F(ThriftIntegrationTest, BinaryProtocol) {
   write_protocol->writeI32(12345);
   write_protocol->writeI64(9876543210LL);
   write_protocol->writeBool(true);
-  write_protocol->writeDouble(3.14159);
+  write_protocol->writeDouble(123.456);
 
   // Get the written data and create a read buffer
   auto written_data = write_transport->getBufferAsString();
+  std::vector<uint8_t> read_buffer(written_data.begin(), written_data.end());
   auto read_transport =
       std::make_shared<apache::thrift::transport::TMemoryBuffer>(
-          reinterpret_cast<uint8_t*>(const_cast<char*>(written_data.data())),
-          written_data.size());
+          read_buffer.data(), static_cast<uint32_t>(read_buffer.size()));
   auto read_protocol =
       std::make_shared<apache::thrift::protocol::TBinaryProtocol>(
           read_transport);
 
   std::string str_val;
-  int32_t i32_val;
-  int64_t i64_val;
-  bool bool_val;
-  double double_val;
+  int32_t i32_val = 0;
+  int64_t i64_val = 0;
+  bool bool_val = false;
+  double double_val = 0.0;
 
   read_protocol->readString(str_val);
   read_protocol->readI32(i32_val);
@@ -92,7 +101,7 @@ TEST_F(ThriftIntegrationTest, BinaryProtocol) {
   EXPECT_EQ(i32_val, 12345);
   EXPECT_EQ(i64_val, 9876543210LL);
   EXPECT_EQ(bool_val, true);
-  EXPECT_DOUBLE_EQ(double_val, 3.14159);
+  EXPECT_DOUBLE_EQ(double_val, 123.456);
 }
 
 // Test 3: JSON Protocol
@@ -135,15 +144,17 @@ TEST_F(ThriftIntegrationTest, TransportLayer) {
   EXPECT_TRUE(memory_transport != nullptr);
 
   std::string test_data = "Hello Thrift Transport!";
-  memory_transport->write(reinterpret_cast<const uint8_t*>(test_data.c_str()),
-                          test_data.length());
+  std::vector<uint8_t> write_buffer(test_data.begin(), test_data.end());
+  memory_transport->write(write_buffer.data(),
+                          static_cast<uint32_t>(write_buffer.size()));
 
   // Read back the data
-  uint8_t buffer[1024];
-  uint32_t bytes_read = memory_transport->read(buffer, sizeof(buffer));
+  std::array<uint8_t, 1024> buffer{};
+  uint32_t bytes_read = memory_transport->read(
+      buffer.data(), static_cast<uint32_t>(buffer.size()));
   EXPECT_EQ(bytes_read, test_data.length());
 
-  std::string read_data(reinterpret_cast<char*>(buffer), bytes_read);
+  std::string read_data(buffer.begin(), std::next(buffer.begin(), bytes_read));
   EXPECT_EQ(read_data, test_data);
 }
 
@@ -157,8 +168,9 @@ TEST_F(ThriftIntegrationTest, BufferedTransport) {
   EXPECT_TRUE(buffered_transport != nullptr);
 
   std::string test_data = "Buffered transport test";
-  buffered_transport->write(reinterpret_cast<const uint8_t*>(test_data.c_str()),
-                            test_data.length());
+  std::vector<uint8_t> write_buffer(test_data.begin(), test_data.end());
+  buffered_transport->write(write_buffer.data(),
+                            static_cast<uint32_t>(write_buffer.size()));
   buffered_transport->flush();
 
   // Verify we can work with buffered transport
@@ -175,8 +187,9 @@ TEST_F(ThriftIntegrationTest, FramedTransport) {
   EXPECT_TRUE(framed_transport != nullptr);
 
   std::string test_data = "Framed transport test";
-  framed_transport->write(reinterpret_cast<const uint8_t*>(test_data.c_str()),
-                          test_data.length());
+  std::vector<uint8_t> write_buffer(test_data.begin(), test_data.end());
+  framed_transport->write(write_buffer.data(),
+                          static_cast<uint32_t>(write_buffer.size()));
   framed_transport->flush();
 
   EXPECT_TRUE(framed_transport != nullptr);
@@ -194,10 +207,10 @@ TEST_F(ThriftIntegrationTest, ExceptionHandling) {
     EXPECT_TRUE(socket != nullptr);
 
     // Test that we can catch thrift exceptions
-    apache::thrift::transport::TTransportException ex("Test exception");
-    EXPECT_EQ(ex.getType(),
+    apache::thrift::transport::TTransportException ttex("Test exception");
+    EXPECT_EQ(ttex.getType(),
               apache::thrift::transport::TTransportException::UNKNOWN);
-    EXPECT_NE(ex.what(), nullptr);
+    EXPECT_NE(ttex.what(), nullptr);
 
   } catch (const apache::thrift::TException& e) {
     // This is expected for invalid operations
@@ -255,8 +268,9 @@ TEST_F(ThriftIntegrationTest, ZlibTransportCompression) {
   }
 
   // Write data through ZLIB transport (this will compress the data)
-  zlib_transport->write(reinterpret_cast<const uint8_t*>(test_data.c_str()),
-                        test_data.size());
+  std::vector<uint8_t> write_buffer(test_data.begin(), test_data.end());
+  zlib_transport->write(write_buffer.data(),
+                        static_cast<uint32_t>(write_buffer.size()));
   zlib_transport->flush();
   zlib_transport->finish();  // Important: finalize compression
 
@@ -269,10 +283,11 @@ TEST_F(ThriftIntegrationTest, ZlibTransportCompression) {
   EXPECT_GT(compressed_data.size(), 0);
 
   // Now test decompression by reading back through ZLIB transport
+  std::vector<uint8_t> read_buffer(compressed_data.begin(),
+                                   compressed_data.end());
   auto read_memory_transport =
       std::make_shared<apache::thrift::transport::TMemoryBuffer>(
-          reinterpret_cast<uint8_t*>(const_cast<char*>(compressed_data.data())),
-          compressed_data.size());
+          read_buffer.data(), static_cast<uint32_t>(read_buffer.size()));
 
   auto read_zlib_transport =
       std::make_shared<apache::thrift::transport::TZlibTransport>(
@@ -280,20 +295,23 @@ TEST_F(ThriftIntegrationTest, ZlibTransportCompression) {
 
   // Read back the decompressed data
   std::vector<uint8_t> decompressed_buffer(test_data.size());
-  uint32_t bytes_read = read_zlib_transport->read(decompressed_buffer.data(),
-                                                  decompressed_buffer.size());
+  uint32_t bytes_read = read_zlib_transport->read(
+      decompressed_buffer.data(),
+      static_cast<uint32_t>(decompressed_buffer.size()));
 
   // Verify decompression worked correctly
   EXPECT_EQ(bytes_read, test_data.size());
   std::string decompressed_data(
-      reinterpret_cast<char*>(decompressed_buffer.data()), bytes_read);
+      decompressed_buffer.begin(),
+      std::next(decompressed_buffer.begin(), bytes_read));
   EXPECT_EQ(decompressed_data, test_data);
 }
 
 // Test: SSL Socket Support (OpenSSL integration)
 TEST_F(ThriftIntegrationTest, SSLSocketSupport) {
-  using namespace apache::thrift::transport;
-  using namespace apache::thrift::protocol;
+  using apache::thrift::protocol::TBinaryProtocol;
+  using apache::thrift::transport::TSocket;
+  using apache::thrift::transport::TSSLSocketFactory;
 
   // Test creating basic transport (without connecting)
   auto socket = std::make_shared<TSocket>("localhost", 9090);
@@ -309,8 +327,7 @@ TEST_F(ThriftIntegrationTest, SSLSocketSupport) {
   EXPECT_EQ(ssl_socket->getPort(), 9090);
 
   // Test protocol creation with SSL socket
-  auto protocol =
-      std::make_shared<apache::thrift::protocol::TBinaryProtocol>(ssl_socket);
+  auto protocol = std::make_shared<TBinaryProtocol>(ssl_socket);
   EXPECT_TRUE(protocol != nullptr);
 
   // Test that SSL socket behaves like a regular socket for basic operations
@@ -320,26 +337,25 @@ TEST_F(ThriftIntegrationTest, SSLSocketSupport) {
 
 // Test thrift executable availability and version
 TEST_F(ThriftIntegrationTest, ThriftVersionTest) {
-  ASSERT_FALSE(thrift_path.empty())
+  ASSERT_FALSE(GetThriftPath().empty())
       << "thrift executable path must be configured";
 
-  ASSERT_TRUE(std::filesystem::exists(thrift_path))
-      << "thrift executable must exist at: " << thrift_path;
-
+  ASSERT_TRUE(std::filesystem::exists(GetThriftPath()))
+      << "thrift executable must exist at: " << GetThriftPath();
   // Test that thrift executable is available
-  std::string version_command = thrift_path + " --version > /dev/null 2>&1";
+  std::string version_command = GetThriftPath() + " --version > /dev/null 2>&1";
   int result = std::system(version_command.c_str());
   EXPECT_EQ(result, 0) << "thrift executable should be available";
 
   // Test that we can get version information
-  std::string popen_command = thrift_path + " --version 2>/dev/null";
+  std::string popen_command = GetThriftPath() + " --version 2>/dev/null";
   FILE* pipe = popen(popen_command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[256];
+  std::array<char, 256> buffer{};
   std::string version_output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    version_output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    version_output += buffer.data();
   }
   pclose(pipe);
 
@@ -351,33 +367,33 @@ TEST_F(ThriftIntegrationTest, ThriftVersionTest) {
 
 // Test thrift help output
 TEST_F(ThriftIntegrationTest, ThriftHelpTest) {
-  ASSERT_FALSE(thrift_path.empty())
+  ASSERT_FALSE(GetThriftPath().empty())
       << "thrift executable path must be configured";
 
-  ASSERT_TRUE(std::filesystem::exists(thrift_path))
-      << "thrift executable must exist at: " << thrift_path;
-
+  ASSERT_TRUE(std::filesystem::exists(GetThriftPath()))
+      << "thrift executable must exist at: " << GetThriftPath();
   // Test that thrift shows help when called with --help
-  std::string help_command = thrift_path + " --help > /dev/null 2>&1";
+  std::string help_command = GetThriftPath() + " --help > /dev/null 2>&1";
   int result = std::system(help_command.c_str());
   if (result != 0) {
     // Some versions of thrift return non-zero for --help, check if it's
     // available via version
-    std::string version_command = thrift_path + " --version > /dev/null 2>&1";
+    std::string version_command =
+        GetThriftPath() + " --version > /dev/null 2>&1";
     int version_result = std::system(version_command.c_str());
     EXPECT_EQ(version_result, 0) << "thrift executable should be available";
     return;
   }
 
   // Capture help output
-  std::string popen_help_command = thrift_path + " --help 2>&1";
+  std::string popen_help_command = GetThriftPath() + " --help 2>&1";
   FILE* pipe = popen(popen_help_command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[1024];
+  std::array<char, 1024> buffer{};
   std::string help_output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    help_output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    help_output += buffer.data();
   }
   pclose(pipe);
 
@@ -393,12 +409,11 @@ TEST_F(ThriftIntegrationTest, ThriftHelpTest) {
 
 // Test basic thrift file compilation
 TEST_F(ThriftIntegrationTest, BasicThriftCompilationTest) {
-  ASSERT_FALSE(thrift_path.empty())
+  ASSERT_FALSE(GetThriftPath().empty())
       << "thrift executable path must be configured";
 
-  ASSERT_TRUE(std::filesystem::exists(thrift_path))
-      << "thrift executable must exist at: " << thrift_path;
-
+  ASSERT_TRUE(std::filesystem::exists(GetThriftPath()))
+      << "thrift executable must exist at: " << GetThriftPath();
   // Create a unique temporary directory for this test
   std::filesystem::path unique_test_dir =
       std::filesystem::temp_directory_path() /
@@ -428,17 +443,17 @@ service TestService {
       << "Test thrift file should exist";
 
   // Test that thrift can compile the file without errors
-  std::string command = thrift_path + " --gen cpp -out " +
+  std::string command = GetThriftPath() + " --gen cpp -out " +
                         unique_test_dir.string() + " " + thrift_file.string() +
                         " 2>&1";
 
   FILE* pipe = popen(command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
-  char buffer[256];
+  std::array<char, 256> buffer{};
   std::string output;
-  while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
-    output += buffer;
+  while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+    output += buffer.data();
   }
   int result = pclose(pipe);
 

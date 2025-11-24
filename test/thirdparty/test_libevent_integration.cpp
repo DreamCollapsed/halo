@@ -39,7 +39,10 @@ class LibeventIntegrationTest : public ::testing::Test {
     }
   }
 
-  struct event_base* base_ = nullptr;  // NOLINT
+  [[nodiscard]] struct event_base* GetBase() const { return base_; }
+
+ private:
+  struct event_base* base_ = nullptr;
 };
 
 // Test basic libevent functionality
@@ -53,7 +56,7 @@ TEST_F(LibeventIntegrationTest, BasicEventLoop) {
   };
 
   struct event* timer_event =
-      event_new(base_, -1, EV_TIMEOUT, timer_callback, &timer_fired);
+      event_new(GetBase(), -1, EV_TIMEOUT, timer_callback, &timer_fired);
   ASSERT_NE(timer_event, nullptr);
 
   // Set timer to fire in 100ms
@@ -65,11 +68,11 @@ TEST_F(LibeventIntegrationTest, BasicEventLoop) {
   // Run event loop with timeout
   struct timeval loop_timeout{.tv_sec = 1, .tv_usec = 0};
 
-  int loop_result = event_base_loopexit(base_, &loop_timeout);
+  int loop_result = event_base_loopexit(GetBase(), &loop_timeout);
   ASSERT_EQ(loop_result, 0);
 
   // Start the event loop
-  int dispatch_result = event_base_dispatch(base_);
+  int dispatch_result = event_base_dispatch(GetBase());
   ASSERT_EQ(dispatch_result, 0);
 
   // Check that timer fired
@@ -83,7 +86,7 @@ TEST_F(LibeventIntegrationTest, BasicEventLoop) {
 TEST_F(LibeventIntegrationTest, BufferEventBasic) {
   // Create a buffer event
   struct bufferevent* bev =
-      bufferevent_socket_new(base_, -1, BEV_OPT_CLOSE_ON_FREE);
+      bufferevent_socket_new(GetBase(), -1, BEV_OPT_CLOSE_ON_FREE);
   ASSERT_NE(bev, nullptr);
 
   // Test getting input/output buffers
@@ -109,7 +112,7 @@ TEST_F(LibeventIntegrationTest, BufferEventBasic) {
 // Test HTTP functionality
 TEST_F(LibeventIntegrationTest, HTTPBasic) {
   // Create HTTP server
-  struct evhttp* http = evhttp_new(base_);
+  struct evhttp* http = evhttp_new(GetBase());
   ASSERT_NE(http, nullptr);
 
   // Set up a simple callback
@@ -121,7 +124,8 @@ TEST_F(LibeventIntegrationTest, HTTPBasic) {
 
     // Send a simple response
     struct evbuffer* reply = evbuffer_new();
-    evbuffer_add_printf(reply, "Hello from libevent HTTP server!");  // NOLINT
+    const char* msg = "Hello from libevent HTTP server!";
+    evbuffer_add(reply, msg, strlen(msg));
     evhttp_send_reply(req, HTTP_OK, "OK", reply);
     evbuffer_free(reply);
   };
@@ -138,8 +142,12 @@ TEST_F(LibeventIntegrationTest, HTTPBasic) {
     struct sockaddr_in sin{};
     socklen_t len = sizeof(sin);
 
-    if (getsockname(sock, reinterpret_cast<struct sockaddr*>(&sin),  // NOLINT
-                    &len) == 0) {
+    // Use void* cast sequence to avoid reinterpret_cast warning while
+    // satisfying C API
+    void* sin_ptr = &sin;
+    auto* sa_ptr = static_cast<struct sockaddr*>(sin_ptr);
+
+    if (getsockname(sock, sa_ptr, &len) == 0) {
       unsigned short port = ntohs(sin.sin_port);
       EXPECT_GT(port, 0);
 
@@ -156,7 +164,7 @@ TEST_F(LibeventIntegrationTest, HTTPBasic) {
 // Test event priorities
 TEST_F(LibeventIntegrationTest, EventPriorities) {
   // Set up event base with priorities
-  int priority_result = event_base_priority_init(base_, 3);
+  int priority_result = event_base_priority_init(GetBase(), 3);
   ASSERT_EQ(priority_result, 0);
 
   std::vector<int> execution_order;
@@ -177,12 +185,12 @@ TEST_F(LibeventIntegrationTest, EventPriorities) {
     order->push_back(1);  // Medium priority
   };
 
-  struct event* low_event =
-      event_new(base_, -1, EV_TIMEOUT, low_priority_callback, &execution_order);
+  struct event* low_event = event_new(GetBase(), -1, EV_TIMEOUT,
+                                      low_priority_callback, &execution_order);
   struct event* high_event = event_new(
-      base_, -1, EV_TIMEOUT, high_priority_callback, &execution_order);
+      GetBase(), -1, EV_TIMEOUT, high_priority_callback, &execution_order);
   struct event* medium_event = event_new(
-      base_, -1, EV_TIMEOUT, medium_priority_callback, &execution_order);
+      GetBase(), -1, EV_TIMEOUT, medium_priority_callback, &execution_order);
 
   ASSERT_NE(low_event, nullptr);
   ASSERT_NE(high_event, nullptr);
@@ -194,13 +202,13 @@ TEST_F(LibeventIntegrationTest, EventPriorities) {
   ASSERT_EQ(event_priority_set(medium_event, 1), 0);  // Medium priority
 
   // Schedule all events to fire immediately
-  struct timeval immediate{0, 0};  // NOLINT
+  struct timeval immediate{.tv_sec = 0, .tv_usec = 0};
   ASSERT_EQ(event_add(low_event, &immediate), 0);
   ASSERT_EQ(event_add(medium_event, &immediate), 0);
   ASSERT_EQ(event_add(high_event, &immediate), 0);
 
   // Run one iteration of the event loop
-  ASSERT_EQ(event_base_loop(base_, EVLOOP_ONCE), 0);
+  ASSERT_EQ(event_base_loop(GetBase(), EVLOOP_ONCE), 0);
 
   // Clean up
   event_free(low_event);
@@ -235,7 +243,7 @@ TEST_F(LibeventIntegrationTest, MultipleEventBases) {
 
   // Create events on different bases
   struct event* event1 =
-      event_new(base_, -1, EV_TIMEOUT, timer_callback1, &counter1);
+      event_new(GetBase(), -1, EV_TIMEOUT, timer_callback1, &counter1);
   struct event* event2 =
       event_new(base2, -1, EV_TIMEOUT, timer_callback2, &counter2);
 
@@ -243,12 +251,12 @@ TEST_F(LibeventIntegrationTest, MultipleEventBases) {
   ASSERT_NE(event2, nullptr);
 
   // Schedule events
-  struct timeval timeout{0, 1000};  // 1ms // NOLINT
+  struct timeval timeout{.tv_sec = 0, .tv_usec = 1000};  // 1ms
   ASSERT_EQ(event_add(event1, &timeout), 0);
   ASSERT_EQ(event_add(event2, &timeout), 0);
 
   // Run both event loops once
-  ASSERT_EQ(event_base_loop(base_, EVLOOP_ONCE), 0);
+  ASSERT_EQ(event_base_loop(GetBase(), EVLOOP_ONCE), 0);
   ASSERT_EQ(event_base_loop(base2, EVLOOP_ONCE), 0);
 
   // Check that both events fired
@@ -284,17 +292,20 @@ TEST_F(LibeventIntegrationTest, SupportedMethods) {
   ASSERT_NE(methods, nullptr);
 
   // Check that we have at least one method
-  EXPECT_NE(methods[0], nullptr);  // NOLINT
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  EXPECT_NE(methods[0], nullptr);
 
   // Print supported methods
   std::cout << "Supported methods: ";
-  for (int i = 0; methods[i] != nullptr; ++i) {  // NOLINT
-    std::cout << methods[i] << " ";              // NOLINT
+  for (
+      const char** method_ptr = methods; *method_ptr != nullptr;
+      ++method_ptr) {  // NOLINT(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+    std::cout << *method_ptr << " ";
   }
   std::cout << "\n";
 
   // Get current method
-  const char* current_method = event_base_get_method(base_);
+  const char* current_method = event_base_get_method(GetBase());
   ASSERT_NE(current_method, nullptr);
   EXPECT_GT(strlen(current_method), 0);
 
@@ -317,7 +328,7 @@ TEST_F(LibeventIntegrationTest, PerformanceBasic) {
 
   for (int i = 0; i < NUM_EVENTS; ++i) {
     struct event* event_ptr =
-        event_new(base_, -1, EV_TIMEOUT, timer_callback, &events_fired);
+        event_new(GetBase(), -1, EV_TIMEOUT, timer_callback, &events_fired);
     ASSERT_NE(event_ptr, nullptr);
     events.push_back(event_ptr);
   }
@@ -325,13 +336,13 @@ TEST_F(LibeventIntegrationTest, PerformanceBasic) {
   // Measure time to schedule all events
   auto start_time = std::chrono::high_resolution_clock::now();
 
-  struct timeval immediate{0, 0};  // NOLINT
+  struct timeval immediate{.tv_sec = 0, .tv_usec = 0};
   for (auto* event_ptr : events) {
     ASSERT_EQ(event_add(event_ptr, &immediate), 0);
   }
 
   // Run event loop
-  ASSERT_EQ(event_base_dispatch(base_), 1);
+  ASSERT_EQ(event_base_dispatch(GetBase()), 1);
 
   auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -388,7 +399,7 @@ TEST_F(LibeventIntegrationTest, OpenSSLHTTPSServer) {
   ASSERT_NE(ctx, nullptr);
 
   // Create HTTP server
-  struct evhttp* http = evhttp_new(base_);
+  struct evhttp* http = evhttp_new(GetBase());
   ASSERT_NE(http, nullptr);
 
   // Set up a simple callback
@@ -400,7 +411,8 @@ TEST_F(LibeventIntegrationTest, OpenSSLHTTPSServer) {
 
     // Send a simple response
     struct evbuffer* reply = evbuffer_new();
-    evbuffer_add_printf(reply, "Hello from libevent HTTPS server!");  // NOLINT
+    const char* msg = "Hello from libevent HTTPS server!";
+    evbuffer_add(reply, msg, strlen(msg));
     evhttp_send_reply(req, HTTP_OK, "OK", reply);
     evbuffer_free(reply);
   };
@@ -417,8 +429,12 @@ TEST_F(LibeventIntegrationTest, OpenSSLHTTPSServer) {
     struct sockaddr_in sin{};
     socklen_t len = sizeof(sin);
 
-    if (getsockname(sock, reinterpret_cast<struct sockaddr*>(&sin),  // NOLINT
-                    &len) == 0) {
+    // Use void* cast sequence to avoid reinterpret_cast warning while
+    // satisfying C API
+    void* sin_ptr = &sin;
+    auto* sa_ptr = static_cast<struct sockaddr*>(sin_ptr);
+
+    if (getsockname(sock, sa_ptr, &len) == 0) {
       unsigned short port = ntohs(sin.sin_port);
       EXPECT_GT(port, 0);
 

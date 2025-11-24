@@ -37,11 +37,11 @@ class GrpcIntegrationTest : public ::testing::Test {
     ASSERT_NE(channel_, nullptr);
 
     // Setup for binary tool tests
-    test_dir = std::filesystem::temp_directory_path() / "grpc_test";
-    std::filesystem::create_directories(test_dir);
+    test_dir_ = std::filesystem::temp_directory_path() / "grpc_test";
+    std::filesystem::create_directories(test_dir_);
 
 #ifdef GRPC_CPP_PLUGIN_EXECUTABLE_PATH
-    grpc_cpp_plugin_path = GRPC_CPP_PLUGIN_EXECUTABLE_PATH;
+    grpc_cpp_plugin_path_ = GRPC_CPP_PLUGIN_EXECUTABLE_PATH;
 #endif
   }
 
@@ -60,10 +60,20 @@ class GrpcIntegrationTest : public ::testing::Test {
     }
 
     // Clean up test files
-    std::filesystem::remove_all(test_dir);
+    std::filesystem::remove_all(test_dir_);
   }
 
-  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
+  [[nodiscard]] grpc::Channel* GetChannel() const { return channel_.get(); }
+  [[nodiscard]] grpc::Server* GetServer() const { return server_.get(); }
+  [[nodiscard]] int GetSelectedPort() const { return selected_port_; }
+  [[nodiscard]] const std::filesystem::path& GetTestDir() const {
+    return test_dir_;
+  }
+  [[nodiscard]] const std::string& GetGrpcCppPluginPath() const {
+    return grpc_cpp_plugin_path_;
+  }
+
+ private:
   grpc::ServerBuilder builder_;
   std::unique_ptr<grpc::AsyncGenericService> async_generic_service_;
   std::unique_ptr<grpc::CompletionQueue> cq_;
@@ -71,41 +81,37 @@ class GrpcIntegrationTest : public ::testing::Test {
   std::shared_ptr<grpc::Channel> channel_;
   int selected_port_ = 0;
 
-  // Binary tool test variables
-  // NOLINTBEGIN(readability-identifier-naming)
-  std::filesystem::path test_dir;
-  std::string grpc_cpp_plugin_path;
-  // NOLINTEND(readability-identifier-naming)
-  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
+  std::filesystem::path test_dir_;
+  std::string grpc_cpp_plugin_path_;
 };
 
 // Basic channel creation and connection tests
 TEST_F(GrpcIntegrationTest, ChannelCreation) {
-  EXPECT_NE(channel_, nullptr);
+  EXPECT_NE(GetChannel(), nullptr);
 
   // Test channel state
-  auto state = channel_->GetState(false);
+  auto state = GetChannel()->GetState(false);
   EXPECT_TRUE(state == GRPC_CHANNEL_IDLE || state == GRPC_CHANNEL_READY ||
               state == GRPC_CHANNEL_CONNECTING);
 }
 
 TEST_F(GrpcIntegrationTest, ChannelStateTransitions) {
-  auto initial_state = channel_->GetState(false);
+  auto initial_state = GetChannel()->GetState(false);
 
   // Try to connect
-  bool state_changed = channel_->WaitForStateChange(
+  bool state_changed = GetChannel()->WaitForStateChange(
       initial_state,
       std::chrono::system_clock::now() + std::chrono::seconds(5));
 
   // Should either change state or timeout
-  auto final_state = channel_->GetState(false);
+  auto final_state = GetChannel()->GetState(false);
   if (state_changed) {
     EXPECT_NE(initial_state, final_state);
   }
 }
 
 TEST_F(GrpcIntegrationTest, MultipleChannelsToSameServer) {
-  std::string target = "127.0.0.1:" + std::to_string(selected_port_);
+  std::string target = "127.0.0.1:" + std::to_string(GetSelectedPort());
 
   std::vector<std::shared_ptr<grpc::Channel>> channels;
   const int NUM_CHANNELS = 5;
@@ -124,7 +130,7 @@ TEST_F(GrpcIntegrationTest, MultipleChannelsToSameServer) {
 }
 
 TEST_F(GrpcIntegrationTest, ChannelWithDifferentCredentials) {
-  std::string target = "127.0.0.1:" + std::to_string(selected_port_);
+  std::string target = "127.0.0.1:" + std::to_string(GetSelectedPort());
 
   // Test different credential types
   auto insecure_channel =
@@ -142,7 +148,7 @@ TEST_F(GrpcIntegrationTest, ChannelWithDifferentCredentials) {
 }
 
 TEST_F(GrpcIntegrationTest, ChannelArguments) {
-  std::string target = "127.0.0.1:" + std::to_string(selected_port_);
+  std::string target = "127.0.0.1:" + std::to_string(GetSelectedPort());
 
   grpc::ChannelArguments args;
   args.SetMaxReceiveMessageSize(2 * 1024 * 1024);  // 2MB
@@ -163,7 +169,7 @@ TEST_F(GrpcIntegrationTest, ChannelArguments) {
 // Compression and encoding tests
 TEST_F(GrpcIntegrationTest, CompressionAlgorithms) {
   grpc::ChannelArguments args;
-  std::string target = "127.0.0.1:" + std::to_string(selected_port_);
+  std::string target = "127.0.0.1:" + std::to_string(GetSelectedPort());
 
   // Test different compression algorithms
   std::vector<grpc_compression_algorithm> algorithms = {
@@ -181,7 +187,7 @@ TEST_F(GrpcIntegrationTest, CompressionAlgorithms) {
 TEST_F(GrpcIntegrationTest, ConcurrentChannelCreation) {
   const int NUM_THREADS = 10;
   const int CHANNELS_PER_THREAD = 5;
-  std::string target = "127.0.0.1:" + std::to_string(selected_port_);
+  std::string target = "127.0.0.1:" + std::to_string(GetSelectedPort());
 
   std::vector<std::future<void>> futures;
   std::atomic<int> success_count{0};
@@ -208,7 +214,7 @@ TEST_F(GrpcIntegrationTest, ConcurrentChannelCreation) {
 }
 
 TEST_F(GrpcIntegrationTest, ChannelMemoryStress) {
-  std::string target = "127.0.0.1:" + std::to_string(selected_port_);
+  std::string target = "127.0.0.1:" + std::to_string(GetSelectedPort());
   std::vector<std::shared_ptr<grpc::Channel>> channels;
 
   const int NUM_CHANNELS = 100;
@@ -233,7 +239,7 @@ TEST_F(GrpcIntegrationTest, ChannelMemoryStress) {
 }
 
 TEST_F(GrpcIntegrationTest, ChannelLifecycleManagement) {
-  std::string target = "127.0.0.1:" + std::to_string(selected_port_);
+  std::string target = "127.0.0.1:" + std::to_string(GetSelectedPort());
 
   {
     // Create channel in scope
@@ -344,7 +350,7 @@ TEST_F(GrpcIntegrationTest, ChannelTimeout) {
 
 // Performance measurement tests
 TEST_F(GrpcIntegrationTest, ChannelCreationPerformance) {
-  std::string target = "127.0.0.1:" + std::to_string(selected_port_);
+  std::string target = "127.0.0.1:" + std::to_string(GetSelectedPort());
   const int NUM_CHANNELS = 100;
 
   auto start = std::chrono::high_resolution_clock::now();
@@ -379,11 +385,11 @@ TEST_F(GrpcIntegrationTest, HealthCheckService) {
   // Since we enabled health check service, it should be available
   // This is mainly testing that the server starts correctly with health check
   // enabled
-  EXPECT_NE(server_, nullptr);
-  EXPECT_GT(selected_port_, 0);
+  EXPECT_NE(GetServer(), nullptr);
+  EXPECT_GT(GetSelectedPort(), 0);
 
   // Channel to the server should be valid
-  auto state = channel_->GetState(false);
+  auto state = GetChannel()->GetState(false);
   EXPECT_TRUE(state != GRPC_CHANNEL_SHUTDOWN);
 }
 
@@ -420,28 +426,29 @@ TEST(ThirdpartyGrpcIntegration, BuildServerAndShutdown) {
 
 // Test grpc_cpp_plugin executable availability
 TEST_F(GrpcIntegrationTest, GrpcCppPluginTest) {
-  ASSERT_FALSE(grpc_cpp_plugin_path.empty())
+  ASSERT_FALSE(GetGrpcCppPluginPath().empty())
       << "grpc_cpp_plugin executable path must be configured";
 
   // Check if the plugin file exists
-  ASSERT_TRUE(std::filesystem::exists(grpc_cpp_plugin_path))
-      << "grpc_cpp_plugin file must exist at path: " << grpc_cpp_plugin_path;
+  ASSERT_TRUE(std::filesystem::exists(GetGrpcCppPluginPath()))
+      << "grpc_cpp_plugin file must exist at path: " << GetGrpcCppPluginPath();
 
   // Test that grpc_cpp_plugin executable is available
-  std::string help_command = grpc_cpp_plugin_path + " --help > /dev/null 2>&1";
+  std::string help_command =
+      GetGrpcCppPluginPath() + " --help > /dev/null 2>&1";
   int result = std::system(help_command.c_str());
 
   // Some plugin versions may not support --help, try alternative approach
   if (result != 0) {
     // Just check if the file is executable
-    EXPECT_TRUE(std::filesystem::exists(grpc_cpp_plugin_path))
+    EXPECT_TRUE(std::filesystem::exists(GetGrpcCppPluginPath()))
         << "grpc_cpp_plugin executable should exist at: "
-        << grpc_cpp_plugin_path;
+        << GetGrpcCppPluginPath();
     return;
   }
 
   // Capture help output if available
-  std::string popen_help_command = grpc_cpp_plugin_path + " --help 2>&1";
+  std::string popen_help_command = GetGrpcCppPluginPath() + " --help 2>&1";
   FILE* pipe = popen(popen_help_command.c_str(), "r");
   ASSERT_NE(pipe, nullptr);
 
@@ -462,14 +469,14 @@ TEST_F(GrpcIntegrationTest, GrpcCppPluginTest) {
 
 // Test grpc_cpp_plugin with protoc integration
 TEST_F(GrpcIntegrationTest, ProtocGrpcIntegrationTest) {
-  ASSERT_FALSE(grpc_cpp_plugin_path.empty())
+  ASSERT_FALSE(GetGrpcCppPluginPath().empty())
       << "grpc_cpp_plugin executable path must be configured";
 
-  ASSERT_TRUE(std::filesystem::exists(grpc_cpp_plugin_path))
-      << "grpc_cpp_plugin executable must exist at: " << grpc_cpp_plugin_path;
+  ASSERT_TRUE(std::filesystem::exists(GetGrpcCppPluginPath()))
+      << "grpc_cpp_plugin executable must exist at: " << GetGrpcCppPluginPath();
 
   // Create a simple gRPC service proto file
-  std::filesystem::path proto_file = test_dir / "test_service.proto";
+  std::filesystem::path proto_file = GetTestDir() / "test_service.proto";
   std::ofstream file(proto_file);
   file << R"(
 syntax = "proto3";
@@ -498,10 +505,10 @@ service TestService {
 
   // Test that we can use grpc_cpp_plugin with protoc to generate gRPC code
   // Note: This assumes protoc is available in PATH
-  std::string command = "protoc --cpp_out=" + test_dir.string() +
-                        " --grpc_out=" + test_dir.string() +
-                        " --plugin=protoc-gen-grpc=" + grpc_cpp_plugin_path +
-                        " --proto_path=" + test_dir.string() + " " +
+  std::string command = "protoc --cpp_out=" + GetTestDir().string() +
+                        " --grpc_out=" + GetTestDir().string() +
+                        " --plugin=protoc-gen-grpc=" + GetGrpcCppPluginPath() +
+                        " --proto_path=" + GetTestDir().string() + " " +
                         proto_file.filename().string() + " 2>&1";
 
   FILE* pipe = popen(command.c_str(), "r");
@@ -517,14 +524,16 @@ service TestService {
   // If protoc is available, this should work
   if (result == 0) {
     // Check that gRPC files were generated
-    EXPECT_TRUE(std::filesystem::exists(test_dir / "test_service.grpc.pb.h"))
+    EXPECT_TRUE(
+        std::filesystem::exists(GetTestDir() / "test_service.grpc.pb.h"))
         << "grpc_cpp_plugin should generate gRPC header file";
-    EXPECT_TRUE(std::filesystem::exists(test_dir / "test_service.grpc.pb.cc"))
+    EXPECT_TRUE(
+        std::filesystem::exists(GetTestDir() / "test_service.grpc.pb.cc"))
         << "grpc_cpp_plugin should generate gRPC source file";
   } else {
     // If protoc is not available or command failed, just verify plugin exists
-    EXPECT_TRUE(std::filesystem::exists(grpc_cpp_plugin_path))
+    EXPECT_TRUE(std::filesystem::exists(GetGrpcCppPluginPath()))
         << "grpc_cpp_plugin executable should exist at: "
-        << grpc_cpp_plugin_path;
+        << GetGrpcCppPluginPath();
   }
 }

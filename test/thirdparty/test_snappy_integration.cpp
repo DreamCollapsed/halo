@@ -2,7 +2,6 @@
 #include <snappy.h>
 
 #include <cstring>
-#include <numeric>
 #include <string>
 #include <vector>
 
@@ -10,19 +9,28 @@ class SnappyIntegrationTest : public ::testing::Test {
  protected:
   void SetUp() override {
     // Generate test data
-    test_data =
+    test_data_ =
         "Hello, Snappy! This is a test string for compression. "
         "It contains some repetitive content to ensure good compression "
         "ratios. "
         "Repetitive content, repetitive content, repetitive content!";
 
     // Generate binary test data
-    binary_data.resize(1024);
-    std::iota(binary_data.begin(), binary_data.end(), 0);
+    binary_data_.resize(1024);
+    for (size_t i = 0; i < binary_data_.size(); ++i) {
+      binary_data_[i] = static_cast<uint8_t>(i % 256);
+    }
   }
 
-  std::string test_data;
-  std::vector<uint8_t> binary_data;
+  [[nodiscard]] const std::string& TestData() const { return test_data_; }
+
+  [[nodiscard]] const std::vector<uint8_t>& BinaryData() const {
+    return binary_data_;
+  }
+
+ private:
+  std::string test_data_;
+  std::vector<uint8_t> binary_data_;
 };
 
 // Test basic compression and decompression
@@ -32,35 +40,35 @@ TEST_F(SnappyIntegrationTest, BasicCompressionTest) {
 
   // Compress
   size_t compressed_length =
-      snappy::Compress(test_data.data(), test_data.size(), &compressed);
+      snappy::Compress(TestData().data(), TestData().size(), &compressed);
   ASSERT_GT(compressed_length, 0);
-  EXPECT_LT(compressed.size(), test_data.size());  // Should be smaller
+  EXPECT_LT(compressed.size(), TestData().size());  // Should be smaller
 
   // Decompress
   bool success =
       snappy::Uncompress(compressed.data(), compressed.size(), &decompressed);
   ASSERT_TRUE(success);
-  EXPECT_EQ(decompressed, test_data);
+  EXPECT_EQ(decompressed, TestData());
 }
 
 // Test compression with raw buffer interface
 TEST_F(SnappyIntegrationTest, RawBufferCompressionTest) {
-  size_t max_compressed_length = snappy::MaxCompressedLength(test_data.size());
+  size_t max_compressed_length = snappy::MaxCompressedLength(TestData().size());
   std::vector<char> compressed(max_compressed_length);
 
-  size_t compressed_length;
-  snappy::RawCompress(test_data.data(), test_data.size(), compressed.data(),
+  size_t compressed_length = 0;
+  snappy::RawCompress(TestData().data(), TestData().size(), compressed.data(),
                       &compressed_length);
 
   ASSERT_GT(compressed_length, 0);
   ASSERT_LE(compressed_length, max_compressed_length);
 
   // Decompress
-  size_t uncompressed_length;
+  size_t uncompressed_length = 0;
   bool valid = snappy::GetUncompressedLength(
       compressed.data(), compressed_length, &uncompressed_length);
   ASSERT_TRUE(valid);
-  EXPECT_EQ(uncompressed_length, test_data.size());
+  EXPECT_EQ(uncompressed_length, TestData().size());
 
   std::vector<char> decompressed(uncompressed_length);
   bool success = snappy::RawUncompress(compressed.data(), compressed_length,
@@ -68,7 +76,7 @@ TEST_F(SnappyIntegrationTest, RawBufferCompressionTest) {
   ASSERT_TRUE(success);
 
   std::string result(decompressed.begin(), decompressed.end());
-  EXPECT_EQ(result, test_data);
+  EXPECT_EQ(result, TestData());
 }
 
 // Test binary data compression
@@ -76,7 +84,7 @@ TEST_F(SnappyIntegrationTest, BinaryDataCompressionTest) {
   std::string compressed;
   std::string decompressed;
 
-  std::string binary_string(binary_data.begin(), binary_data.end());
+  std::string binary_string(BinaryData().begin(), BinaryData().end());
 
   // Compress binary data
   snappy::Compress(binary_string.data(), binary_string.size(), &compressed);
@@ -89,16 +97,16 @@ TEST_F(SnappyIntegrationTest, BinaryDataCompressionTest) {
   EXPECT_EQ(decompressed, binary_string);
 
   // Verify byte-by-byte
-  EXPECT_EQ(decompressed.size(), binary_data.size());
-  for (size_t i = 0; i < binary_data.size(); ++i) {
-    EXPECT_EQ(static_cast<uint8_t>(decompressed[i]), binary_data[i]);
+  EXPECT_EQ(decompressed.size(), BinaryData().size());
+  for (size_t i = 0; i < BinaryData().size(); ++i) {
+    EXPECT_EQ(static_cast<uint8_t>(decompressed[i]), BinaryData()[i]);
   }
 }
 
 // Test validation functions
 TEST_F(SnappyIntegrationTest, ValidationTest) {
   std::string compressed;
-  snappy::Compress(test_data.data(), test_data.size(), &compressed);
+  snappy::Compress(TestData().data(), TestData().size(), &compressed);
 
   // Test valid compressed data
   EXPECT_TRUE(
@@ -110,11 +118,11 @@ TEST_F(SnappyIntegrationTest, ValidationTest) {
                                                invalid_data.size()));
 
   // Test getting uncompressed length
-  size_t uncompressed_length;
+  size_t uncompressed_length = 0;
   bool valid = snappy::GetUncompressedLength(
       compressed.data(), compressed.size(), &uncompressed_length);
   ASSERT_TRUE(valid);
-  EXPECT_EQ(uncompressed_length, test_data.size());
+  EXPECT_EQ(uncompressed_length, TestData().size());
 }
 
 // Test empty data
@@ -141,7 +149,7 @@ TEST_F(SnappyIntegrationTest, LargeDataTest) {
   std::string large_data;
   large_data.reserve(100000);
   for (int i = 0; i < 10000; ++i) {
-    large_data += test_data;
+    large_data += TestData();
   }
 
   std::string compressed;
@@ -167,7 +175,7 @@ TEST_F(SnappyIntegrationTest, PerformanceTest) {
   std::string perf_data;
   perf_data.reserve(10000);
   for (int i = 0; i < 1000; ++i) {
-    perf_data += test_data;
+    perf_data += TestData();
   }
 
   std::string compressed;
@@ -206,7 +214,7 @@ TEST_F(SnappyIntegrationTest, ErrorHandlingTest) {
   EXPECT_FALSE(success);
 
   // Try to get uncompressed length from invalid data
-  size_t uncompressed_length;
+  size_t uncompressed_length = 0;
   bool valid = snappy::GetUncompressedLength(invalid_compressed.data(),
                                              invalid_compressed.size(),
                                              &uncompressed_length);
@@ -244,8 +252,8 @@ TEST_F(SnappyIntegrationTest, RealWorldScenarioTest) {
   snappy::Compress(large_json.data(), large_json.size(), &compressed);
 
   // Check compression ratio
-  double compression_ratio =
-      static_cast<double>(compressed.size()) / large_json.size();
+  double compression_ratio = static_cast<double>(compressed.size()) /
+                             static_cast<double>(large_json.size());
   EXPECT_LT(compression_ratio, 0.8);  // Should achieve at least 20% compression
 
   // Decompress and verify
@@ -254,8 +262,8 @@ TEST_F(SnappyIntegrationTest, RealWorldScenarioTest) {
   ASSERT_TRUE(success);
   EXPECT_EQ(decompressed, large_json);
 
-  std::cout << "Original size: " << large_json.size() << " bytes" << std::endl;
+  std::cout << "Original size: " << large_json.size() << " bytes" << "\n";
   std::cout << "Compressed size: " << compressed.size() << " bytes"
-            << std::endl;
-  std::cout << "Compression ratio: " << compression_ratio << std::endl;
+            << "\n";
+  std::cout << "Compression ratio: " << compression_ratio << "\n";
 }

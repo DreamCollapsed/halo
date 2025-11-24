@@ -143,10 +143,8 @@ jobs:
         run: |
           set -euxo pipefail
           brew update
-          brew install llvm
-          LLVM_PREFIX=$(brew --prefix)/opt/llvm
-          echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
-          "$LLVM_PREFIX/bin/clang-format" --version
+          brew install clang-format
+          clang-format --version
 
       - name: Run clang-format diff
         if: steps.diff.outputs.count != '0' && steps.has_cfg.outputs.found == 'true'
@@ -288,6 +286,7 @@ jobs:
           set -euxo pipefail
           echo "brew --version:" && brew --version
           brew update
+          brew upgrade
           # Hard fail if any of these cannot be installed (no fallbacks)
           brew install llvm cmake autoconf automake libtool
           brew list --versions llvm

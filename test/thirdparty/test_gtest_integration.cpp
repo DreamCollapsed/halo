@@ -85,12 +85,14 @@ class GTestIntegrationTest : public ::testing::Test {
     raw_mock_db_ = nullptr;
   }
 
-  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
+  [[nodiscard]] MockDatabaseImpl* GetMockDb() const { return raw_mock_db_; }
+  [[nodiscard]] DatabaseService* GetService() const { return service_.get(); }
+
+ private:
   std::unique_ptr<MockDatabaseImpl> mock_db_;
   MockDatabaseImpl* raw_mock_db_ =
       nullptr;  // Non-owning pointer for setting expectations
   std::unique_ptr<DatabaseService> service_;
-  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes,misc-non-private-member-variables-in-classes)
 };
 
 // Test basic GTest functionality
@@ -151,40 +153,40 @@ TEST_F(GTestIntegrationTest, ExceptionHandling) {
 // Test basic mock functionality
 TEST_F(GTestIntegrationTest, BasicMockFunctionality) {
   // Set up expectations
-  EXPECT_CALL(*raw_mock_db_, Connect("test_connection")).WillOnce(Return(true));
+  EXPECT_CALL(*GetMockDb(), Connect("test_connection")).WillOnce(Return(true));
 
-  EXPECT_CALL(*raw_mock_db_, Query("SELECT * FROM users"))
+  EXPECT_CALL(*GetMockDb(), Query("SELECT * FROM users"))
       .WillOnce(Return("user1,user2,user3"));
 
-  EXPECT_CALL(*raw_mock_db_, Disconnect()).Times(1);
+  EXPECT_CALL(*GetMockDb(), Disconnect()).Times(1);
 
   // Test the service
-  EXPECT_TRUE(service_->Initialize("test_connection"));
+  EXPECT_TRUE(GetService()->Initialize("test_connection"));
 
-  std::vector<std::string> users = service_->GetUsers();
+  std::vector<std::string> users = GetService()->GetUsers();
   EXPECT_EQ(users.size(), 3);
 
-  service_->Shutdown();
+  GetService()->Shutdown();
 }
 
 // Test mock with multiple calls
 TEST_F(GTestIntegrationTest, MockMultipleCalls) {
   // Set up expectations for multiple calls
-  EXPECT_CALL(*raw_mock_db_, Connect(::testing::_))
+  EXPECT_CALL(*GetMockDb(), Connect(::testing::_))
       .Times(AtLeast(1))
       .WillRepeatedly(Return(true));
 
-  EXPECT_CALL(*raw_mock_db_, ExecuteUpdate(::testing::_))
+  EXPECT_CALL(*GetMockDb(), ExecuteUpdate(::testing::_))
       .Times(3)
       .WillOnce(Return(1))
       .WillOnce(Return(1))
       .WillOnce(Return(0));  // Third call fails
 
   // Test multiple operations
-  EXPECT_TRUE(service_->Initialize("connection1"));
-  EXPECT_TRUE(service_->AddUser("user1"));
-  EXPECT_TRUE(service_->AddUser("user2"));
-  EXPECT_FALSE(service_->AddUser("user3"));  // Should fail
+  EXPECT_TRUE(GetService()->Initialize("connection1"));
+  EXPECT_TRUE(GetService()->AddUser("user1"));
+  EXPECT_TRUE(GetService()->AddUser("user2"));
+  EXPECT_FALSE(GetService()->AddUser("user3"));  // Should fail
 }
 
 // Test strict mock (all calls must be expected)
@@ -220,19 +222,19 @@ TEST_F(GTestIntegrationTest, NiceMockTest) {
 TEST_F(GTestIntegrationTest, CallSequenceTest) {
   InSequence seq;  // Calls must happen in the specified order
 
-  EXPECT_CALL(*raw_mock_db_, Connect(::testing::_)).WillOnce(Return(true));
+  EXPECT_CALL(*GetMockDb(), Connect(::testing::_)).WillOnce(Return(true));
 
-  EXPECT_CALL(*raw_mock_db_, Query(::testing::_)).WillOnce(Return("data"));
+  EXPECT_CALL(*GetMockDb(), Query(::testing::_)).WillOnce(Return("data"));
 
-  EXPECT_CALL(*raw_mock_db_, ExecuteUpdate(::testing::_)).WillOnce(Return(1));
+  EXPECT_CALL(*GetMockDb(), ExecuteUpdate(::testing::_)).WillOnce(Return(1));
 
-  EXPECT_CALL(*raw_mock_db_, Disconnect());
+  EXPECT_CALL(*GetMockDb(), Disconnect());
 
   // Execute in the expected order
-  service_->Initialize("test");
-  service_->GetUsers();
-  service_->AddUser("test_user");
-  service_->Shutdown();
+  GetService()->Initialize("test");
+  GetService()->GetUsers();
+  GetService()->AddUser("test_user");
+  GetService()->Shutdown();
 }
 
 // Performance test for GTest/GMock
@@ -240,14 +242,14 @@ TEST_F(GTestIntegrationTest, PerformanceTest) {
   const int ITERATIONS = 1000;
 
   // Set up expectations for many calls
-  EXPECT_CALL(*raw_mock_db_, Query(::testing::_))
+  EXPECT_CALL(*GetMockDb(), Query(::testing::_))
       .Times(ITERATIONS)
       .WillRepeatedly(Return("test_result"));
 
   auto start = std::chrono::high_resolution_clock::now();
 
   for (int i = 0; i < ITERATIONS; ++i) {
-    service_->GetUsers();
+    GetService()->GetUsers();
   }
 
   auto end = std::chrono::high_resolution_clock::now();
@@ -265,19 +267,19 @@ TEST_F(GTestIntegrationTest, ParameterMatching) {
   using ::testing::StartsWith;
 
   // Test different parameter matchers
-  EXPECT_CALL(*raw_mock_db_, Connect(StartsWith("mysql://")))
+  EXPECT_CALL(*GetMockDb(), Connect(StartsWith("mysql://")))
       .WillOnce(Return(true));
 
-  EXPECT_CALL(*raw_mock_db_, Query(HasSubstr("SELECT")))
+  EXPECT_CALL(*GetMockDb(), Query(HasSubstr("SELECT")))
       .WillOnce(Return("result"));
 
-  EXPECT_CALL(*raw_mock_db_, ExecuteUpdate(MatchesRegex("INSERT.*users.*")))
+  EXPECT_CALL(*GetMockDb(), ExecuteUpdate(MatchesRegex("INSERT.*users.*")))
       .WillOnce(Return(1));
 
   // Execute with matching parameters
-  service_->Initialize("mysql://localhost:3306/test");
-  service_->GetUsers();       // Will call Query with SELECT
-  service_->AddUser("test");  // Will call ExecuteUpdate with INSERT
+  GetService()->Initialize("mysql://localhost:3306/test");
+  GetService()->GetUsers();       // Will call Query with SELECT
+  GetService()->AddUser("test");  // Will call ExecuteUpdate with INSERT
 }
 
 int main(int argc, char** argv) {

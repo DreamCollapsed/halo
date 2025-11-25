@@ -278,6 +278,13 @@ TEST_F(OpenMPIntegrationTest, OpenMPVersionTest) {
 #endif
 }
 
+// Test KMP version if available
+TEST_F(OpenMPIntegrationTest, KMPVersionCheck) {
+  EXPECT_EQ(KMP_VERSION_MAJOR, 5);
+  EXPECT_EQ(KMP_VERSION_MINOR, 0);
+  EXPECT_EQ(KMP_VERSION_BUILD, 20140926);
+}
+
 // Test nested parallelism (if supported)
 TEST_F(OpenMPIntegrationTest, NestedParallelism) {
   // Enable nested parallelism

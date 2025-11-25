@@ -18,6 +18,11 @@ TEST(SimdjsonIntegration, VersionAPILoad) {
   ASSERT_GT(impl_count, 0);
 }
 
+// Test simdjson version
+TEST(SimdjsonIntegration, VersionCheck) {
+  EXPECT_EQ(std::string(SIMDJSON_VERSION), "4.2.2");
+}
+
 // Parse a simple JSON string
 TEST(SimdjsonIntegration, SimpleParse) {
   // padded_string ensures required  SIMDJSON_PADDING bytes

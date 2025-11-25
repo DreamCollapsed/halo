@@ -6,6 +6,12 @@
 
 // Integration tests for xxHash library
 
+TEST(XXHashIntegrationTest, VersionCheck) {
+  EXPECT_EQ(XXH_VERSION_MAJOR, 0);
+  EXPECT_EQ(XXH_VERSION_MINOR, 8);
+  EXPECT_EQ(XXH_VERSION_RELEASE, 3);
+}
+
 TEST(XXHashIntegrationTest, ConsistentHash32) {
   const char* data = "The quick brown fox jumps over the lazy dog";
   size_t len = std::strlen(data);

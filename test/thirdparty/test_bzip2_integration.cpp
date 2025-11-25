@@ -51,3 +51,10 @@ TEST_F(Bzip2IntegrationTest, CompressionDecompression) {
   std::string decompressed_string(decompressed_data.data(), decompressed_size);
   EXPECT_EQ(original_data, decompressed_string);
 }
+
+TEST_F(Bzip2IntegrationTest, VersionCheck) {
+  const char* version = BZ2_bzlibVersion();
+  EXPECT_TRUE(version != nullptr);
+  // The standard version string for 1.0.8
+  EXPECT_STREQ(version, "1.0.8, 13-Jul-2019");
+}

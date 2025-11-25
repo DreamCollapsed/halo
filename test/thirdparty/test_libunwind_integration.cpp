@@ -20,6 +20,11 @@ class LibunwindIntegrationTest : public ::testing::Test {
   }
 };
 
+// Test libunwind version
+TEST_F(LibunwindIntegrationTest, VersionCheck) {
+  EXPECT_EQ(_LIBUNWIND_VERSION, 15000);
+}
+
 // Test basic libunwind functionality
 TEST_F(LibunwindIntegrationTest, BasicUnwindTest) {
   unw_context_t context;

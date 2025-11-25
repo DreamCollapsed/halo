@@ -537,3 +537,8 @@ service TestService {
         << GetGrpcCppPluginPath();
   }
 }
+
+// Test gRPC version
+TEST_F(GrpcIntegrationTest, VersionCheck) {
+  EXPECT_EQ(grpc::Version(), "1.76.0");
+}

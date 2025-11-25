@@ -2,6 +2,7 @@
 #include <folly/Random.h>
 #include <folly/Range.h>
 #include <folly/String.h>
+#include <folly/experimental/symbolizer/Symbolizer.h>
 #include <folly/init/Init.h>
 #include <gtest/gtest.h>
 #include <thrift/lib/cpp2/Thrift.h>
@@ -445,6 +446,12 @@ TEST(FbthriftIntegration, ContainerSerialization) {
 
     EXPECT_EQ(result_list, string_list);
   }
+}
+
+TEST(FbthriftIntegration, LibunwindIntegration) {
+  // Ensure libunwind is linked via folly
+  folly::symbolizer::SafeStackTracePrinter printer;
+  SUCCEED();
 }
 
 int main(int argc, char** argv) {

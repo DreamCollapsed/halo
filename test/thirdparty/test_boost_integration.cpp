@@ -35,6 +35,7 @@
 #include <boost/random.hpp>
 #include <boost/regex.hpp>
 #include <boost/serialization/vector.hpp>
+#include <boost/stacktrace.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/thread.hpp>
 #include <boost/timer/timer.hpp>
@@ -570,7 +571,15 @@ TEST_F(BoostIntegrationTest, SerializationOperations) {
 TEST_F(BoostIntegrationTest, StacktraceOperations) {
   // Note: Stacktrace functionality depends on platform-specific libraries
   // For now, just test that the component is available
-  EXPECT_TRUE(true);
+  boost::stacktrace::stacktrace bst;
+  // If libunwind is linked, we should be able to get a stacktrace
+  // Even if empty (which is unlikely), it proves the symbols are resolved
+  EXPECT_GE(bst.size(), 0);
+
+  if (!bst.empty()) {
+    std::string trace_str = boost::stacktrace::to_string(bst);
+    EXPECT_FALSE(trace_str.empty());
+  }
 }
 
 // Test Boost.Timer
@@ -823,6 +832,27 @@ TEST_F(BoostIntegrationTest, FunctionOperations) {
 
   empty_func = []() {};
   EXPECT_FALSE(empty_func.empty());
+}
+
+// Test Boost version macros
+TEST_F(BoostIntegrationTest, VersionCheck) {
+  // Verify BOOST_VERSION macro exists and has expected format
+  // Format is: major * 100000 + minor * 100 + patch
+  EXPECT_GT(BOOST_VERSION, 0);
+
+  int major = BOOST_VERSION / 100000;
+  int minor = (BOOST_VERSION / 100) % 1000;
+  int patch = BOOST_VERSION % 100;
+
+  // We expect version 1.89.0
+  EXPECT_EQ(major, 1);
+  EXPECT_EQ(minor, 89);
+  EXPECT_EQ(patch, 0);
+  EXPECT_EQ(BOOST_VERSION, 108900);
+
+  // Verify BOOST_LIB_VERSION string macro
+  // Format is "major_minor" (e.g., "1_89")
+  EXPECT_STREQ(BOOST_LIB_VERSION, "1_89");
 }
 
 // Performance test for commonly used Boost features

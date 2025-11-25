@@ -54,6 +54,12 @@ TEST_F(ProtobufIntegrationTest, LibraryInitialization) {
   std::cout << "Protobuf version: " << GOOGLE_PROTOBUF_VERSION << "\n";
 }
 
+// Test protobuf version
+TEST_F(ProtobufIntegrationTest, VersionCheck) {
+  // Just verify it's a recent version
+  EXPECT_EQ(GOOGLE_PROTOBUF_VERSION, 6033001);
+}
+
 // Test basic descriptor functionality
 TEST_F(ProtobufIntegrationTest, DescriptorFunctionality) {
   // Get the descriptor for FileDescriptorProto (built-in message type)

@@ -1,3 +1,4 @@
+#include <folly/experimental/symbolizer/Symbolizer.h>
 #include <folly/io/async/EventBase.h>
 #include <folly/portability/GTest.h>
 #include <gtest/gtest.h>
@@ -470,4 +471,10 @@ TEST_F(WangleIntegrationTest, ThreadPoolExecutorScaling) {
   }
 
   EXPECT_GE(total_tasks.load(), 40);  // Should have executed 4*10 = 40 tasks
+}
+
+TEST_F(WangleIntegrationTest, LibunwindIntegration) {
+  // Ensure libunwind is linked via folly
+  folly::symbolizer::SafeStackTracePrinter printer;
+  SUCCEED();
 }

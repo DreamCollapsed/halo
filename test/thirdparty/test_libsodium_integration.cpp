@@ -324,3 +324,8 @@ TEST_F(LibsodiumIntegrationTest, PerformanceTest) {
   // Should complete within reasonable time (adjust as needed)
   EXPECT_LT(duration.count(), 10000);  // Less than 10 seconds
 }
+
+// Test libsodium version
+TEST_F(LibsodiumIntegrationTest, VersionCheck) {
+  EXPECT_EQ(std::string(sodium_version_string()), "1.0.20");
+}

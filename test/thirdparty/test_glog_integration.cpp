@@ -211,6 +211,15 @@ TEST_F(GlogIntegrationTest, GflagsIntegration) {
   SUCCEED();
 }
 
+// Test libunwind integration via failure signal handler
+TEST_F(GlogIntegrationTest, LibunwindIntegration) {
+  // InstallFailureSignalHandler uses libunwind to dump stack traces on crash.
+  // We can't crash the test, but we can verify the symbol is available and
+  // linkable.
+  google::InstallFailureSignalHandler();
+  SUCCEED();
+}
+
 int main(int argc, char** argv) {
   // Initialize gflags
   gflags::ParseCommandLineFlags(&argc, &argv, true);

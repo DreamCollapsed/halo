@@ -96,3 +96,11 @@ TEST(GeosIntegrationTest, BufferOperation) {
   GEOSGeom_destroy_r(geos_context.ctx_, buf);
   GEOSGeom_destroy_r(geos_context.ctx_, point);
 }
+
+TEST(GeosIntegrationTest, VersionCheck) {
+  EXPECT_EQ(GEOS_VERSION_MAJOR, 3);
+  EXPECT_EQ(GEOS_VERSION_MINOR, 11);
+  EXPECT_EQ(GEOS_VERSION_PATCH, 5);
+  EXPECT_STREQ(GEOS_VERSION, "3.11.5");
+  EXPECT_STREQ(GEOS_JTS_PORT, "1.18.0");
+}

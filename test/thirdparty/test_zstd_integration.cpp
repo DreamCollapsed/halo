@@ -45,6 +45,12 @@ TEST_F(ZstdIntegrationTest, ZstdVersionTest) {
   EXPECT_STREQ(version_string, "1.5.7");
 }
 
+TEST_F(ZstdIntegrationTest, VersionCheck) {
+  EXPECT_EQ(ZSTD_VERSION_MAJOR, 1);
+  EXPECT_EQ(ZSTD_VERSION_MINOR, 5);
+  EXPECT_EQ(ZSTD_VERSION_RELEASE, 7);
+}
+
 // Test basic compression functionality
 TEST_F(ZstdIntegrationTest, BasicCompressionTest) {
   // Get bounds for compression

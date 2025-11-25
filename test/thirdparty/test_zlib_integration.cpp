@@ -31,6 +31,14 @@ class ZlibIntegrationTest : public ::testing::Test {
   std::vector<Bytef> original_data_;
 };
 
+// Test zlib version macros
+TEST_F(ZlibIntegrationTest, VersionCheck) {
+  EXPECT_EQ(ZLIB_VER_MAJOR, 1);
+  EXPECT_EQ(ZLIB_VER_MINOR, 3);
+  EXPECT_EQ(ZLIB_VER_REVISION, 1);
+  EXPECT_STREQ(ZLIB_VERSION, "1.3.1");
+}
+
 // Test zlib version information
 TEST_F(ZlibIntegrationTest, ZlibVersionTest) {
   // Test that zlib version is available

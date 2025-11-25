@@ -286,6 +286,12 @@ TEST_F(LibeventIntegrationTest, VersionInfo) {
             << version_num << std::dec << ")" << "\n";
 }
 
+// Test libevent version
+TEST_F(LibeventIntegrationTest, VersionCheck) {
+  std::string version = event_get_version();
+  EXPECT_TRUE(version.find("2.1.12") != std::string::npos);
+}
+
 // Test supported methods
 TEST_F(LibeventIntegrationTest, SupportedMethods) {
   const char** methods = event_get_supported_methods();

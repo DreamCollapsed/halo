@@ -4,6 +4,7 @@
 #include <arrow/io/api.h>
 #include <arrow/ipc/api.h>
 #include <arrow/json/api.h>
+#include <arrow/util/config.h>
 #include <gtest/gtest.h>
 
 #include <array>
@@ -359,4 +360,10 @@ TEST(ArrowIntegration, DictionaryArrays) {
   EXPECT_EQ(string_dict->GetString(0), "Red");
   EXPECT_EQ(string_dict->GetString(1), "Green");
   EXPECT_EQ(string_dict->GetString(2), "Blue");
+}
+
+TEST(ArrowIntegration, VersionCheck) {
+  EXPECT_EQ(ARROW_VERSION_MAJOR, 23);
+  EXPECT_EQ(ARROW_VERSION_MINOR, 0);
+  EXPECT_EQ(ARROW_VERSION_PATCH, 0);
 }

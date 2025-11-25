@@ -10,6 +10,12 @@
 #include <xtl/xcomplex.hpp>
 #include <xtl/xoptional.hpp>
 
+TEST(XsimdIntegration, VersionCheck) {
+  EXPECT_EQ(XSIMD_VERSION_MAJOR, 13);
+  EXPECT_EQ(XSIMD_VERSION_MINOR, 2);
+  EXPECT_EQ(XSIMD_VERSION_PATCH, 0);
+}
+
 TEST(XsimdIntegration, BasicAdd) {
   using batch = xsimd::batch<float>;  // default arch-selected batch
   std::array<float, batch::size> a_raw{};

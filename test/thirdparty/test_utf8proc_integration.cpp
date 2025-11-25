@@ -118,3 +118,7 @@ TEST(Utf8ProcIntegrationTest, InvalidSequence) {
       data.data(), static_cast<utf8proc_ssize_t>(invalid.size()), &codepoint);
   EXPECT_LT(len, 0);  // error
 }
+
+TEST(Utf8ProcIntegrationTest, VersionCheck) {
+  EXPECT_EQ(std::string(utf8proc_version()), "2.11.1");
+}

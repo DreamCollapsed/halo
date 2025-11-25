@@ -207,3 +207,10 @@ TEST_F(FmtIntegrationTest, LocaleIndependence) {
   std::string result = fmt::format("{:.2f}", value);
   EXPECT_EQ(result, "1234.56");  // Always uses '.' as decimal separator
 }
+
+// Test fmt version
+TEST_F(FmtIntegrationTest, VersionCheck) {
+  // FMT_VERSION is defined as (MAJOR * 10000 + MINOR * 100 + PATCH)
+  // 12.1.0 -> 120100
+  EXPECT_EQ(FMT_VERSION, 120100);
+}

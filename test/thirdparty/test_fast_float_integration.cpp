@@ -214,3 +214,11 @@ TEST_F(FastFloatIntegrationTest, EdgeCases) {
     }
   }
 }
+
+// Test fast_float version
+TEST_F(FastFloatIntegrationTest, VersionCheck) {
+  EXPECT_EQ(FASTFLOAT_VERSION_MAJOR, 8);
+  EXPECT_EQ(FASTFLOAT_VERSION_MINOR, 1);
+  EXPECT_EQ(FASTFLOAT_VERSION_PATCH, 0);
+  EXPECT_EQ(FASTFLOAT_VERSION, 80100);
+}

@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 #include <thrift/Thrift.h>
+#include <thrift/config.h>
 #include <thrift/processor/TMultiplexedProcessor.h>
 #include <thrift/protocol/TBinaryProtocol.h>
 #include <thrift/protocol/TCompactProtocol.h>
@@ -57,6 +58,10 @@ TEST_F(ThriftIntegrationTest, LibraryInitialization) {
   EXPECT_TRUE(socket != nullptr);
   EXPECT_EQ(socket->getHost(), "localhost");
   EXPECT_EQ(socket->getPort(), 9090);
+}
+
+TEST_F(ThriftIntegrationTest, VersionCheck) {
+  EXPECT_STREQ(PACKAGE_VERSION, "0.22.0");
 }
 
 // Test 2: Binary Protocol

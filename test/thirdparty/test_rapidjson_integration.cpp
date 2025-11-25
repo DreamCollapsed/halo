@@ -3,12 +3,20 @@
 #include <rapidjson/encodings.h>
 #include <rapidjson/filereadstream.h>
 #include <rapidjson/prettywriter.h>
+#include <rapidjson/rapidjson.h>
 #include <rapidjson/reader.h>
 #include <rapidjson/schema.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 
 #include <string>
+
+TEST(RapidJSONIntegration, VersionCheck) {
+  EXPECT_EQ(RAPIDJSON_MAJOR_VERSION, 1);
+  EXPECT_EQ(RAPIDJSON_MINOR_VERSION, 1);
+  EXPECT_EQ(RAPIDJSON_PATCH_VERSION, 0);
+  EXPECT_STREQ(RAPIDJSON_VERSION_STRING, "1.1.0");
+}
 
 TEST(RapidJSONIntegration, ParseAndStringify) {
   const char* json = R"({"a":1,"b":[true,false,null],"s":"hi"})";

@@ -56,7 +56,7 @@ class ICUIntegrationTest : public ::testing::Test {
 };
 
 // Test ICU version and basic functionality
-TEST_F(ICUIntegrationTest, VersionInfo) {
+TEST_F(ICUIntegrationTest, VersionCheck) {
   UVersionInfo version_array;
   u_getVersion(&version_array[0]);
 
@@ -65,9 +65,10 @@ TEST_F(ICUIntegrationTest, VersionInfo) {
 
   std::cout << "ICU Version: " << version_string.data() << "\n";
 
-  // Verify we have a reasonable version (should be 77.x)
-  EXPECT_GE(version_array[0], 77);
-  EXPECT_LT(version_array[0], 100);  // Sanity check
+  // Verify version against macros
+  EXPECT_EQ(version_array[0], U_ICU_VERSION_MAJOR_NUM);
+  EXPECT_EQ(version_array[1], U_ICU_VERSION_MINOR_NUM);
+  EXPECT_STREQ(version_string.data(), U_ICU_VERSION);
 }
 
 // Test Unicode string operations

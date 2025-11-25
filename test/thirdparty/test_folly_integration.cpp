@@ -27,6 +27,7 @@ static_assert(
 #endif
 
 #include <folly/FBString.h>
+#include <folly/experimental/symbolizer/Symbolizer.h>
 #include <folly/hash/Hash.h>
 #include <gtest/gtest.h>
 
@@ -42,6 +43,16 @@ TEST(FollyIntegration, FBStringReserve) {
   folly::fbstring str;
   str.reserve(100);
   EXPECT_GE(str.capacity(), 100);
+}
+
+TEST(FollyIntegration, SymbolizerTest) {
+  // Test that we can instantiate a Symbolizer, which typically depends on
+  // libunwind Use SafeStackTracePrinter as it is more portable (available even
+  // if ELF/DWARF are missing)
+  folly::symbolizer::SafeStackTracePrinter printer;
+  (void)printer;
+
+  SUCCEED();
 }
 
 int main(int argc, char** argv) {

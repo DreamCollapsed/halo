@@ -3,6 +3,7 @@
 #include <fizz/protocol/DefaultCertificateVerifier.h>
 #include <fizz/server/AsyncFizzServer.h>
 #include <fizz/util/KeyLogWriter.h>
+#include <folly/experimental/symbolizer/Symbolizer.h>
 #include <folly/io/async/EventBase.h>
 #include <folly/portability/GTest.h>
 #include <gtest/gtest.h>
@@ -170,6 +171,14 @@ TEST_F(FizzIntegrationTest, TLS13SpecificFeatures) {
     }
   }
   EXPECT_TRUE(has_tls13);
+}
+
+TEST_F(FizzIntegrationTest, LibunwindIntegration) {
+  // Ensure libunwind is linked via folly
+  // SafeStackTracePrinter is available even if Symbolizer is not (e.g. on
+  // non-ELF platforms) but it still exercises the symbolizer code paths.
+  folly::symbolizer::SafeStackTracePrinter printer;
+  SUCCEED();
 }
 
 int main(int argc, char** argv) {

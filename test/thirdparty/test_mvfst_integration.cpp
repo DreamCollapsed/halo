@@ -1,3 +1,4 @@
+#include <folly/experimental/symbolizer/Symbolizer.h>
 #include <gtest/gtest.h>
 #include <quic/QuicConstants.h>
 
@@ -11,6 +12,9 @@ TEST(Thirdparty, MvfstHeadersAndTypes) {
   (void)congestion_control;
   quic::QuicVersion ver = quic::QuicVersion::QUIC_V1;
   (void)ver;
+
+  // Check MVFST version constant
+  EXPECT_EQ(static_cast<uint32_t>(quic::QuicVersion::MVFST), 0xfaceb002);
 
   SUCCEED();
 }
@@ -31,4 +35,10 @@ TEST(Thirdparty, MvfstConstantsMisc) {
   // Node string helper is inline
   EXPECT_EQ(quic::nodeToString(quic::QuicNodeType::Client), "Client");
   EXPECT_EQ(quic::nodeToString(quic::QuicNodeType::Server), "Server");
+}
+
+TEST(Thirdparty, MvfstLibunwindIntegration) {
+  // Ensure libunwind is linked via folly
+  folly::symbolizer::SafeStackTracePrinter printer;
+  SUCCEED();
 }

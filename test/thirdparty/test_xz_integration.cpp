@@ -38,6 +38,13 @@ class XzIntegrationTest : public ::testing::Test {
   std::vector<uint8_t> original_data_;
 };
 
+// Test xz version macros
+TEST_F(XzIntegrationTest, VersionCheck) {
+  EXPECT_EQ(LZMA_VERSION_MAJOR, 5);
+  EXPECT_EQ(LZMA_VERSION_MINOR, 8);
+  EXPECT_EQ(LZMA_VERSION_PATCH, 1);
+}
+
 // Test xz version and basic functionality
 TEST_F(XzIntegrationTest, XzVersionTest) {
   // Test that we can get the lzma version

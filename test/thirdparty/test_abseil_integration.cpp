@@ -238,6 +238,12 @@ TEST_F(AbseilIntegrationTest, IntegrationTest) {
   EXPECT_TRUE(absl::StrContains(summary, "Apple total: 15"));
 }
 
+// Test Abseil version
+TEST_F(AbseilIntegrationTest, VersionCheck) {
+  EXPECT_EQ(ABSL_LTS_RELEASE_VERSION, 20250814);
+  EXPECT_EQ(ABSL_LTS_RELEASE_PATCH_LEVEL, 1);
+}
+
 int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
 

@@ -6,6 +6,13 @@
 #include <xtl/xdynamic_bitset.hpp>
 #include <xtl/xoptional.hpp>
 #include <xtl/xspan.hpp>
+#include <xtl/xtl_config.hpp>
+
+TEST(XtlIntegration, VersionCheck) {
+  EXPECT_EQ(XTL_VERSION_MAJOR, 0);
+  EXPECT_EQ(XTL_VERSION_MINOR, 8);
+  EXPECT_EQ(XTL_VERSION_PATCH, 1);
+}
 
 TEST(XtlIntegration, OptionalBasic) {
   xtl::xoptional<int> xoi = 42;

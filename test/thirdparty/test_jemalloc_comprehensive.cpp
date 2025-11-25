@@ -224,7 +224,14 @@ TEST_F(JemallocComprehensiveTest, VerifyJemallocConfiguration) {
               0) == 0) {
     std::cout << "   > Version: " << (version != nullptr ? version : "unknown")
               << "\n";
+    if (version != nullptr) {
+      EXPECT_STREQ(version, JEMALLOC_VERSION);
+    }
   }
+
+  EXPECT_EQ(JEMALLOC_VERSION_MAJOR, 5);
+  EXPECT_EQ(JEMALLOC_VERSION_MINOR, 3);
+  EXPECT_EQ(JEMALLOC_VERSION_BUGFIX, 0);
 
   // Check statistics functionality
   bool stats_enabled = false;

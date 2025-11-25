@@ -33,6 +33,14 @@ class SnappyIntegrationTest : public ::testing::Test {
   std::vector<uint8_t> binary_data_;
 };
 
+// Test version macros
+TEST_F(SnappyIntegrationTest, VersionCheck) {
+  EXPECT_EQ(SNAPPY_MAJOR, 1);
+  EXPECT_EQ(SNAPPY_MINOR, 2);
+  EXPECT_EQ(SNAPPY_PATCHLEVEL, 2);
+  EXPECT_EQ(SNAPPY_VERSION, ((1 << 16) | (2 << 8) | 2));
+}
+
 // Test basic compression and decompression
 TEST_F(SnappyIntegrationTest, BasicCompressionTest) {
   std::string compressed;

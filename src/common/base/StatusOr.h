@@ -35,8 +35,7 @@ class [[nodiscard]] StatusOr final {
   // Tell if `T' is initializable from `U'.
   template <typename U>
   static constexpr bool is_initializable_v =
-      std::is_constructible_v<T, U> && std::is_convertible_v<U, T> &&
-      !is_status_or_v<U> && !is_status_v<U>;
+      std::is_constructible_v<T, U> && !is_status_or_v<U> && !is_status_v<U>;
 
   // Assertions
   static_assert(std::is_copy_constructible_v<T> ||
@@ -46,27 +45,19 @@ class [[nodiscard]] StatusOr final {
   static_assert(!is_status_v<T>, "T must not be of type Status");
   static_assert(!is_status_or_v<T>, "T must not be of type StatusOr");
 
-  StatusOr() : variant_(std::monostate{}) {}
-
   ~StatusOr() = default;
 
-  // Copy/move construct from `Status'
-  // We allow implicit conversion from Status to StatusOr for convenience
   template <typename U>
-  explicit StatusOr(U &&status)
+  explicit(!std::is_convertible_v<U, halo::common::base::Status>)
+      StatusOr(U &&status)
     requires(is_status_v<U>)
       : variant_(std::in_place_type<halo::common::base::Status>,
                  std::forward<U>(status)) {}
 
-  // Copy/move construct with a value of any compatible type
-  // We allow implicit conversion from T to StatusOr for convenience
   template <typename U>
-  explicit StatusOr(U &&value)
+  explicit(!std::is_convertible_v<U, T>) StatusOr(U &&value)
     requires(is_initializable_v<U>)
       : variant_(std::in_place_type<T>, std::forward<U>(value)) {}
-
-  explicit StatusOr(T &&value)
-      : variant_(std::in_place_type<T>, std::move(value)) {}
 
   // Copy constructor
   StatusOr(const StatusOr &rhs) = default;
@@ -120,7 +111,7 @@ class [[nodiscard]] StatusOr final {
 
   // Move assignment operator from a rvalue of `StatusOr<U>'
   template <typename U>
-  StatusOr &operator=(StatusOr<U> &&rhs) noexcept
+  StatusOr &operator=(StatusOr<U> &&rhs)
     requires(is_initializable_v<U>)
   {
     if (rhs.hasValue()) {
@@ -136,7 +127,7 @@ class [[nodiscard]] StatusOr final {
 
   // Move assignment operator from a rvalue of any compatible type with `T'
   template <typename U>
-  StatusOr &operator=(U &&value) noexcept
+  StatusOr &operator=(U &&value)
     requires(is_initializable_v<U>)
   {
     variant_.template emplace<T>(std::forward<U>(value));
@@ -197,6 +188,18 @@ class [[nodiscard]] StatusOr final {
     variant_ = std::monostate{};
     return value;
   }
+
+  [[nodiscard]] T &operator*() & { return value(); }
+  [[nodiscard]] const T &operator*() const & { return value(); }
+  [[nodiscard]] T &&operator*() && { return std::move(value()); }
+  [[nodiscard]] const T &&operator*() const && { return std::move(value()); }
+
+  [[nodiscard]] T *operator->() & { return &value(); }
+  [[nodiscard]] const T *operator->() const & { return &value(); }
+
+  StatusOr()
+    requires(std::is_default_constructible_v<T>)
+      : variant_(std::in_place_type<T>) {}
 
  private:
   [[nodiscard]] bool hasValue() const {

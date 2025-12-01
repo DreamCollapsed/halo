@@ -346,6 +346,18 @@ jobs:
           echo "Configured macOS toolchain:";
           "$CCBIN" --version
 
+      - name: Free Disk Space (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          echo "Freeing disk space..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          echo "Disk space after cleanup:"
+          df -h
+
       - name: Install dependencies (Linux)
         if: steps.construct-thirdparty-skip.outputs.skip != 'true' && startsWith(matrix.os, 'ubuntu')
         run: |
@@ -733,6 +745,18 @@ jobs:
           echo "CC=$LLVM_PREFIX/bin/clang" >> $GITHUB_ENV
           echo "CXX=$LLVM_PREFIX/bin/clang++" >> $GITHUB_ENV
           echo "$LLVM_PREFIX/bin" >> $GITHUB_PATH
+
+      - name: Free Disk Space (Linux)
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          echo "Freeing disk space..."
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          echo "Disk space after cleanup:"
+          df -h
 
       - name: Install dependencies (Linux)
         if: startsWith(matrix.os, 'ubuntu')

@@ -3,12 +3,16 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
-# Create main executable
+add_subdirectory(common)
+
 add_executable(halo main.cpp)
+
+target_include_directories(halo BEFORE PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 # Link with third-party libraries and Velox
 target_link_libraries(halo
-    PRIVATE
+  PRIVATE
+    halo_common_base_lib
     halo_thirdparty_core
     halo_thirdparty_with_thrift
     halo_velox_unified
@@ -16,5 +20,5 @@ target_link_libraries(halo
 
 # Platform-specific libraries
 if(NOT APPLE)
-    target_link_libraries(halo PRIVATE unwind)
+  target_link_libraries(halo PRIVATE unwind)
 endif()

@@ -213,7 +213,7 @@ TEST_F(OpenMPIntegrationTest, Barriers) {
 
 // Performance test: Compare sequential vs parallel execution
 TEST_F(OpenMPIntegrationTest, PerformanceComparison) {
-  int data_size = 1000000;
+  int data_size = 10000000;
   std::vector<double> data(data_size);
   std::vector<double> result_seq(data_size);
   std::vector<double> result_par(data_size);
@@ -288,9 +288,15 @@ TEST_F(OpenMPIntegrationTest, KMPVersionCheck) {
 // Test nested parallelism (if supported)
 TEST_F(OpenMPIntegrationTest, NestedParallelism) {
   // Enable nested parallelism
+  // omp_set_nested is deprecated in OpenMP 5.0
+#if _OPENMP >= 201811
+  omp_set_max_active_levels(2);
+  bool nested_supported = (omp_get_max_active_levels() > 1);
+#else
   omp_set_nested(1);
-
   bool nested_supported = (omp_get_nested() != 0);
+#endif
+
   std::cout << "Nested parallelism supported: "
             << (nested_supported ? "Yes" : "No") << "\n";
 
@@ -320,7 +326,11 @@ TEST_F(OpenMPIntegrationTest, NestedParallelism) {
   }
 
   // Disable nested parallelism
+#if _OPENMP >= 201811
+  omp_set_max_active_levels(1);
+#else
   omp_set_nested(0);
+#endif
 }
 
 int main(int argc, char** argv) {

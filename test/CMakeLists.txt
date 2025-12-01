@@ -28,6 +28,7 @@ function(add_module_test module_name)
     # Link libraries
     target_link_libraries(${test_target}
         PRIVATE
+        halo_common_base_lib
         halo_thirdparty_core
         halo_thirdparty_test
         ${ARG_CUSTOM_TARGETS}
@@ -82,3 +83,4 @@ endfunction()
 
 # Add test subdirectories
 add_subdirectory(thirdparty)
+add_subdirectory(common)

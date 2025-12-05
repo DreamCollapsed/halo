@@ -88,12 +88,12 @@ jobs:
                     echo "Using merge-base ($merge_base) derived from push baseline $before_sha"
                   fi
                   diff_attempted=1
-                  git diff --name-only "$merge_base" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+                  git diff --name-only "$merge_base" HEAD | grep -Ei '\.(c|cc|cpp|cppm|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
                 else
                   echo "Unable to determine merge-base for push baseline $before_sha"
                   echo "Falling back to direct diff against $before_sha"
                   diff_attempted=1
-                  git diff --name-only "$before_sha" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+                  git diff --name-only "$before_sha" HEAD | grep -Ei '\.(c|cc|cpp|cppm|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
                 fi
               else
                 echo "Push baseline $before_sha unavailable locally after fetch attempt."
@@ -105,14 +105,14 @@ jobs:
               if [ ! -s changed_files.txt ]; then
                 echo "Using HEAD^ ($prev_sha) as comparison base"
                 diff_attempted=1
-                git diff --name-only "$prev_sha" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+                git diff --name-only "$prev_sha" HEAD | grep -Ei '\.(c|cc|cpp|cppm|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
               fi
             fi
 
             if [ ! -s changed_files.txt ]; then
               if [ "$diff_attempted" -eq 0 ]; then
                 echo "No committed base available; falling back to full scan."
-                git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
+                git ls-files '*.c' '*.cc' '*.cpp' '*.cppm' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
               else
                 echo "No changed C/C++ files detected after diff comparisons; skipping clang-format."
                 : > changed_files.txt
@@ -120,7 +120,7 @@ jobs:
             fi
           else
             git fetch origin "$base_ref" --depth=1
-            git diff --name-only "origin/$base_ref" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+            git diff --name-only "origin/$base_ref" HEAD | grep -Ei '\.(c|cc|cpp|cppm|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
             if [ ! -s changed_files.txt ]; then
               echo "No changed C/C++ files relative to PR base; skipping clang-format."
               : > changed_files.txt
@@ -184,7 +184,7 @@ jobs:
 
             # Only consider standard C/C++ extensions
             case "$f" in
-              *.c|*.cc|*.cpp|*.cxx|*.h|*.hpp|*.hh|*.hxx) ;;
+              *.c|*.cc|*.cpp|*.cppm|*.cxx|*.h|*.hpp|*.hh|*.hxx) ;;
               *) continue ;;
             esac
 
@@ -1261,12 +1261,12 @@ jobs:
                     echo "Using merge-base ($merge_base) derived from push baseline $before_sha"
                   fi
                   diff_attempted=1
-                  git diff --name-only "$merge_base" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+                  git diff --name-only "$merge_base" HEAD | grep -Ei '\.(c|cc|cpp|cppm|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
                 else
                   echo "Unable to determine merge-base for push baseline $before_sha"
                   echo "Falling back to direct diff against $before_sha"
                   diff_attempted=1
-                  git diff --name-only "$before_sha" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+                  git diff --name-only "$before_sha" HEAD | grep -Ei '\.(c|cc|cpp|cppm|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
                 fi
               else
                 echo "Push baseline $before_sha unavailable locally after fetch attempt."
@@ -1278,14 +1278,14 @@ jobs:
               if [ ! -s changed_files.txt ]; then
                 echo "Using HEAD^ ($prev_sha) as comparison base"
                 diff_attempted=1
-                git diff --name-only "$prev_sha" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+                git diff --name-only "$prev_sha" HEAD | grep -Ei '\.(c|cc|cpp|cppm|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
               fi
             fi
 
             if [ ! -s changed_files.txt ]; then
               if [ "$diff_attempted" -eq 0 ]; then
                 echo "No committed base available; falling back to full scan."
-                git ls-files '*.c' '*.cc' '*.cpp' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
+                git ls-files '*.c' '*.cc' '*.cpp' '*.cppm' '*.cxx' '*.h' '*.hpp' '*.hh' '*.hxx' > changed_files.txt
               else
                 echo "No changed C/C++ files detected after diff comparisons; skipping clang-tidy."
                 : > changed_files.txt
@@ -1293,7 +1293,7 @@ jobs:
             fi
           else
             git fetch origin "$base_ref" --depth=1
-            git diff --name-only "origin/$base_ref" HEAD | grep -Ei '\.(c|cc|cpp|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
+            git diff --name-only "origin/$base_ref" HEAD | grep -Ei '\.(c|cc|cpp|cppm|cxx|h|hpp|hh|hxx)$' > changed_files.txt || true
             if [ ! -s changed_files.txt ]; then
               echo "No changed C/C++ files relative to PR base; skipping clang-tidy."
               : > changed_files.txt

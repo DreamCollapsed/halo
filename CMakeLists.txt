@@ -1,8 +1,7 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.30)
 project(halo VERSION 1.0.0 LANGUAGES C CXX)
 
-# Set minimum policy version to avoid compatibility issues
-cmake_policy(VERSION 3.25)
+cmake_policy(VERSION 3.30)
 
 # C++ standard settings
 set(CMAKE_CXX_STANDARD 23)
@@ -10,7 +9,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Compiler requirements and standard library configuration
 if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   message(FATAL_ERROR "This project requires Clang compiler. Current compiler: ${CMAKE_CXX_COMPILER_ID}")
 endif()

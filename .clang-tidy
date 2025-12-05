@@ -13,12 +13,13 @@ Checks: >
   -cppcoreguidelines-macro-usage,
   -google-runtime-int,
   -modernize-use-trailing-return-type,
+  -readability-duplicate-include,
+  -readability-function-cognitive-complexity,
   -readability-identifier-length,
   -readability-identifier-naming,
-  -readability-named-parameter,
   -readability-magic-numbers,
-  -readability-duplicate-include,
-  -readability-function-cognitive-complexity
+  -readability-named-parameter,
+  -readability-redundant-declaration
 
 WarningsAsErrors: '*'
 HeaderFilterRegex: '(^|.*/)(src|test)/'

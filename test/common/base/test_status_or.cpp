@@ -1,8 +1,8 @@
-#include "common/base/StatusOr.h"
-
 #include <gtest/gtest.h>
 
 #include <vector>
+
+import halo.common;
 
 namespace halo::common::base {
 

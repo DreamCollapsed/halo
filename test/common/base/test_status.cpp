@@ -1,8 +1,8 @@
-#include "common/base/Status.h"
-
 #include <gtest/gtest.h>
 
 #include <sstream>
+
+import halo.common;
 
 namespace halo::common::base {
 

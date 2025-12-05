@@ -12,7 +12,7 @@ target_include_directories(halo BEFORE PRIVATE ${CMAKE_SOURCE_DIR}/src)
 # Link with third-party libraries and Velox
 target_link_libraries(halo
   PRIVATE
-    halo_common_base_lib
+    halo_common_base
     halo_thirdparty_core
     halo_thirdparty_with_thrift
     halo_velox_unified

@@ -1,14 +1,15 @@
-#pragma once
-
+module;
 #include <cstdint>
 #include <ostream>
 #include <string>
 #include <string_view>
+#include <utility>
+
+export module halo.common:Status;
 
 namespace halo::common::base {
 
 // Define all status codes in one place using an X-Macro
-// Format: ENTRY(EnumName, FunctionName, Code, Message)
 #define HALO_STATUS_MAP(STATUS_ENTRY)                                  \
   /* 0: OK */                                                          \
   STATUS_ENTRY(kOk, OK, 0, "OK")                                       \
@@ -32,7 +33,7 @@ namespace halo::common::base {
   /* 5xx: SQL Errors */                                                \
   STATUS_ENTRY(kSqlError, SqlError, 500, "SqlError")
 
-class [[nodiscard]] Status final {
+export class [[nodiscard]] Status final {
  public:
   using CodeType = std::uint16_t;
   enum class Code : CodeType {
@@ -86,16 +87,26 @@ class [[nodiscard]] Status final {
   [[nodiscard]] Code code() const { return code_; }
   [[nodiscard]] const std::string& message() const { return msg_; }
 
-  [[nodiscard]] std::string toString() const;
+  [[nodiscard]] std::string toString() const {
+    return "[" + std::to_string(static_cast<CodeType>(code_)) + "-" +
+           std::string(codeName(code_)) + "]{" + msg_ + "}";
+  }
 
  private:
-  explicit Status(Code code, std::string msg = "");
+  explicit Status(Code code, std::string msg = "")
+      : code_(code), msg_(std::move(msg)) {
+    if (msg_.empty()) {
+      msg_ = std::string(findMsg(code));
+    }
+  }
 
   Code code_ = Code::kOk;
   std::string msg_ = "OK";
 };
 
-std::ostream& operator<<(std::ostream& ostream, const Status& status);
+export std::ostream& operator<<(std::ostream& ostream, const Status& status) {
+  return ostream << status.toString();
+}
 
 // Clean up macro to avoid polluting global namespace
 #undef HALO_STATUS_MAP

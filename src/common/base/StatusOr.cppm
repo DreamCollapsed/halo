@@ -1,16 +1,17 @@
-#pragma once
-
-#include "common/base/Status.h"
-
-#include <glog/logging.h>
-
+module;
+#include <cassert>
+#include <cstdlib>
+#include <iostream>
 #include <type_traits>
 #include <utility>
 #include <variant>
 
+export module halo.common:StatusOr;
+import :Status;
+
 namespace halo::common::base {
 
-template <typename T>
+export template <typename T>
 class [[nodiscard]] StatusOr final {
  public:
   // Make friends with other compatible StatusOr<U>
@@ -173,17 +174,29 @@ class [[nodiscard]] StatusOr final {
   }
 
   [[nodiscard]] T &value() & {
-    CHECK(ok()) << "StatusOr does not contain a value: " << status().toString();
+    if (!ok()) {
+      std::cerr << "StatusOr does not contain a value: " << status().toString()
+                << std::endl;
+      std::abort();
+    }
     return std::get<T>(variant_);
   }
 
   [[nodiscard]] const T &value() const & {
-    CHECK(ok()) << "StatusOr does not contain a value: " << status().toString();
+    if (!ok()) {
+      std::cerr << "StatusOr does not contain a value: " << status().toString()
+                << std::endl;
+      std::abort();
+    }
     return std::get<T>(variant_);
   }
 
   [[nodiscard]] T value() && {
-    CHECK(ok()) << "StatusOr does not contain a value: " << status().toString();
+    if (!ok()) {
+      std::cerr << "StatusOr does not contain a value: " << status().toString()
+                << std::endl;
+      std::abort();
+    }
     auto value = std::move(std::get<T>(variant_));
     variant_ = std::monostate{};
     return value;

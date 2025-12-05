@@ -7,11 +7,11 @@ enable_testing()
 set(TEST_OUTPUT_DIR "${CMAKE_BINARY_DIR}/test")
 file(MAKE_DIRECTORY "${TEST_OUTPUT_DIR}")
 
-# Generic test function: creates test executable files
-function(add_module_test module_name)
+# Generic test function implementation
+function(_add_halo_test_impl module_name)
     set(options PERFORMANCE SERIAL)
     set(oneValueArgs TIMEOUT WORKING_DIRECTORY)
-    set(multiValueArgs TEST_SOURCES LIBRARIES LABELS DEPENDENCIES LINK_LIBRARIES HEADER_INCLUDES CUSTOM_TARGETS)
+    set(multiValueArgs TEST_SOURCES LIBRARIES LABELS DEPENDENCIES LINK_LIBRARIES HEADER_INCLUDES CUSTOM_TARGETS DEFAULT_LIBRARIES)
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
     
     # Create test executable
@@ -28,9 +28,7 @@ function(add_module_test module_name)
     # Link libraries
     target_link_libraries(${test_target}
         PRIVATE
-        halo_common_base_lib
-        halo_thirdparty_core
-        halo_thirdparty_test
+        ${ARG_DEFAULT_LIBRARIES}
         ${ARG_CUSTOM_TARGETS}
         ${ARG_LIBRARIES}
         ${ARG_LINK_LIBRARIES}
@@ -79,6 +77,23 @@ function(add_module_test module_name)
     endif()
     
     message(DEBUG "Added test module: ${test_name}")
+endfunction()
+
+# Standard module test: links common_base, thirdparty_core, thirdparty_test
+function(add_module_test module_name)
+    _add_halo_test_impl(${module_name}
+        DEFAULT_LIBRARIES halo_common_base halo_thirdparty_core halo_thirdparty_test
+        ${ARGN}
+    )
+endfunction()
+
+# Base module test: links common_base, thirdparty_test ONLY
+# Use this for low-level components that don't depend on heavy thirdparty libs
+function(add_base_test module_name)
+    _add_halo_test_impl(${module_name}
+        DEFAULT_LIBRARIES halo_common_base halo_thirdparty_test
+        ${ARGN}
+    )
 endfunction()
 
 # Add test subdirectories

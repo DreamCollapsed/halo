@@ -1,8 +1,23 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index d0ceeb392..9c490fa56 100644
+index d0ceeb392..a156236f6 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -432,7 +432,9 @@ if(ENABLE_ALL_WARNINGS)
+@@ -33,6 +33,14 @@ endif()
+ # Set the project name.
+ project(velox)
+ 
++# Halo: Inject jemalloc headers for macOS builds to avoid global pollution in parent project
++if(APPLE AND DEFINED THIRDPARTY_INSTALL_DIR AND EXISTS "${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc/jemalloc.h")
++  message(STATUS "[Velox] Injecting jemalloc headers for macOS")
++  add_compile_options("SHELL:-include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc/jemalloc.h")
++  add_compile_options("SHELL:-include ${THIRDPARTY_INSTALL_DIR}/jemalloc/include/jemalloc_prefix_compat.h")
++  include_directories(BEFORE "${THIRDPARTY_INSTALL_DIR}/jemalloc/include")
++endif()
++
+ # If we are in an active conda env disable search in system paths and add env to
+ # prefix path
+ if(DEFINED ENV{CONDA_PREFIX})
+@@ -432,7 +440,9 @@ if(ENABLE_ALL_WARNINGS)
        KNOWN_COMPILER_SPECIFIC_WARNINGS
        "-Wno-range-loop-analysis \
           -Wno-mismatched-tags \
@@ -13,7 +28,7 @@ index d0ceeb392..9c490fa56 100644
      )
    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
      set(
-@@ -549,7 +551,6 @@ set(
+@@ -549,7 +559,6 @@ set(
    filesystem
    program_options
    regex
@@ -21,7 +36,7 @@ index d0ceeb392..9c490fa56 100644
    thread
  )
  
-@@ -619,7 +620,7 @@ if(${VELOX_BUILD_MINIMAL_WITH_DWIO} OR ${VELOX_ENABLE_HIVE_CONNECTOR} OR VELOX_E
+@@ -619,7 +628,7 @@ if(${VELOX_BUILD_MINIMAL_WITH_DWIO} OR ${VELOX_ENABLE_HIVE_CONNECTOR} OR VELOX_E
  endif()
  
  velox_set_source(simdjson)
@@ -30,7 +45,7 @@ index d0ceeb392..9c490fa56 100644
  
  velox_set_source(FastFloat)
  velox_resolve_dependency(FastFloat)
-@@ -714,7 +715,7 @@ if(NOT VELOX_DISABLE_GOOGLETEST)
+@@ -714,7 +723,7 @@ if(NOT VELOX_DISABLE_GOOGLETEST)
  endif()
  
  velox_set_source(xsimd)
@@ -39,7 +54,7 @@ index d0ceeb392..9c490fa56 100644
  
  velox_set_source(stemmer)
  velox_resolve_dependency(stemmer)
-@@ -744,4 +745,24 @@ if(VELOX_ENABLE_GEO)
+@@ -744,4 +753,24 @@ if(VELOX_ENABLE_GEO)
    velox_resolve_dependency(geos)
  endif()
  

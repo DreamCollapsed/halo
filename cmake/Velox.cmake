@@ -8,7 +8,7 @@
     include(cmake/Velox.cmake)
     add_subdirectory(velox)
 ]]
-set(VELOX_SHA256 "9bc0ce3b5f84936f64bd16ee2c0e8464e760aaa4")
+set(VELOX_SHA256 "d8484d988a0c6c08a615090d9eabf5d42cd9124a")
 
 include_guard(GLOBAL)
 
@@ -248,6 +248,7 @@ set(VELOX_ENABLE_SNAPPY           ON       CACHE BOOL   "" FORCE)
 set(VELOX_ENABLE_FAISS            ON       CACHE BOOL   "" FORCE)
 set(VELOX_ENABLE_ICU              ON       CACHE BOOL   "" FORCE)
 set(VELOX_ENABLE_GEO              ON       CACHE BOOL   "" FORCE)
+set(VELOX_ENABLE_DUCKDB           OFF      CACHE BOOL   "" FORCE)
 set(VELOX_ENABLE_OPENSSL          ON       CACHE BOOL   "" FORCE)
 set(VELOX_ENABLE_OPENMP           ON       CACHE BOOL   "" FORCE)
 set(VELOX_ENABLE_ZLIB             ON       CACHE BOOL   "" FORCE)

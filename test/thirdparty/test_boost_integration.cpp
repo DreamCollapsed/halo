@@ -73,7 +73,7 @@ class BoostIntegrationTest : public ::testing::Test {
 // Test Boost version and basic functionality
 TEST_F(BoostIntegrationTest, VersionAndBasic) {
   // Test version
-  EXPECT_EQ(BOOST_VERSION, 108900);  // Should be at least 1.89.0
+  EXPECT_EQ(BOOST_VERSION, 109000);
 
   // Test basic format functionality
   std::string result = (boost::format("Hello %1%") % "World").str();
@@ -844,15 +844,15 @@ TEST_F(BoostIntegrationTest, VersionCheck) {
   int minor = (BOOST_VERSION / 100) % 1000;
   int patch = BOOST_VERSION % 100;
 
-  // We expect version 1.89.0
+  // We expect version 1.90.0
   EXPECT_EQ(major, 1);
-  EXPECT_EQ(minor, 89);
+  EXPECT_EQ(minor, 90);
   EXPECT_EQ(patch, 0);
-  EXPECT_EQ(BOOST_VERSION, 108900);
+  EXPECT_EQ(BOOST_VERSION, 109000);
 
   // Verify BOOST_LIB_VERSION string macro
-  // Format is "major_minor" (e.g., "1_89")
-  EXPECT_STREQ(BOOST_LIB_VERSION, "1_89");
+  // Format is "major_minor" (e.g., "1_90")
+  EXPECT_STREQ(BOOST_LIB_VERSION, "1_90");
 }
 
 // Performance test for commonly used Boost features

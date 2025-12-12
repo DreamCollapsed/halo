@@ -57,7 +57,7 @@ TEST_F(ProtobufIntegrationTest, LibraryInitialization) {
 // Test protobuf version
 TEST_F(ProtobufIntegrationTest, VersionCheck) {
   // Just verify it's a recent version
-  EXPECT_EQ(GOOGLE_PROTOBUF_VERSION, 6033001);
+  EXPECT_EQ(GOOGLE_PROTOBUF_VERSION, 6033002);
 }
 
 // Test basic descriptor functionality

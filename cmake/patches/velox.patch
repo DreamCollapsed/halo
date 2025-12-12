@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index d0ceeb392..a156236f6 100644
+index bf177538a..d511a621b 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -33,6 +33,14 @@ endif()
@@ -36,7 +36,7 @@ index d0ceeb392..a156236f6 100644
    thread
  )
  
-@@ -619,7 +628,7 @@ if(${VELOX_BUILD_MINIMAL_WITH_DWIO} OR ${VELOX_ENABLE_HIVE_CONNECTOR} OR VELOX_E
+@@ -622,7 +631,7 @@ if(${VELOX_BUILD_MINIMAL_WITH_DWIO} OR ${VELOX_ENABLE_HIVE_CONNECTOR} OR VELOX_E
  endif()
  
  velox_set_source(simdjson)
@@ -45,16 +45,16 @@ index d0ceeb392..a156236f6 100644
  
  velox_set_source(FastFloat)
  velox_resolve_dependency(FastFloat)
-@@ -714,7 +723,7 @@ if(NOT VELOX_DISABLE_GOOGLETEST)
+@@ -717,7 +726,7 @@ if(NOT VELOX_DISABLE_GOOGLETEST)
  endif()
  
  velox_set_source(xsimd)
 -velox_resolve_dependency(xsimd 10.0.0)
-+velox_resolve_dependency(xsimd 13.2.0)
++velox_resolve_dependency(xsimd 14.0.0)
  
  velox_set_source(stemmer)
  velox_resolve_dependency(stemmer)
-@@ -744,4 +753,24 @@ if(VELOX_ENABLE_GEO)
+@@ -747,4 +756,24 @@ if(VELOX_ENABLE_GEO)
    velox_resolve_dependency(geos)
  endif()
  
@@ -131,11 +131,329 @@ index bbea7b778..2821a2ea0 100644
  
  namespace facebook::velox::common {
  
+diff --git a/velox/common/base/SimdUtil-inl.h b/velox/common/base/SimdUtil-inl.h
+index 937c86d9f..b1e253f34 100644
+--- a/velox/common/base/SimdUtil-inl.h
++++ b/velox/common/base/SimdUtil-inl.h
+@@ -99,7 +99,8 @@ struct BitMask<T, A, 1> {
+   }
+ #endif
+ 
+-  static int toBitMask(xsimd::batch_bool<T, A> mask, const xsimd::generic&) {
++  template <typename Arch>
++  static int toBitMask(xsimd::batch_bool<T, A> mask, const Arch&) {
+     return genericToBitMask(mask);
+   }
+ };
+@@ -125,7 +126,8 @@ struct BitMask<T, A, 2> {
+   }
+ #endif
+ 
+-  static int toBitMask(xsimd::batch_bool<T, A> mask, const xsimd::generic&) {
++  template <typename Arch>
++  static int toBitMask(xsimd::batch_bool<T, A> mask, const Arch&) {
+     return genericToBitMask(mask);
+   }
+ };
+@@ -146,7 +148,8 @@ struct BitMask<T, A, 4> {
+   }
+ #endif
+ 
+-  static int toBitMask(xsimd::batch_bool<T, A> mask, const xsimd::generic&) {
++  template <typename Arch>
++  static int toBitMask(xsimd::batch_bool<T, A> mask, const Arch&) {
+     return genericToBitMask(mask);
+   }
+ 
+@@ -173,7 +176,8 @@ struct BitMask<T, A, 8> {
+   }
+ #endif
+ 
+-  static int toBitMask(xsimd::batch_bool<T, A> mask, const xsimd::generic&) {
++  template <typename Arch>
++  static int toBitMask(xsimd::batch_bool<T, A> mask, const Arch&) {
+     return genericToBitMask(mask);
+   }
+ 
+@@ -516,7 +520,8 @@ template <typename T, typename A>
+ struct Gather<T, int32_t, A, 4> {
+   using VIndexType = xsimd::batch<int32_t, A>;
+ 
+-  static VIndexType loadIndices(const int32_t* indices, const xsimd::generic&) {
++  template <typename Arch>
++  static VIndexType loadIndices(const int32_t* indices, const Arch&) {
+     return xsimd::load_unaligned<A>(indices);
+   }
+ 
+@@ -526,9 +531,9 @@ struct Gather<T, int32_t, A, 4> {
+     return apply<kScale>(base, loadIndices(indices, arch), arch);
+   }
+ 
+-  template <int kScale>
++  template <int kScale, typename Arch>
+   static xsimd::batch<T, A>
+-  apply(const T* base, const int32_t* indices, const xsimd::generic&) {
++  apply(const T* base, const int32_t* indices, const Arch&) {
+     return genericGather<T, A, kScale>(base, indices);
+   }
+ 
+@@ -542,9 +547,9 @@ struct Gather<T, int32_t, A, 4> {
+   }
+ #endif
+ 
+-  template <int kScale>
++  template <int kScale, typename Arch>
+   static xsimd::batch<T, A>
+-  apply(const T* base, VIndexType vindex, const xsimd::generic&) {
++  apply(const T* base, VIndexType vindex, const Arch&) {
+     alignas(A::alignment()) int32_t indices[vindex.size];
+     vindex.store_aligned(indices);
+     return genericGather<T, A, kScale>(base, indices);
+@@ -572,13 +577,13 @@ struct Gather<T, int32_t, A, 4> {
+   }
+ #endif
+ 
+-  template <int kScale>
++  template <int kScale, typename Arch>
+   static xsimd::batch<T, A> maskApply(
+       xsimd::batch<T, A> src,
+       xsimd::batch_bool<T, A> mask,
+       const T* base,
+       const int32_t* indices,
+-      const xsimd::generic&) {
++      const Arch&) {
+     return genericMaskGather<T, A, kScale>(src, mask, base, indices);
+   }
+ 
+@@ -600,13 +605,13 @@ struct Gather<T, int32_t, A, 4> {
+   }
+ #endif
+ 
+-  template <int kScale>
++  template <int kScale, typename Arch>
+   static xsimd::batch<T, A> maskApply(
+       xsimd::batch<T, A> src,
+       xsimd::batch_bool<T, A> mask,
+       const T* base,
+       VIndexType vindex,
+-      const xsimd::generic&) {
++      const Arch&) {
+     alignas(A::alignment()) int32_t indices[vindex.size];
+     vindex.store_aligned(indices);
+     return genericMaskGather<T, A, kScale>(src, mask, base, indices);
+@@ -659,9 +664,9 @@ struct Gather<T, int32_t, A, 8> {
+   }
+ #endif
+ 
+-  template <int kScale>
++  template <int kScale, typename Arch>
+   static xsimd::batch<T, A>
+-  apply(const T* base, const int32_t* indices, const xsimd::generic&) {
++  apply(const T* base, const int32_t* indices, const Arch&) {
+     return genericGather<T, A, kScale>(base, indices);
+   }
+ 
+@@ -705,13 +710,13 @@ struct Gather<T, int32_t, A, 8> {
+   }
+ #endif
+ 
+-  template <int kScale>
++  template <int kScale, typename Arch>
+   static xsimd::batch<T, A> maskApply(
+       xsimd::batch<T, A> src,
+       xsimd::batch_bool<T, A> mask,
+       const T* base,
+       const int32_t* indices,
+-      const xsimd::generic&) {
++      const Arch&) {
+     return genericMaskGather<T, A, kScale>(src, mask, base, indices);
+   }
+ 
+@@ -792,7 +797,8 @@ template <typename T, typename A>
+ struct Gather<T, int64_t, A, 8> {
+   using VIndexType = xsimd::batch<int64_t, A>;
+ 
+-  static VIndexType loadIndices(const int64_t* indices, const xsimd::generic&) {
++  template <typename Arch>
++  static VIndexType loadIndices(const int64_t* indices, const Arch&) {
+     return xsimd::load_unaligned<A>(indices);
+   }
+ 
+@@ -814,9 +820,9 @@ struct Gather<T, int64_t, A, 8> {
+   }
+ #endif
+ 
+-  template <int kScale>
++  template <int kScale, typename Arch>
+   static xsimd::batch<T, A>
+-  apply(const T* base, const int64_t* indices, const xsimd::generic&) {
++  apply(const T* base, const int64_t* indices, const Arch&) {
+     return genericGather<T, A, kScale>(base, indices);
+   }
+ 
+@@ -860,13 +866,13 @@ struct Gather<T, int64_t, A, 8> {
+   }
+ #endif
+ 
+-  template <int kScale>
++  template <int kScale, typename Arch>
+   static xsimd::batch<T, A> maskApply(
+       xsimd::batch<T, A> src,
+       xsimd::batch_bool<T, A> mask,
+       const T* base,
+       VIndexType vindex,
+-      const xsimd::generic&) {
++      const Arch&) {
+     alignas(A::alignment()) int64_t indices[vindex.size];
+     vindex.store_aligned(indices);
+     return genericMaskGather<T, A, kScale>(src, mask, base, indices);
+@@ -875,11 +881,11 @@ struct Gather<T, int64_t, A, 8> {
+ 
+ // Concatenates the low 16 bits of each lane in 'x' and 'y' and
+ // returns the result as 16x16 bits.
+-template <typename A>
++template <typename A, typename Arch>
+ xsimd::batch<int16_t, A> pack32(
+     xsimd::batch<int32_t, A> x,
+     xsimd::batch<int32_t, A> y,
+-    const xsimd::generic&);
++    const Arch&);
+ 
+ #if XSIMD_WITH_SSE4_1
+ template <typename A>
+@@ -901,15 +907,15 @@ xsimd::batch<int16_t, A> pack32(
+ }
+ #endif
+ 
+-template <typename A>
++template <typename A, typename Arch>
+ xsimd::batch<int16_t, A> pack32(
+     xsimd::batch<int32_t, A> x,
+     xsimd::batch<int32_t, A> y,
+-    const xsimd::generic&) {
++    const Arch&) {
+   constexpr std::size_t size = xsimd::batch<int32_t, A>::size;
+-  alignas(A) int32_t xArr[size];
+-  alignas(A) int32_t yArr[size];
+-  alignas(A) int16_t resultArr[2 * size];
++  alignas(A::alignment()) int32_t xArr[size];
++  alignas(A::alignment()) int32_t yArr[size];
++  alignas(A::alignment()) int16_t resultArr[2 * size];
+ 
+   x.store_unaligned(xArr);
+   y.store_unaligned(yArr);
+@@ -981,17 +987,19 @@ struct Permute;
+ 
+ template <typename T, typename A>
+ struct Permute<T, A, 4> {
++  template <typename Arch>
+   static xsimd::batch<T, A> apply(
+       xsimd::batch<T, A> data,
+       xsimd::batch<int32_t, A> idx,
+-      const xsimd::generic&) {
++      const Arch&) {
+     return genericPermute(data, idx);
+   }
+ 
++  template <typename Arch>
+   static HalfBatch<T, A> apply(
+       HalfBatch<T, A> data,
+       HalfBatch<int32_t, A> idx,
+-      const xsimd::generic&) {
++      const Arch&) {
+     return genericPermute(data, idx);
+   }
+ 
+@@ -1046,12 +1054,12 @@ xsimd::batch<int16_t, A> gather(
+ 
+ namespace detail {
+ 
+-template <typename A>
++template <typename A, typename Arch>
+ uint8_t gather8BitsImpl(
+     const void* bits,
+     xsimd::batch<int32_t, A> vindex,
+     int32_t numIndices,
+-    const xsimd::generic&) {
++    const Arch&) {
+   alignas(A::alignment()) int32_t indices[vindex.size];
+   vindex.store_aligned(indices);
+   auto base = reinterpret_cast<const char*>(bits);
+@@ -1111,8 +1119,9 @@ xsimd::batch<T, A> genericMaskLoad(
+ 
+ template <typename T, typename A>
+ struct MaskLoad<T, A, 4> {
++  template <typename Arch>
+   static xsimd::batch<T, A>
+-  apply(const T* addr, xsimd::batch_bool<T, A> mask, const xsimd::generic&) {
++  apply(const T* addr, xsimd::batch_bool<T, A> mask, const Arch&) {
+     return genericMaskLoad(addr, mask);
+   }
+ 
+@@ -1126,8 +1135,9 @@ struct MaskLoad<T, A, 4> {
+ 
+ template <typename T, typename A>
+ struct MaskLoad<T, A, 8> {
++  template <typename Arch>
+   static xsimd::batch<T, A>
+-  apply(const T* addr, xsimd::batch_bool<T, A> mask, const xsimd::generic&) {
++  apply(const T* addr, xsimd::batch_bool<T, A> mask, const Arch&) {
+     return genericMaskLoad(addr, mask);
+   }
+ 
+@@ -1164,10 +1174,10 @@ struct GetHalf<int64_t, int32_t, A> {
+   }
+ #endif
+ 
+-  template <bool kSecond>
++  template <bool kSecond, typename Arch>
+   static xsimd::batch<int64_t, A> apply(
+       xsimd::batch<int32_t, A> data,
+-      const xsimd::generic&) {
++      const Arch&) {
+     constexpr std::size_t input_size = xsimd::batch<int32_t, A>::size;
+     constexpr std::size_t half_size = input_size / 2;
+ 
+@@ -1235,10 +1245,10 @@ struct GetHalf<uint64_t, int32_t, A> {
+   }
+ #endif
+ 
+-  template <bool kSecond>
++  template <bool kSecond, typename Arch>
+   static xsimd::batch<uint64_t, A> apply(
+       xsimd::batch<int32_t, A> data,
+-      const xsimd::generic&) {
++      const Arch&) {
+     constexpr std::size_t input_size = xsimd::batch<int32_t, A>::size;
+     constexpr std::size_t half_size = input_size / 2;
+     std::array<int32_t, input_size> input_buffer;
+@@ -1276,8 +1286,9 @@ filterHalf(xsimd::batch<int16_t, A> data, int mask, const xsimd::avx2&) {
+ 
+ template <typename T, typename A>
+ struct Filter<T, A, 2> {
++  template <typename Arch>
+   static xsimd::batch<T, A>
+-  apply(xsimd::batch<T, A> data, int mask, const xsimd::generic&) {
++  apply(xsimd::batch<T, A> data, int mask, const Arch&) {
+     return genericPermute(data, byteSetBits[mask]);
+   }
+ 
+@@ -1327,8 +1338,9 @@ struct Filter<T, A, 4> {
+ 
+ template <typename T, typename A>
+ struct Filter<T, A, 8> {
++  template <typename Arch>
+   static xsimd::batch<T, A>
+-  apply(xsimd::batch<T, A> data, int mask, const xsimd::generic&) {
++  apply(xsimd::batch<T, A> data, int mask, const Arch&) {
+     return genericPermute(data, byteSetBits[mask]);
+   }
+ 
 diff --git a/velox/common/caching/AsyncDataCache.cpp b/velox/common/caching/AsyncDataCache.cpp
-index bb81ddbb6..7ffdba29f 100644
+index b54b4fa69..d7f01d4e9 100644
 --- a/velox/common/caching/AsyncDataCache.cpp
 +++ b/velox/common/caching/AsyncDataCache.cpp
-@@ -664,6 +664,15 @@ AsyncDataCache::AsyncDataCache(
+@@ -674,6 +674,15 @@ AsyncDataCache::AsyncDataCache(
      std::unique_ptr<SsdCache> ssdCache)
      : AsyncDataCache({}, allocator, std::move(ssdCache)) {}
  
@@ -151,7 +469,7 @@ index bb81ddbb6..7ffdba29f 100644
  AsyncDataCache::AsyncDataCache(
      const Options& options,
      memory::MemoryAllocator* allocator,
-@@ -690,6 +699,13 @@ std::shared_ptr<AsyncDataCache> AsyncDataCache::create(
+@@ -700,6 +709,13 @@ std::shared_ptr<AsyncDataCache> AsyncDataCache::create(
    return cache;
  }
  
@@ -213,238 +531,296 @@ index ae681a2dc..35ebaf485 100644
  
  namespace facebook::velox::process {
  thread_local const ThreadDebugInfo* threadDebugInfo = nullptr;
-diff --git a/velox/dwio/common/CacheInputStream.cpp b/velox/dwio/common/CacheInputStream.cpp
-index 99f09c86c..cbf1f6ecf 100644
---- a/velox/dwio/common/CacheInputStream.cpp
-+++ b/velox/dwio/common/CacheInputStream.cpp
-@@ -142,8 +142,8 @@ bool CacheInputStream::SkipInt64(int64_t count) {
-   return false;
- }
+diff --git a/velox/dwio/common/CacheInputStream.cpp.rej b/velox/dwio/common/CacheInputStream.cpp.rej
+new file mode 100644
+index 000000000..be04b5bd8
+--- /dev/null
++++ b/velox/dwio/common/CacheInputStream.cpp.rej
+@@ -0,0 +1,12 @@
++diff a/velox/dwio/common/CacheInputStream.cpp b/velox/dwio/common/CacheInputStream.cpp	(rejected hunks)
++@@ -142,8 +142,8 @@ bool CacheInputStream::SkipInt64(int64_t count) {
++   return false;
++ }
++ 
++-google::protobuf::int64 CacheInputStream::ByteCount() const {
++-  return static_cast<google::protobuf::int64>(position_);
+++int64_t CacheInputStream::ByteCount() const {
+++  return static_cast<int64_t>(position_);
++ }
++ 
++ void CacheInputStream::seekToPosition(PositionProvider& seekPosition) {
+diff --git a/velox/dwio/common/CacheInputStream.h.rej b/velox/dwio/common/CacheInputStream.h.rej
+new file mode 100644
+index 000000000..6ab9fd83e
+--- /dev/null
++++ b/velox/dwio/common/CacheInputStream.h.rej
+@@ -0,0 +1,10 @@
++diff a/velox/dwio/common/CacheInputStream.h b/velox/dwio/common/CacheInputStream.h	(rejected hunks)
++@@ -51,7 +51,7 @@ class CacheInputStream : public SeekableInputStream {
++   bool Next(const void** data, int* size) override;
++   void BackUp(int count) override;
++   bool SkipInt64(int64_t count) override;
++-  google::protobuf::int64 ByteCount() const override;
+++  int64_t ByteCount() const override;
++   void seekToPosition(PositionProvider& position) override;
++   std::string getName() const override;
++   size_t positionSize() const override;
+diff --git a/velox/dwio/common/ColumnVisitors.h b/velox/dwio/common/ColumnVisitors.h
+index ed29de618..6377a9972 100644
+--- a/velox/dwio/common/ColumnVisitors.h
++++ b/velox/dwio/common/ColumnVisitors.h
+@@ -576,9 +576,10 @@ struct LoadIndices<float, A> {
  
--google::protobuf::int64 CacheInputStream::ByteCount() const {
--  return static_cast<google::protobuf::int64>(position_);
-+int64_t CacheInputStream::ByteCount() const {
-+  return static_cast<int64_t>(position_);
- }
- 
- void CacheInputStream::seekToPosition(PositionProvider& seekPosition) {
-diff --git a/velox/dwio/common/CacheInputStream.h b/velox/dwio/common/CacheInputStream.h
-index 195bdbdd1..1e1dab8d4 100644
---- a/velox/dwio/common/CacheInputStream.h
-+++ b/velox/dwio/common/CacheInputStream.h
-@@ -51,7 +51,7 @@ class CacheInputStream : public SeekableInputStream {
-   bool Next(const void** data, int* size) override;
-   void BackUp(int count) override;
-   bool SkipInt64(int64_t count) override;
--  google::protobuf::int64 ByteCount() const override;
-+  int64_t ByteCount() const override;
-   void seekToPosition(PositionProvider& position) override;
-   std::string getName() const override;
-   size_t positionSize() const override;
-diff --git a/velox/dwio/common/DirectInputStream.cpp b/velox/dwio/common/DirectInputStream.cpp
-index 68173b40f..884076885 100644
---- a/velox/dwio/common/DirectInputStream.cpp
-+++ b/velox/dwio/common/DirectInputStream.cpp
-@@ -91,8 +91,8 @@ bool DirectInputStream::SkipInt64(int64_t count) {
-   return false;
- }
- 
--google::protobuf::int64 DirectInputStream::ByteCount() const {
--  return static_cast<google::protobuf::int64>(offsetInRegion_);
-+int64_t DirectInputStream::ByteCount() const {
-+  return static_cast<int64_t>(offsetInRegion_);
- }
- 
- void DirectInputStream::seekToPosition(PositionProvider& seekPosition) {
-diff --git a/velox/dwio/common/DirectInputStream.h b/velox/dwio/common/DirectInputStream.h
-index 3d75b4459..45fb465f3 100644
---- a/velox/dwio/common/DirectInputStream.h
-+++ b/velox/dwio/common/DirectInputStream.h
-@@ -44,7 +44,7 @@ class DirectInputStream : public SeekableInputStream {
-   bool Next(const void** data, int* size) override;
-   void BackUp(int count) override;
-   bool SkipInt64(int64_t count) override;
--  google::protobuf::int64 ByteCount() const override;
-+  int64_t ByteCount() const override;
- 
-   void seekToPosition(PositionProvider& position) override;
-   std::string getName() const override;
-diff --git a/velox/dwio/common/OutputStream.h b/velox/dwio/common/OutputStream.h
-index 9c93df048..d106cd4c9 100644
---- a/velox/dwio/common/OutputStream.h
-+++ b/velox/dwio/common/OutputStream.h
-@@ -47,8 +47,8 @@ class BufferedOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
- 
-   void BackUp(int32_t count) override;
- 
--  google::protobuf::int64 ByteCount() const override {
--    return static_cast<google::protobuf::int64>(size());
-+  int64_t ByteCount() const override {
-+    return static_cast<int64_t>(size());
-   }
- 
-   bool WriteAliasedRaw(const void* /* unused */, int32_t /* unused */)
-diff --git a/velox/dwio/common/SeekableInputStream.cpp b/velox/dwio/common/SeekableInputStream.cpp
-index 2f4615516..7a16f838c 100644
---- a/velox/dwio/common/SeekableInputStream.cpp
-+++ b/velox/dwio/common/SeekableInputStream.cpp
-@@ -152,19 +152,20 @@ void SeekableArrayInputStream::BackUp(int32_t count) {
- bool SeekableArrayInputStream::SkipInt64(int64_t count) {
-   loadIfAvailable();
- 
--  if (count >= 0) {
--    const uint64_t unsignedCount = static_cast<uint64_t>(count);
--    if (unsignedCount + position_ <= length_) {
--      position_ += unsignedCount;
--      return true;
--    }
-+  if (count < 0) {
-+    return false;
-+  }
-+  const uint64_t unsignedCount = static_cast<uint64_t>(count);
-+  if (unsignedCount > length_ - position_) {
-     position_ = length_;
-+    return false;
-   }
--  return false;
-+  position_ += unsignedCount;
-+  return true;
- }
- 
--google::protobuf::int64 SeekableArrayInputStream::ByteCount() const {
--  return static_cast<google::protobuf::int64>(position_);
-+int64_t SeekableArrayInputStream::ByteCount() const {
-+  return static_cast<int64_t>(position_);
- }
- 
- void SeekableArrayInputStream::seekToPosition(PositionProvider& position) {
-@@ -241,8 +242,8 @@ bool SeekableFileInputStream::SkipInt64(int64_t signedCount) {
-   return position_ < length_;
- }
- 
--google::protobuf::int64 SeekableFileInputStream::ByteCount() const {
--  return static_cast<google::protobuf::int64>(position_);
-+int64_t SeekableFileInputStream::ByteCount() const {
-+  return static_cast<int64_t>(position_);
- }
- 
- void SeekableFileInputStream::seekToPosition(PositionProvider& location) {
-diff --git a/velox/dwio/common/SeekableInputStream.h b/velox/dwio/common/SeekableInputStream.h
-index c53347a62..f4e330085 100644
---- a/velox/dwio/common/SeekableInputStream.h
-+++ b/velox/dwio/common/SeekableInputStream.h
-@@ -79,7 +79,7 @@ class SeekableArrayInputStream : public SeekableInputStream {
-   virtual bool Next(const void** data, int32_t* size) override;
-   virtual void BackUp(int32_t count) override;
-   virtual bool SkipInt64(int64_t count) override;
--  virtual google::protobuf::int64 ByteCount() const override;
-+  virtual int64_t ByteCount() const override;
-   virtual void seekToPosition(PositionProvider& position) override;
-   virtual std::string getName() const override;
-   virtual size_t positionSize() const override;
-@@ -120,7 +120,7 @@ class SeekableFileInputStream : public SeekableInputStream {
-   virtual bool Next(const void** data, int32_t* size) override;
-   virtual void BackUp(int32_t count) override;
-   virtual bool SkipInt64(int64_t count) override;
--  virtual google::protobuf::int64 ByteCount() const override;
-+  virtual int64_t ByteCount() const override;
-   virtual void seekToPosition(PositionProvider& position) override;
-   virtual std::string getName() const override;
-   virtual size_t positionSize() const override;
-diff --git a/velox/dwio/common/compression/PagedInputStream.h b/velox/dwio/common/compression/PagedInputStream.h
-index 15b1acd63..39d48cbb6 100644
---- a/velox/dwio/common/compression/PagedInputStream.h
-+++ b/velox/dwio/common/compression/PagedInputStream.h
-@@ -56,7 +56,7 @@ class PagedInputStream : public dwio::common::SeekableInputStream {
-   // NOTE: This always returns true.
-   bool SkipInt64(int64_t count) override;
- 
--  google::protobuf::int64 ByteCount() const override {
-+  int64_t ByteCount() const override {
-     return bytesReturned_ + pendingSkip_;
-   }
- 
-diff --git a/velox/dwio/dwrf/test/TestDecompression.cpp b/velox/dwio/dwrf/test/TestDecompression.cpp
-index dcc315ad5..049c7a682 100644
---- a/velox/dwio/dwrf/test/TestDecompression.cpp
-+++ b/velox/dwio/dwrf/test/TestDecompression.cpp
-@@ -1065,7 +1065,7 @@ class TestingSeekableInputStream : public SeekableInputStream {
-     return true;
-   }
- 
--  google::protobuf::int64 ByteCount() const override {
-+  int64_t ByteCount() const override {
-     return position_;
-   }
- 
-diff --git a/velox/dwio/dwrf/writer/IndexBuilder.h b/velox/dwio/dwrf/writer/IndexBuilder.h
-index 44bd15833..daa358602 100644
---- a/velox/dwio/dwrf/writer/IndexBuilder.h
-+++ b/velox/dwio/dwrf/writer/IndexBuilder.h
-@@ -41,9 +41,9 @@ class IndexBuilder : public PositionRecorder {
-       : out_{std::move(out)},
-         arena_(std::make_unique<google::protobuf::Arena>()) {
-     auto rowIndex =
--        google::protobuf::Arena::CreateMessage<proto::RowIndex>(arena_.get());
-+        google::protobuf::Arena::Create<proto::RowIndex>(arena_.get());
-     auto rowIndexEntry =
--        google::protobuf::Arena::CreateMessage<proto::RowIndexEntry>(
-+        google::protobuf::Arena::Create<proto::RowIndexEntry>(
-             arena_.get());
- 
-     index_ = std::make_unique<RowIndexWriteWrapper>(rowIndex);
-diff --git a/velox/dwio/dwrf/writer/LayoutPlanner.cpp b/velox/dwio/dwrf/writer/LayoutPlanner.cpp
-index 07ce6fca3..15fe8b6e7 100644
---- a/velox/dwio/dwrf/writer/LayoutPlanner.cpp
-+++ b/velox/dwio/dwrf/writer/LayoutPlanner.cpp
-@@ -129,7 +129,7 @@ EncodingManager::EncodingManager(
-       arena_{std::make_unique<google::protobuf::Arena>()} {
-   initEncryptionGroups();
-   auto dwrfStripeFooter =
--      google::protobuf::Arena::CreateMessage<proto::StripeFooter>(arena_.get());
-+      google::protobuf::Arena::Create<proto::StripeFooter>(arena_.get());
-   footer_ = std::make_unique<StripeFooterWriteWrapper>(dwrfStripeFooter);
- }
- 
-diff --git a/velox/dwio/dwrf/writer/StatisticsBuilder.cpp b/velox/dwio/dwrf/writer/StatisticsBuilder.cpp
-index 779f73d25..23b172e32 100644
---- a/velox/dwio/dwrf/writer/StatisticsBuilder.cpp
-+++ b/velox/dwio/dwrf/writer/StatisticsBuilder.cpp
-@@ -119,7 +119,7 @@ void StatisticsBuilder::toProto(ColumnStatisticsWriteWrapper& stats) const {
- std::unique_ptr<dwio::common::ColumnStatistics> StatisticsBuilder::build()
-     const {
-   auto columnStatistics =
--      google::protobuf::Arena::CreateMessage<proto::ColumnStatistics>(
-+      google::protobuf::Arena::Create<proto::ColumnStatistics>(
-           arena_.get());
-   auto stats = ColumnStatisticsWriteWrapper(columnStatistics);
-   toProto(stats);
-diff --git a/velox/dwio/dwrf/writer/WriterBase.cpp b/velox/dwio/dwrf/writer/WriterBase.cpp
-index 69534a53b..fab5f91eb 100644
---- a/velox/dwio/dwrf/writer/WriterBase.cpp
-+++ b/velox/dwio/dwrf/writer/WriterBase.cpp
-@@ -59,7 +59,7 @@ void WriterBase::writeFooter(const Type& type) {
-   // write postscript
-   pos = writerSink_->size();
-   auto dwrfPostScript =
--      google::protobuf::Arena::CreateMessage<proto::PostScript>(arena_.get());
-+      google::protobuf::Arena::Create<proto::PostScript>(arena_.get());
-   std::unique_ptr<PostScriptWriteWrapper> ps =
-       std::make_unique<PostScriptWriteWrapper>(dwrfPostScript);
-   ps->setWriterVersion(writerVersion);
-diff --git a/velox/dwio/dwrf/writer/WriterBase.h b/velox/dwio/dwrf/writer/WriterBase.h
-index 53bf008da..ad184717c 100644
---- a/velox/dwio/dwrf/writer/WriterBase.h
-+++ b/velox/dwio/dwrf/writer/WriterBase.h
-@@ -90,7 +90,7 @@ class WriterBase {
-         context_->getMemoryPool(MemoryUsageCategory::OUTPUT_STREAM),
-         context_->getConfigs());
-     auto dwrfFooter_ =
--        google::protobuf::Arena::CreateMessage<proto::Footer>(arena_.get());
-+        google::protobuf::Arena::Create<proto::Footer>(arena_.get());
-     footer_ = std::make_unique<FooterWriteWrapper>(dwrfFooter_);
-   }
- 
+ template <typename A>
+ struct LoadIndices<int16_t, A> {
++  template <typename Arch>
+   static xsimd::batch<int32_t, A> apply(
+       const int16_t* values,
+-      const xsimd::generic&) {
++      const Arch&) {
+     constexpr int N = xsimd::batch<int32_t, A>::size;
+     alignas(A::alignment()) int32_t tmp[N];
+     for (int i = 0; i < N; ++i) {
+diff --git a/velox/dwio/common/DirectInputStream.cpp.rej b/velox/dwio/common/DirectInputStream.cpp.rej
+new file mode 100644
+index 000000000..1f870fe77
+--- /dev/null
++++ b/velox/dwio/common/DirectInputStream.cpp.rej
+@@ -0,0 +1,12 @@
++diff a/velox/dwio/common/DirectInputStream.cpp b/velox/dwio/common/DirectInputStream.cpp	(rejected hunks)
++@@ -91,8 +91,8 @@ bool DirectInputStream::SkipInt64(int64_t count) {
++   return false;
++ }
++ 
++-google::protobuf::int64 DirectInputStream::ByteCount() const {
++-  return static_cast<google::protobuf::int64>(offsetInRegion_);
+++int64_t DirectInputStream::ByteCount() const {
+++  return static_cast<int64_t>(offsetInRegion_);
++ }
++ 
++ void DirectInputStream::seekToPosition(PositionProvider& seekPosition) {
+diff --git a/velox/dwio/common/DirectInputStream.h.rej b/velox/dwio/common/DirectInputStream.h.rej
+new file mode 100644
+index 000000000..04ef8ffe1
+--- /dev/null
++++ b/velox/dwio/common/DirectInputStream.h.rej
+@@ -0,0 +1,10 @@
++diff a/velox/dwio/common/DirectInputStream.h b/velox/dwio/common/DirectInputStream.h	(rejected hunks)
++@@ -44,7 +44,7 @@ class DirectInputStream : public SeekableInputStream {
++   bool Next(const void** data, int* size) override;
++   void BackUp(int count) override;
++   bool SkipInt64(int64_t count) override;
++-  google::protobuf::int64 ByteCount() const override;
+++  int64_t ByteCount() const override;
++ 
++   void seekToPosition(PositionProvider& position) override;
++   std::string getName() const override;
+diff --git a/velox/dwio/common/OutputStream.h.rej b/velox/dwio/common/OutputStream.h.rej
+new file mode 100644
+index 000000000..bc40d4977
+--- /dev/null
++++ b/velox/dwio/common/OutputStream.h.rej
+@@ -0,0 +1,12 @@
++diff a/velox/dwio/common/OutputStream.h b/velox/dwio/common/OutputStream.h	(rejected hunks)
++@@ -47,8 +47,8 @@ class BufferedOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
++ 
++   void BackUp(int32_t count) override;
++ 
++-  google::protobuf::int64 ByteCount() const override {
++-    return static_cast<google::protobuf::int64>(size());
+++  int64_t ByteCount() const override {
+++    return static_cast<int64_t>(size());
++   }
++ 
++   bool WriteAliasedRaw(const void* /* unused */, int32_t /* unused */)
+diff --git a/velox/dwio/common/SeekableInputStream.cpp.rej b/velox/dwio/common/SeekableInputStream.cpp.rej
+new file mode 100644
+index 000000000..ebca3cfc5
+--- /dev/null
++++ b/velox/dwio/common/SeekableInputStream.cpp.rej
+@@ -0,0 +1,42 @@
++diff a/velox/dwio/common/SeekableInputStream.cpp b/velox/dwio/common/SeekableInputStream.cpp	(rejected hunks)
++@@ -152,19 +152,20 @@ void SeekableArrayInputStream::BackUp(int32_t count) {
++ bool SeekableArrayInputStream::SkipInt64(int64_t count) {
++   loadIfAvailable();
++ 
++-  if (count >= 0) {
++-    const uint64_t unsignedCount = static_cast<uint64_t>(count);
++-    if (unsignedCount + position_ <= length_) {
++-      position_ += unsignedCount;
++-      return true;
++-    }
+++  if (count < 0) {
+++    return false;
+++  }
+++  const uint64_t unsignedCount = static_cast<uint64_t>(count);
+++  if (unsignedCount > length_ - position_) {
++     position_ = length_;
+++    return false;
++   }
++-  return false;
+++  position_ += unsignedCount;
+++  return true;
++ }
++ 
++-google::protobuf::int64 SeekableArrayInputStream::ByteCount() const {
++-  return static_cast<google::protobuf::int64>(position_);
+++int64_t SeekableArrayInputStream::ByteCount() const {
+++  return static_cast<int64_t>(position_);
++ }
++ 
++ void SeekableArrayInputStream::seekToPosition(PositionProvider& position) {
++@@ -241,8 +242,8 @@ bool SeekableFileInputStream::SkipInt64(int64_t signedCount) {
++   return position_ < length_;
++ }
++ 
++-google::protobuf::int64 SeekableFileInputStream::ByteCount() const {
++-  return static_cast<google::protobuf::int64>(position_);
+++int64_t SeekableFileInputStream::ByteCount() const {
+++  return static_cast<int64_t>(position_);
++ }
++ 
++ void SeekableFileInputStream::seekToPosition(PositionProvider& location) {
+diff --git a/velox/dwio/common/SeekableInputStream.h.rej b/velox/dwio/common/SeekableInputStream.h.rej
+new file mode 100644
+index 000000000..637bc05df
+--- /dev/null
++++ b/velox/dwio/common/SeekableInputStream.h.rej
+@@ -0,0 +1,19 @@
++diff a/velox/dwio/common/SeekableInputStream.h b/velox/dwio/common/SeekableInputStream.h	(rejected hunks)
++@@ -79,7 +79,7 @@ class SeekableArrayInputStream : public SeekableInputStream {
++   virtual bool Next(const void** data, int32_t* size) override;
++   virtual void BackUp(int32_t count) override;
++   virtual bool SkipInt64(int64_t count) override;
++-  virtual google::protobuf::int64 ByteCount() const override;
+++  virtual int64_t ByteCount() const override;
++   virtual void seekToPosition(PositionProvider& position) override;
++   virtual std::string getName() const override;
++   virtual size_t positionSize() const override;
++@@ -120,7 +120,7 @@ class SeekableFileInputStream : public SeekableInputStream {
++   virtual bool Next(const void** data, int32_t* size) override;
++   virtual void BackUp(int32_t count) override;
++   virtual bool SkipInt64(int64_t count) override;
++-  virtual google::protobuf::int64 ByteCount() const override;
+++  virtual int64_t ByteCount() const override;
++   virtual void seekToPosition(PositionProvider& position) override;
++   virtual std::string getName() const override;
++   virtual size_t positionSize() const override;
+diff --git a/velox/dwio/common/compression/PagedInputStream.h.rej b/velox/dwio/common/compression/PagedInputStream.h.rej
+new file mode 100644
+index 000000000..f6358bb5d
+--- /dev/null
++++ b/velox/dwio/common/compression/PagedInputStream.h.rej
+@@ -0,0 +1,10 @@
++diff a/velox/dwio/common/compression/PagedInputStream.h b/velox/dwio/common/compression/PagedInputStream.h	(rejected hunks)
++@@ -56,7 +56,7 @@ class PagedInputStream : public dwio::common::SeekableInputStream {
++   // NOTE: This always returns true.
++   bool SkipInt64(int64_t count) override;
++ 
++-  google::protobuf::int64 ByteCount() const override {
+++  int64_t ByteCount() const override {
++     return bytesReturned_ + pendingSkip_;
++   }
++ 
+diff --git a/velox/dwio/dwrf/test/TestDecompression.cpp.rej b/velox/dwio/dwrf/test/TestDecompression.cpp.rej
+new file mode 100644
+index 000000000..19e487f24
+--- /dev/null
++++ b/velox/dwio/dwrf/test/TestDecompression.cpp.rej
+@@ -0,0 +1,10 @@
++diff a/velox/dwio/dwrf/test/TestDecompression.cpp b/velox/dwio/dwrf/test/TestDecompression.cpp	(rejected hunks)
++@@ -1065,7 +1065,7 @@ class TestingSeekableInputStream : public SeekableInputStream {
++     return true;
++   }
++ 
++-  google::protobuf::int64 ByteCount() const override {
+++  int64_t ByteCount() const override {
++     return position_;
++   }
++ 
+diff --git a/velox/dwio/dwrf/writer/IndexBuilder.h.rej b/velox/dwio/dwrf/writer/IndexBuilder.h.rej
+new file mode 100644
+index 000000000..1d1b61756
+--- /dev/null
++++ b/velox/dwio/dwrf/writer/IndexBuilder.h.rej
+@@ -0,0 +1,13 @@
++diff a/velox/dwio/dwrf/writer/IndexBuilder.h b/velox/dwio/dwrf/writer/IndexBuilder.h	(rejected hunks)
++@@ -41,9 +41,9 @@ class IndexBuilder : public PositionRecorder {
++       : out_{std::move(out)},
++         arena_(std::make_unique<google::protobuf::Arena>()) {
++     auto rowIndex =
++-        google::protobuf::Arena::CreateMessage<proto::RowIndex>(arena_.get());
+++        google::protobuf::Arena::Create<proto::RowIndex>(arena_.get());
++     auto rowIndexEntry =
++-        google::protobuf::Arena::CreateMessage<proto::RowIndexEntry>(
+++        google::protobuf::Arena::Create<proto::RowIndexEntry>(
++             arena_.get());
++ 
++     index_ = std::make_unique<RowIndexWriteWrapper>(rowIndex);
+diff --git a/velox/dwio/dwrf/writer/LayoutPlanner.cpp.rej b/velox/dwio/dwrf/writer/LayoutPlanner.cpp.rej
+new file mode 100644
+index 000000000..e7a04ff8f
+--- /dev/null
++++ b/velox/dwio/dwrf/writer/LayoutPlanner.cpp.rej
+@@ -0,0 +1,10 @@
++diff a/velox/dwio/dwrf/writer/LayoutPlanner.cpp b/velox/dwio/dwrf/writer/LayoutPlanner.cpp	(rejected hunks)
++@@ -129,7 +129,7 @@ EncodingManager::EncodingManager(
++       arena_{std::make_unique<google::protobuf::Arena>()} {
++   initEncryptionGroups();
++   auto dwrfStripeFooter =
++-      google::protobuf::Arena::CreateMessage<proto::StripeFooter>(arena_.get());
+++      google::protobuf::Arena::Create<proto::StripeFooter>(arena_.get());
++   footer_ = std::make_unique<StripeFooterWriteWrapper>(dwrfStripeFooter);
++ }
++ 
+diff --git a/velox/dwio/dwrf/writer/StatisticsBuilder.cpp.rej b/velox/dwio/dwrf/writer/StatisticsBuilder.cpp.rej
+new file mode 100644
+index 000000000..08f51e0c1
+--- /dev/null
++++ b/velox/dwio/dwrf/writer/StatisticsBuilder.cpp.rej
+@@ -0,0 +1,10 @@
++diff a/velox/dwio/dwrf/writer/StatisticsBuilder.cpp b/velox/dwio/dwrf/writer/StatisticsBuilder.cpp	(rejected hunks)
++@@ -119,7 +119,7 @@ void StatisticsBuilder::toProto(ColumnStatisticsWriteWrapper& stats) const {
++ std::unique_ptr<dwio::common::ColumnStatistics> StatisticsBuilder::build()
++     const {
++   auto columnStatistics =
++-      google::protobuf::Arena::CreateMessage<proto::ColumnStatistics>(
+++      google::protobuf::Arena::Create<proto::ColumnStatistics>(
++           arena_.get());
++   auto stats = ColumnStatisticsWriteWrapper(columnStatistics);
++   toProto(stats);
+diff --git a/velox/dwio/dwrf/writer/WriterBase.cpp.rej b/velox/dwio/dwrf/writer/WriterBase.cpp.rej
+new file mode 100644
+index 000000000..73888d6da
+--- /dev/null
++++ b/velox/dwio/dwrf/writer/WriterBase.cpp.rej
+@@ -0,0 +1,10 @@
++diff a/velox/dwio/dwrf/writer/WriterBase.cpp b/velox/dwio/dwrf/writer/WriterBase.cpp	(rejected hunks)
++@@ -59,7 +59,7 @@ void WriterBase::writeFooter(const Type& type) {
++   // write postscript
++   pos = writerSink_->size();
++   auto dwrfPostScript =
++-      google::protobuf::Arena::CreateMessage<proto::PostScript>(arena_.get());
+++      google::protobuf::Arena::Create<proto::PostScript>(arena_.get());
++   std::unique_ptr<PostScriptWriteWrapper> ps =
++       std::make_unique<PostScriptWriteWrapper>(dwrfPostScript);
++   ps->setWriterVersion(writerVersion);
+diff --git a/velox/dwio/dwrf/writer/WriterBase.h.rej b/velox/dwio/dwrf/writer/WriterBase.h.rej
+new file mode 100644
+index 000000000..046adb07b
+--- /dev/null
++++ b/velox/dwio/dwrf/writer/WriterBase.h.rej
+@@ -0,0 +1,10 @@
++diff a/velox/dwio/dwrf/writer/WriterBase.h b/velox/dwio/dwrf/writer/WriterBase.h	(rejected hunks)
++@@ -90,7 +90,7 @@ class WriterBase {
++         context_->getMemoryPool(MemoryUsageCategory::OUTPUT_STREAM),
++         context_->getConfigs());
++     auto dwrfFooter_ =
++-        google::protobuf::Arena::CreateMessage<proto::Footer>(arena_.get());
+++        google::protobuf::Arena::Create<proto::Footer>(arena_.get());
++     footer_ = std::make_unique<FooterWriteWrapper>(dwrfFooter_);
++   }
++ 
 diff --git a/velox/dwio/parquet/common/BitPacking.h b/velox/dwio/parquet/common/BitPacking.h
 new file mode 100644
 index 000000000..8eef9d15a
@@ -704,15 +1080,14 @@ index b57ee2b68..0840e9e88 100644
      } else {
        return Decode(buffer, num_values);
 diff --git a/velox/dwio/parquet/writer/arrow/Exception.h b/velox/dwio/parquet/writer/arrow/Exception.h
-index b71cfc926..7bf4e03ae 100644
+index b71cfc926..6a638028e 100644
 --- a/velox/dwio/parquet/writer/arrow/Exception.h
 +++ b/velox/dwio/parquet/writer/arrow/Exception.h
-@@ -23,8 +23,13 @@
- #include <string>
+@@ -24,7 +24,12 @@
  #include <utility>
  
-+#include "arrow/config.h"
  #include "arrow/type_fwd.h"
++#include "arrow/config.h"
 +#if ARROW_VERSION_MAJOR >= 21
 +#include "arrow/util/string_util.h"
 +#else
@@ -752,22 +1127,55 @@ index b71cfc926..7bf4e03ae 100644
  
  #define PARQUET_ASSIGN_OR_THROW_IMPL(status_name, lhs, rexpr) \
    auto status_name = (rexpr);                                 \
-@@ -102,7 +124,14 @@ class ParquetException : public std::exception {
+@@ -102,7 +124,11 @@ class ParquetException : public std::exception {
  
    template <typename... Args>
    explicit ParquetException(Args&&... args)
--      : msg_(::arrow::util::StringBuilder(std::forward<Args>(args)...)) {}
-+      : msg_(
 +#if ARROW_VERSION_MAJOR >= 21
-+          ::arrow::internal::JoinToString(std::forward<Args>(args)...)
++      : msg_(::arrow::internal::JoinToString(std::forward<Args>(args)...)) {}
 +#else
-+          ::arrow::util::StringBuilder(std::forward<Args>(args)...)
+       : msg_(::arrow::util::StringBuilder(std::forward<Args>(args)...)) {}
 +#endif
-+      ) {
-+  }
  
    explicit ParquetException(std::string msg) : msg_(std::move(msg)) {}
  
+diff --git a/velox/dwio/parquet/writer/arrow/Exception.h.rej b/velox/dwio/parquet/writer/arrow/Exception.h.rej
+new file mode 100644
+index 000000000..47664ac13
+--- /dev/null
++++ b/velox/dwio/parquet/writer/arrow/Exception.h.rej
+@@ -0,0 +1,31 @@
++diff a/velox/dwio/parquet/writer/arrow/Exception.h b/velox/dwio/parquet/writer/arrow/Exception.h	(rejected hunks)
++@@ -23,8 +23,13 @@
++ #include <string>
++ #include <utility>
++ 
+++#include "arrow/config.h"
++ #include "arrow/type_fwd.h"
+++#if ARROW_VERSION_MAJOR >= 21
+++#include "arrow/util/string_util.h"
+++#else
++ #include "arrow/util/string_builder.h"
+++#endif
++ #include "velox/dwio/parquet/writer/arrow/Platform.h"
++ 
++ // PARQUET-1085
++@@ -102,7 +124,14 @@ class ParquetException : public std::exception {
++ 
++   template <typename... Args>
++   explicit ParquetException(Args&&... args)
++-      : msg_(::arrow::util::StringBuilder(std::forward<Args>(args)...)) {}
+++      : msg_(
+++#if ARROW_VERSION_MAJOR >= 21
+++          ::arrow::internal::JoinToString(std::forward<Args>(args)...)
+++#else
+++          ::arrow::util::StringBuilder(std::forward<Args>(args)...)
+++#endif
+++      ) {
+++  }
++ 
++   explicit ParquetException(std::string msg) : msg_(std::move(msg)) {}
++ 
 diff --git a/velox/dwio/parquet/writer/arrow/Writer.cpp b/velox/dwio/parquet/writer/arrow/Writer.cpp
 index f3a101a02..8ed8dbf4a 100644
 --- a/velox/dwio/parquet/writer/arrow/Writer.cpp

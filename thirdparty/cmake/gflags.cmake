@@ -24,6 +24,10 @@ if(TARGET gflags::gflags_static AND NOT TARGET gflags)
     add_library(gflags ALIAS gflags::gflags_static)
 endif()
 
+if(TARGET gflags::gflags_static AND NOT TARGET gflags_static)
+    add_library(gflags_static ALIAS gflags::gflags_static)
+endif()
+
 if(TARGET gflags::gflags_nothreads_static AND NOT TARGET gflags_nothreads_static)
     add_library(gflags_nothreads_static ALIAS gflags::gflags_nothreads_static)
 elseif(TARGET gflags::gflags_static AND NOT TARGET gflags_nothreads_static)

@@ -65,4 +65,92 @@ TEST(StatusTest, StorageError) {
   EXPECT_EQ(ss.str(), "[200-kStorageError]{Storage is corrupted}");
 }
 
+TEST(StatusTest, AllFactoryMethodsDefaults) {
+  // Test OK
+  {
+    Status s = Status::OK();
+    EXPECT_TRUE(s.ok());
+    EXPECT_EQ(s.code(), Status::Code::kOk);
+    EXPECT_EQ(s.message(), "OK");
+    EXPECT_EQ(s.toString(), "[0-kOk]{OK}");
+  }
+
+  // Test Error
+  {
+    Status s = Status::Error();
+    EXPECT_FALSE(s.ok());
+    EXPECT_EQ(s.code(), Status::Code::kError);
+    EXPECT_EQ(s.message(), "Error");
+    EXPECT_EQ(s.toString(), "[100-kError]{Error}");
+  }
+
+  // Test Invalid
+  {
+    Status s = Status::Invalid();
+    EXPECT_FALSE(s.ok());
+    EXPECT_EQ(s.code(), Status::Code::kInvalid);
+    EXPECT_EQ(s.message(), "Invalid");
+    EXPECT_EQ(s.toString(), "[101-kInvalid]{Invalid}");
+  }
+
+  // Test NotImplemented
+  {
+    Status s = Status::NotImplemented();
+    EXPECT_FALSE(s.ok());
+    EXPECT_EQ(s.code(), Status::Code::kNotImplemented);
+    EXPECT_EQ(s.message(), "NotImplemented");
+    EXPECT_EQ(s.toString(), "[102-kNotImplemented]{NotImplemented}");
+  }
+
+  // Test StorageError
+  {
+    Status s = Status::StorageError();
+    EXPECT_FALSE(s.ok());
+    EXPECT_EQ(s.code(), Status::Code::kStorageError);
+    EXPECT_EQ(s.message(), "StorageError");
+    EXPECT_EQ(s.toString(), "[200-kStorageError]{StorageError}");
+  }
+
+  // Test QueryExecutorError
+  {
+    Status s = Status::QueryExecutorError();
+    EXPECT_FALSE(s.ok());
+    EXPECT_EQ(s.code(), Status::Code::kQueryExecutorError);
+    EXPECT_EQ(s.message(), "QueryExecutorError");
+    EXPECT_EQ(s.toString(), "[300-kQueryExecutorError]{QueryExecutorError}");
+  }
+
+  // Test QueryOptimizerError
+  {
+    Status s = Status::QueryOptimizerError();
+    EXPECT_FALSE(s.ok());
+    EXPECT_EQ(s.code(), Status::Code::kQueryOptimizerError);
+    EXPECT_EQ(s.message(), "QueryOptimizerError");
+    EXPECT_EQ(s.toString(), "[400-kQueryOptimizerError]{QueryOptimizerError}");
+  }
+
+  // Test SqlError
+  {
+    Status s = Status::SqlError();
+    EXPECT_FALSE(s.ok());
+    EXPECT_EQ(s.code(), Status::Code::kSqlError);
+    EXPECT_EQ(s.message(), "SqlError");
+    EXPECT_EQ(s.toString(), "[500-kSqlError]{SqlError}");
+  }
+}
+
+TEST(StatusTest, InvalidCodeToString) {
+  Status s = Status::OK();
+  // Hack: Modify private code_ member via pointer manipulation to test
+  // unreachable default case in codeName() Status layout: Code code_ (uint16),
+  // std::string msg_ We assume code_ is at offset 0.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  *reinterpret_cast<uint16_t*>(&s) = 9999;
+
+  EXPECT_EQ(s.code(), static_cast<Status::Code>(9999));
+  std::string str = s.toString();
+  EXPECT_NE(str.find("Unknown"), std::string::npos);
+  EXPECT_EQ(str, "[9999-Unknown]{OK}");
+}
+
 }  // namespace halo::common::base

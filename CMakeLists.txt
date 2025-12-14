@@ -236,7 +236,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build" FORCE)
 
   # Set the possible values of build type for cmake-gui
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "MinSizeRel" "RelWithDebInfo" "Coverage")
 endif()
 
 # Configure build type specific flags
@@ -252,6 +252,12 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG" CACHE STRING "Flags used by
 # MinSizeRel: Optimized for size
 set(CMAKE_CXX_FLAGS_MINSIZEREL "-Os -DNDEBUG" CACHE STRING "Flags used by the CXX compiler during MinSizeRel builds" FORCE)
 
+# Coverage: Instrument code for coverage analysis
+set(CMAKE_CXX_FLAGS_COVERAGE "-g -O0 -fprofile-instr-generate -fcoverage-mapping" CACHE STRING "Flags used by the CXX compiler during Coverage builds" FORCE)
+set(CMAKE_C_FLAGS_COVERAGE "-g -O0 -fprofile-instr-generate -fcoverage-mapping" CACHE STRING "Flags used by the C compiler during Coverage builds" FORCE)
+set(CMAKE_EXE_LINKER_FLAGS_COVERAGE "-fprofile-instr-generate" CACHE STRING "Linker flags for Coverage builds" FORCE)
+set(CMAKE_SHARED_LINKER_FLAGS_COVERAGE "-fprofile-instr-generate" CACHE STRING "Linker flags for Coverage builds" FORCE)
+
 # Display current build configuration
 message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "C++ Standard: ${CMAKE_CXX_STANDARD}")
@@ -265,6 +271,8 @@ elseif(CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
   message(STATUS "Optimization: Moderate (-O2), Debug symbols enabled")
 elseif(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel")
   message(STATUS "Optimization: Size (-Os)")
+elseif(CMAKE_BUILD_TYPE STREQUAL "Coverage")
+  message(STATUS "Optimization: None (-O0), Coverage instrumentation enabled")
 endif()
 
 include(cmake/modules/FindLinker.cmake)
@@ -310,7 +318,7 @@ if(CMAKE_BUILD_TYPE MATCHES "^Release$" OR CMAKE_BUILD_TYPE MATCHES "^RelWithDeb
         set(CMAKE_CXX_COMPILE_OPTIONS_IPO "-flto=thin")
         set(CMAKE_C_COMPILE_OPTIONS_IPO "-flto=thin")
         set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
-        message(DEBUG "[LTO] ThinLTO enabled for ${CMAKE_BUILD_TYPE}")
+        message(STATUS "[LTO] ThinLTO enabled for ${CMAKE_BUILD_TYPE}")
       elseif(HALO_LTO_MODE STREQUAL "full")
         # Explicit full LTO, override CMake defaults
         set(CMAKE_CXX_COMPILE_OPTIONS_IPO "-flto")

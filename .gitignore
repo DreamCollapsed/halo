@@ -4,6 +4,7 @@ build_debug
 build_release
 build_relwithdebinfo
 build_min_size_release
+build_coverage
 cmake-build-*/
 
 # Third-party directories

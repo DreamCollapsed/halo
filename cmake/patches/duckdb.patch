@@ -1,0 +1,96 @@
+diff --git a/extension/parquet/include/parquet_writer.hpp b/extension/parquet/include/parquet_writer.hpp
+index f28b07bbef..32d8189553 100644
+--- a/extension/parquet/include/parquet_writer.hpp
++++ b/extension/parquet/include/parquet_writer.hpp
+@@ -88,8 +88,8 @@ public:
+ 
+ struct ParquetWriteGlobalState : public GlobalFunctionData {
+ public:
+-	ParquetWriteGlobalState() {
+-	}
++	ParquetWriteGlobalState();
++	~ParquetWriteGlobalState();
+ 
+ public:
+ 	void LogFlushingRowGroup(const ColumnDataCollection &buffer, const string &reason);
+@@ -229,4 +229,7 @@ private:
+ 	unique_ptr<ParquetStatsAccumulator> stats_accumulator;
+ };
+ 
++inline ParquetWriteGlobalState::ParquetWriteGlobalState() = default;
++inline ParquetWriteGlobalState::~ParquetWriteGlobalState() = default;
++
+ } // namespace duckdb
+diff --git a/extension/parquet/include/writer/variant_column_writer.hpp b/extension/parquet/include/writer/variant_column_writer.hpp
+index 07250c4ac0..1e91843007 100644
+--- a/extension/parquet/include/writer/variant_column_writer.hpp
++++ b/extension/parquet/include/writer/variant_column_writer.hpp
+@@ -22,16 +22,18 @@ struct ArrayAnalyzeData;
+ 
+ struct VariantAnalyzeData {
+ public:
+-	VariantAnalyzeData() {
+-	}
++	VariantAnalyzeData();
++	~VariantAnalyzeData();
++	VariantAnalyzeData(VariantAnalyzeData &&) noexcept;
++	VariantAnalyzeData &operator=(VariantAnalyzeData &&) noexcept;
+ 
+ public:
+ 	//! Map for every value what type it is
+ 	variant_type_map type_map = {};
+ 	//! Map for every decimal value what physical type it has
+ 	array<idx_t, 3> decimal_type_map = {};
+-	unique_ptr<ObjectAnalyzeData> object_data = nullptr;
+-	unique_ptr<ArrayAnalyzeData> array_data = nullptr;
++	unique_ptr<ObjectAnalyzeData> object_data;
++	unique_ptr<ArrayAnalyzeData> array_data;
+ };
+ 
+ struct ObjectAnalyzeData {
+@@ -52,6 +54,13 @@ public:
+ 	VariantAnalyzeData child;
+ };
+ 
++inline VariantAnalyzeData::VariantAnalyzeData() {
++}
++inline VariantAnalyzeData::~VariantAnalyzeData() {
++}
++inline VariantAnalyzeData::VariantAnalyzeData(VariantAnalyzeData &&) noexcept = default;
++inline VariantAnalyzeData &VariantAnalyzeData::operator=(VariantAnalyzeData &&) noexcept = default;
++
+ struct VariantAnalyzeSchemaState : public ParquetAnalyzeSchemaState {
+ public:
+ 	VariantAnalyzeSchemaState() {
+@@ -107,3 +116,4 @@ private:
+ };
+ 
+ } // namespace duckdb
++
+diff --git a/src/include/duckdb/main/profiling_utils.hpp b/src/include/duckdb/main/profiling_utils.hpp
+index 0376193094..8cf2921050 100644
+--- a/src/include/duckdb/main/profiling_utils.hpp
++++ b/src/include/duckdb/main/profiling_utils.hpp
+@@ -27,9 +27,8 @@ struct ActiveTimer;
+ // Top level query metrics
+ struct QueryMetrics {
+ public:
+-    QueryMetrics() {
+-        Reset();
+-    }
++    QueryMetrics();
++    ~QueryMetrics();
+ 
+ 	ProfilingInfo query_global_info;
+ 
+@@ -135,4 +134,10 @@ private:
+ 	bool is_active;
+ };
+ 
++inline QueryMetrics::QueryMetrics() {
++    Reset();
++}
++
++inline QueryMetrics::~QueryMetrics() = default;
++
+ }

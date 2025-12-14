@@ -16,6 +16,7 @@ target_link_libraries(halo
     halo_thirdparty_core
     halo_thirdparty_with_thrift
     halo_velox_unified
+    halo_duckdb_unified
 )
 
 # Platform-specific libraries

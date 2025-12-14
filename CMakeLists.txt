@@ -13,6 +13,14 @@ if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   message(FATAL_ERROR "This project requires Clang compiler. Current compiler: ${CMAKE_CXX_COMPILER_ID}")
 endif()
 
+# Enable Split DWARF for Debug builds to reduce link time and memory usage
+# Only supported on Linux with Clang/GCC. macOS uses dSYM bundles.
+if((CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo") AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  add_compile_options(-gsplit-dwarf)
+  add_link_options(-gsplit-dwarf)
+  message(STATUS "Enabled Split DWARF (-gsplit-dwarf) for faster linking")
+endif()
+
 # On Linux, when using Clang with libstdc++ (GCC's standard library),
 # we must prevent Clang from including its own libc++ headers which conflict with libstdc++.
 # We need to properly configure --gcc-toolchain to point to the actual GCC installation.
@@ -449,8 +457,11 @@ set(THIRDPARTY_INSTALL_DIR ${THIRDPARTY_BASE_DIR}/installed)
 set(THIRDPARTY_EXECUTABLE_PATHS "" CACHE INTERNAL "Collected third-party executable paths")
 add_subdirectory(thirdparty)
 
-message(STATUS "[  Halo Embedded Code  ] Velox integration")
+message(STATUS "[  Halo Embedded Code  ] DuckDB integration")
+include(cmake/DuckDB.cmake)
+add_subdirectory(duckdb)
 
+message(STATUS "[  Halo Embedded Code  ] Velox integration")
 include(cmake/Velox.cmake)
 add_subdirectory(velox)
 

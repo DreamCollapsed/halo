@@ -152,12 +152,13 @@ jobs:
           set -euo pipefail
           echo "Checking formatting..."
           # Define directories/patterns to ignore (only root-level directories)
-          # These match at the start of the path to exclude root thirdparty/, build/, velox/
+          # These match at the start of the path to exclude root thirdparty/, build/, velox/, duckdb/
           # but allow test/thirdparty/, etc.
           IGNORE_PREFIXES=(
             "^thirdparty/"
             "^build/"
             "^velox/"
+            "^duckdb/"
           )
 
           # Ensure changed_files.txt exists
@@ -639,6 +640,7 @@ jobs:
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_C_COMPILER=$CC \
             -DCMAKE_CXX_COMPILER=$CXX \
+            -DHALO_LTO_MODE=thin \
             -DHALO_LINUX_X86_64_MARCH_VERSION_RESTRICT=v3
           
           echo "CMake configure completed, build directory ready for main compilation"
@@ -1062,6 +1064,7 @@ jobs:
             -DCMAKE_CXX_COMPILER=$CXX \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache \
             -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DHALO_LTO_MODE=thin \
             -DHALO_LINUX_X86_64_MARCH_VERSION_RESTRICT=v3
           
           echo "CMake configure completed, build directory ready for main compilation"
@@ -1180,8 +1183,13 @@ jobs:
             exit 1
           fi
 
-          echo "Packaging build/ and velox/ into $TAR"
-          tar -czf "$TAR" build velox
+          if [ ! -d duckdb ]; then
+            echo "ERROR: duckdb directory missing; expected populated duckdb tree for clang-tidy includes" >&2
+            exit 1
+          fi
+
+          echo "Packaging build/ velox/ and duckdb/ into $TAR"
+          tar -czf "$TAR" build velox duckdb
           ls -lh "$TAR"
 
       - name: Upload compile database for clang-tidy (macOS Debug only)
@@ -1371,7 +1379,7 @@ jobs:
           fi
           echo "Extracting $TAR"
           # Guarded submodule cleanup: only attempt to deinit/remove metadata
-          # if the .git/modules/velox metadata directory exists. If metadata is
+          # if the .git/modules/{velox,duckdb} metadata directory exists. If metadata is
           # missing, do a best-effort deinit while suppressing errors to avoid
           # git trying to access nonexistent config files during post-job cleanup.
           if [ -d ".git/modules/velox" ]; then
@@ -1380,8 +1388,14 @@ jobs:
           else
             git submodule deinit -f velox >/dev/null 2>&1 || true
           fi
+          if [ -d ".git/modules/duckdb" ]; then
+            git submodule deinit -f duckdb || true
+            rm -rf .git/modules/duckdb
+          else
+            git submodule deinit -f duckdb >/dev/null 2>&1 || true
+          fi
           # Remove any existing working tree fragments, then extract artifact
-          rm -rf build velox
+          rm -rf build velox duckdb
           tar -xzf "$TAR"
           if [ ! -d build ]; then
             echo "ERROR: build directory missing after extracting $TAR" >&2
@@ -1391,10 +1405,18 @@ jobs:
             echo "ERROR: velox directory missing after extracting $TAR" >&2
             exit 1
           fi
-
           if [ -f velox/.git ]; then
             echo "Removing broken .git file from velox submodule directory"
             rm -f velox/.git
+          fi
+
+          if [ ! -d duckdb ]; then
+            echo "ERROR: duckdb directory missing after extracting $TAR" >&2
+            exit 1
+          fi
+          if [ -f duckdb/.git ]; then
+            echo "Removing broken .git file from duckdb submodule directory"
+            rm -f duckdb/.git
           fi
 
       - name: Verify compile database and setup
@@ -1420,6 +1442,12 @@ jobs:
 
           if [ ! -d "velox" ]; then
             echo "ERROR: velox directory missing after artifact extraction"
+            ls -a || true
+            exit 1
+          fi
+
+          if [ ! -d "duckdb" ]; then
+            echo "ERROR: duckdb directory missing after artifact extraction"
             ls -a || true
             exit 1
           fi

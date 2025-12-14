@@ -580,3 +580,14 @@ add_module_test(thirdparty_libunwind
         thirdparty
         integration
 )
+
+# DuckDB integration test
+add_module_test(duckdb_integration
+    TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_duckdb_integration.cpp"
+    CUSTOM_TARGETS halo_duckdb_unified
+    LABELS
+        duckdb
+        thirdparty
+        integration
+    TIMEOUT 30
+)

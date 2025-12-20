@@ -584,7 +584,7 @@ add_module_test(thirdparty_libunwind
 # DuckDB integration test
 add_module_test(duckdb_integration
     TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_duckdb_integration.cpp"
-    CUSTOM_TARGETS halo_duckdb_unified
+    CUSTOM_TARGETS halo_duckdb_unified halo_velox_unified
     LABELS
         duckdb
         thirdparty

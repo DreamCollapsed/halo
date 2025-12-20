@@ -119,11 +119,11 @@ done
 # Generate HTML report
 # We filter to only show coverage for the 'src' directory and exclude main.cpp
 # We also filter out "mismatched data" warnings which can occur with static libraries linked into multiple test executables
-llvm-cov show "$MAIN_EXECUTABLE" $OBJECT_ARGS -instr-profile="$PROFILE_DATA" -format=html -output-dir="$COVERAGE_DIR" -ignore-filename-regex="main.cpp|${BUILD_DIR}/" src/ 2>&1 | grep -v "mismatched data" || true
+llvm-cov show "$MAIN_EXECUTABLE" $OBJECT_ARGS -instr-profile="$PROFILE_DATA" -format=html -output-dir="$COVERAGE_DIR" -ignore-filename-regex="main.cpp|${BUILD_DIR}/|velox/|duckdb/|thirdparty/" src/ 2>&1 | grep -v "mismatched data" || true
 
 # Also print a summary to the terminal
 echo "=== Coverage Summary ==="
-llvm-cov report "$MAIN_EXECUTABLE" $OBJECT_ARGS -instr-profile="$PROFILE_DATA" -ignore-filename-regex="main.cpp|${BUILD_DIR}/" src/ 2>&1 | grep -v "mismatched data" || true
+llvm-cov report "$MAIN_EXECUTABLE" $OBJECT_ARGS -instr-profile="$PROFILE_DATA" -ignore-filename-regex="main.cpp|${BUILD_DIR}/|velox/|duckdb/|thirdparty/" src/ 2>&1 | grep -v "mismatched data" || true
 
 echo ""
 echo "✅ Coverage report generated in: $COVERAGE_DIR/index.html"

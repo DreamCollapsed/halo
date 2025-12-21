@@ -42,7 +42,7 @@ class XzIntegrationTest : public ::testing::Test {
 TEST_F(XzIntegrationTest, VersionCheck) {
   EXPECT_EQ(LZMA_VERSION_MAJOR, 5);
   EXPECT_EQ(LZMA_VERSION_MINOR, 8);
-  EXPECT_EQ(LZMA_VERSION_PATCH, 1);
+  EXPECT_EQ(LZMA_VERSION_PATCH, 2);
 }
 
 // Test xz version and basic functionality

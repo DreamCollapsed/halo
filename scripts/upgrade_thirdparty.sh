@@ -227,6 +227,42 @@ for name in $components; do
         repo="snowballstem/snowball"
         echo "Checking $name ($repo)... Current: $current_version"
         latest_tag=$(get_latest_github_version "$repo" "$current_version")
+    elif [ "$name" == "FBTHRIFT" ]; then
+        repo="facebook/fbthrift"
+        echo "Checking $name ($repo)... Current: $current_version"
+        # fbthrift uses special version format YYYY.MM.DD.HH, need custom logic
+        get_latest_fbthrift_version() {
+            local repo=$1
+            local current_version=$2
+            local token_header=""
+            if [ -n "$GITHUB_TOKEN" ]; then
+                token_header="Authorization: token $GITHUB_TOKEN"
+            fi
+            
+            # fbthrift doesn't publish releases, only tags, so we fetch tags directly
+            local response=$(curl -s -H "$token_header" "https://api.github.com/repos/$repo/tags?per_page=30")
+            
+            if echo "$response" | jq -e . >/dev/null 2>&1; then
+                # Get all tag names
+                local tags=$(echo "$response" | jq -r '.[].name' 2>/dev/null)
+                
+                for tag in $tags; do
+                    if [ "$tag" != "null" ] && [ -n "$tag" ]; then
+                        # Remove 'v' prefix if present
+                        local clean_tag=${tag#v}
+                        # Check if it matches YYYY.MM.DD.HH format
+                        if [[ "$clean_tag" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]{2}$ ]]; then
+                            # String comparison works for this format since YYYY.MM.DD.HH is lexicographically sortable
+                            if [ "$clean_tag" \> "$current_version" ]; then
+                                echo "$clean_tag"
+                                return
+                            fi
+                        fi
+                    fi
+                done
+            fi
+        }
+        latest_tag=$(get_latest_fbthrift_version "$repo" "$current_version")
     elif [[ "$url_pattern" =~ "github.com" ]]; then
         if [[ "$url_pattern" =~ github.com/([^/]+/[^/]+) ]]; then
             repo="${BASH_REMATCH[1]}"
@@ -254,6 +290,9 @@ for name in $components; do
         if [ "$name" == "BOOST" ]; then
             clean_latest_underscore=${clean_latest//./_}
             new_url="https://archives.boost.io/release/${clean_latest}/source/boost_${clean_latest_underscore}.tar.gz"
+        elif [ "$name" == "FBTHRIFT" ]; then
+            # fbthrift uses v prefix in tags
+            new_url="https://github.com/facebook/fbthrift/archive/refs/tags/v${clean_latest}.zip"
         elif [ "$name" == "BISON" ] || [ "$name" == "BZIP2" ] || [ "$name" == "GEOS" ] || [ "$name" == "LIBSTEMMER" ]; then
             # Use existing URL pattern for these, assuming mirrors/upstream follow versioning
             clean_latest_underscore=${clean_latest//./_}
@@ -272,7 +311,7 @@ for name in $components; do
         new_hash=$(download_and_hash "$new_url" "$name" "$clean_latest")
         
         # Fallback URL if download fails
-        if [ -z "$new_hash" ] && [ "$name" != "BOOST" ] && [ "$name" != "BISON" ] && [ "$name" != "BZIP2" ] && [ "$name" != "GEOS" ] && [ "$name" != "LIBSTEMMER" ]; then
+        if [ -z "$new_hash" ] && [ "$name" != "BOOST" ] && [ "$name" != "FBTHRIFT" ] && [ "$name" != "BISON" ] && [ "$name" != "BZIP2" ] && [ "$name" != "GEOS" ] && [ "$name" != "LIBSTEMMER" ]; then
              echo "  Primary URL failed. Trying fallback to GitHub Archive..."
              fallback_url="https://github.com/${repo}/archive/refs/tags/${latest_tag}.tar.gz"
              echo "  Downloading fallback: $fallback_url..."

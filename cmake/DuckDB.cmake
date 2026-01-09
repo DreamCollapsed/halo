@@ -61,6 +61,21 @@ if(DUCKDB_NEEDS_INIT)
   endif()
 endif()
 
+# Fetch remote updates to ensure all commits are available
+if(EXISTS "${HALO_DUCKDB_SOURCE_DIR}/.git" AND GIT_EXECUTABLE)
+  message(STATUS "Fetching DuckDB remote updates...")
+  execute_process(
+    COMMAND "${GIT_EXECUTABLE}" fetch origin "${DUCKDB_COMMIT_HASH}"
+    WORKING_DIRECTORY "${HALO_DUCKDB_SOURCE_DIR}"
+    RESULT_VARIABLE _fetch_res
+    OUTPUT_QUIET
+    ERROR_QUIET
+  )
+  if(NOT _fetch_res EQUAL 0)
+    message(WARNING "Failed to fetch DuckDB remote updates, will attempt checkout anyway")
+  endif()
+endif()
+
 # Ensure we are at the correct commit
 if(EXISTS "${HALO_DUCKDB_SOURCE_DIR}/.git" AND GIT_EXECUTABLE)
   execute_process(
@@ -78,7 +93,7 @@ if(EXISTS "${HALO_DUCKDB_SOURCE_DIR}/.git" AND GIT_EXECUTABLE)
       RESULT_VARIABLE _checkout_res
     )
     if(NOT _checkout_res EQUAL 0)
-      message(WARNING "Failed to checkout DuckDB commit ${DUCKDB_COMMIT_HASH}")
+      message(FATAL_ERROR "Failed to checkout DuckDB commit ${DUCKDB_COMMIT_HASH}")
     endif()
 
     # Re-check hash

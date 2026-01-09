@@ -120,5 +120,5 @@ TEST(Utf8ProcIntegrationTest, InvalidSequence) {
 }
 
 TEST(Utf8ProcIntegrationTest, VersionCheck) {
-  EXPECT_EQ(std::string(utf8proc_version()), "2.11.2");
+  EXPECT_EQ(std::string(utf8proc_version()), "2.11.3");
 }

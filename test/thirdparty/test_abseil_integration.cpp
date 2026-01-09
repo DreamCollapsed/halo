@@ -240,8 +240,8 @@ TEST_F(AbseilIntegrationTest, IntegrationTest) {
 
 // Test Abseil version
 TEST_F(AbseilIntegrationTest, VersionCheck) {
-  EXPECT_EQ(ABSL_LTS_RELEASE_VERSION, 20250814);
-  EXPECT_EQ(ABSL_LTS_RELEASE_PATCH_LEVEL, 1);
+  EXPECT_EQ(ABSL_LTS_RELEASE_VERSION, 20260107);
+  EXPECT_EQ(ABSL_LTS_RELEASE_PATCH_LEVEL, 0);
 }
 
 int main(int argc, char** argv) {

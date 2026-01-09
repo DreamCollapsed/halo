@@ -32,6 +32,20 @@ thirdparty_build_cmake_library("grpc"
         -DOpenSSL_ROOT_DIR=${THIRDPARTY_INSTALL_DIR}/openssl
         -DZLIB_ROOT=${THIRDPARTY_INSTALL_DIR}/zlib
     FILE_REPLACEMENTS
+        "include/grpc/event_engine/memory_request.h"
+        "#include <grpc/support/port_platform.h>
+#include <stddef.h>
+
+#include \"absl/strings/string_view.h\""
+        "#include <grpc/support/port_platform.h>
+#include <stddef.h>
+#include <string>
+
+#include \"absl/strings/string_view.h\""
+        "src/core/util/glob.cc"
+        "#include \"absl/strings/string_view.h\""
+        "#include <algorithm>
+#include \"absl/strings/string_view.h\""
         "src/core/credentials/transport/tls/tls_security_connector.cc"
         "absl::bind_front(&ChannelPendingVerifierRequest::OnVerifyDone, this,
                        true),"

@@ -10,7 +10,7 @@
 ]]
 
 # The commit hash to pin to (currently tip of main)
-set(DUCKDB_COMMIT_HASH "1d558536e04c916f6d6b19ed7e12f8af316e897d")
+set(DUCKDB_COMMIT_HASH "48bdbbebe4403a086d6fb202a97b6658e136c65c")
 
 include_guard(GLOBAL)
 

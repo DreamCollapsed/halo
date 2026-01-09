@@ -327,5 +327,5 @@ TEST_F(LibsodiumIntegrationTest, PerformanceTest) {
 
 // Test libsodium version
 TEST_F(LibsodiumIntegrationTest, VersionCheck) {
-  EXPECT_EQ(std::string(sodium_version_string()), "1.0.20");
+  EXPECT_EQ(std::string(sodium_version_string()), "1.0.21");
 }

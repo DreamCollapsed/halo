@@ -40,7 +40,7 @@ TEST(OpenBLASIntegrationTest, VersionCheck) {
       // Basic version format check (should contain dots)
       EXPECT_TRUE(version.find('.') != std::string::npos);
       // Check for specific version
-      EXPECT_EQ(version, "0.3.30");
+      EXPECT_EQ(version, "0.3.31");
     }
   }
 

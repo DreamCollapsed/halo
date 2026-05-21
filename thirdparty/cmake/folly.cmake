@@ -118,6 +118,9 @@ thirdparty_build_cmake_library("folly"
         -DFOLLY_HAVE_UNALIGNED_ACCESS:BOOL=ON
         -DFOLLY_USE_SYMBOLIZER:BOOL=ON
         -DFOLLY_HAVE_BACKTRACE:BOOL=ON
+        # Disable ASAN on macOS - __sanitizer_annotate_contiguous_container not available
+        -DFOLLY_HAVE_ADDRESS_SANITIZER:BOOL=OFF
+        -D_LIBCPP_HAS_NO_ASAN=1
     FILE_REPLACEMENTS
         "folly/hash/Checksum.cpp"
         "#include <folly/hash/Checksum.h>"
@@ -138,6 +141,22 @@ thirdparty_build_cmake_library("folly"
         "${THIRDPARTY_INSTALL_DIR}/folly/lib/libfolly.a"
         "${THIRDPARTY_INSTALL_DIR}/folly/include/folly/folly-config.h"
 )
+
+# Fix UninitializedMemoryHacks.h to disable ASAN on macOS
+# The __sanitizer_annotate_contiguous_container function is not available on macOS
+set(_folly_uninit_hacks "${THIRDPARTY_INSTALL_DIR}/folly/include/folly/memory/UninitializedMemoryHacks.h")
+if(EXISTS "${_folly_uninit_hacks}")
+    file(READ "${_folly_uninit_hacks}" _folly_hacks_content)
+    # Force disable ASAN annotations by defining _LIBCPP_HAS_NO_ASAN at the top of the file
+    if(NOT _folly_hacks_content MATCHES "#define _LIBCPP_HAS_NO_ASAN")
+        string(REPLACE
+            "#pragma once"
+            "#pragma once\n\n// Force disable ASAN on macOS - __sanitizer_annotate_contiguous_container not available\n#if defined(__APPLE__)\n#define _LIBCPP_HAS_NO_ASAN 1\n#endif"
+            _folly_hacks_content "${_folly_hacks_content}")
+        file(WRITE "${_folly_uninit_hacks}" "${_folly_hacks_content}")
+        message(STATUS "Applied ASAN disable fix to UninitializedMemoryHacks.h")
+    endif()
+endif()
 
 if(EXISTS "${THIRDPARTY_INSTALL_DIR}/folly/lib/cmake/folly/folly-config.cmake")
     halo_find_package(Folly CONFIG QUIET REQUIRED)

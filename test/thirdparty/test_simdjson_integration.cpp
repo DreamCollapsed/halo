@@ -20,7 +20,7 @@ TEST(SimdjsonIntegration, VersionAPILoad) {
 
 // Test simdjson version
 TEST(SimdjsonIntegration, VersionCheck) {
-  EXPECT_EQ(std::string(SIMDJSON_VERSION), "4.2.4");
+  EXPECT_EQ(std::string(SIMDJSON_VERSION), "4.6.4");
 }
 
 // Parse a simple JSON string

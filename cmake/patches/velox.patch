@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index bf177538a..d511a621b 100644
+index bf177538a..ce2ad655f 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -33,6 +33,14 @@ endif()
@@ -41,7 +41,7 @@ index bf177538a..d511a621b 100644
  
  velox_set_source(simdjson)
 -velox_resolve_dependency(simdjson 4.1.0)
-+velox_resolve_dependency(simdjson 4.2.2)
++velox_resolve_dependency(simdjson 4.3.0)
  
  velox_set_source(FastFloat)
  velox_resolve_dependency(FastFloat)
@@ -519,6 +519,34 @@ index 0baf904de..a0eacb52f 100644
        const AsyncDataCache::Options& = {});
  
    static AsyncDataCache* getInstance();
+diff --git a/velox/common/compression/Lz4Compression.cpp b/velox/common/compression/Lz4Compression.cpp
+index 58c6ed666..d85a873f4 100644
+--- a/velox/common/compression/Lz4Compression.cpp
++++ b/velox/common/compression/Lz4Compression.cpp
+@@ -588,8 +588,8 @@ Expected<uint64_t> Lz4HadoopCodec::compress(
+             folly::Endian::big(static_cast<uint32_t>(inputLength));
+         const uint32_t compressedLength =
+             folly::Endian::big(static_cast<uint32_t>(compressedSize));
+-        folly::storeUnaligned(output, decompressedLength);
+-        folly::storeUnaligned(output + sizeof(uint32_t), compressedLength);
++        folly::storeUnaligned<uint32_t>(output, decompressedLength);
++        folly::storeUnaligned<uint32_t>(output + sizeof(uint32_t), compressedLength);
+         return kPrefixLength + compressedSize;
+       });
+ }
+diff --git a/velox/common/memory/ByteStream.h b/velox/common/memory/ByteStream.h
+index 1063e71ee..dc6903c91 100644
+--- a/velox/common/memory/ByteStream.h
++++ b/velox/common/memory/ByteStream.h
+@@ -415,7 +415,7 @@ class ByteOutputStream {
+         auto* buffer = current_->buffer + (position >> 3);
+         auto value = folly::loadUnaligned<uint64_t>(buffer);
+         value = (value & mask) | (bits[0] << offset);
+-        folly::storeUnaligned(buffer, value);
++        folly::storeUnaligned<uint64_t>(buffer, value);
+         current_->position += end;
+         return;
+       }
 diff --git a/velox/common/process/ThreadDebugInfo.cpp b/velox/common/process/ThreadDebugInfo.cpp
 index ae681a2dc..35ebaf485 100644
 --- a/velox/common/process/ThreadDebugInfo.cpp
@@ -1404,6 +1432,98 @@ ccmex0k+ESC;|4zqHpieK|M2+Deimy409!8yy8r+H
 delta 14
 VcmZpe#Q19>;|4#A%^?<R1OP6^1<?Qi
 
+diff --git a/velox/functions/lib/ApproxMostFrequentStreamSummary.h b/velox/functions/lib/ApproxMostFrequentStreamSummary.h
+index b34197c15..8e843f7d8 100644
+--- a/velox/functions/lib/ApproxMostFrequentStreamSummary.h
++++ b/velox/functions/lib/ApproxMostFrequentStreamSummary.h
+@@ -214,7 +214,7 @@ size_t ApproxMostFrequentStreamSummary<T, A>::serializedByteSize() const {
+ template <typename T, typename A>
+ void ApproxMostFrequentStreamSummary<T, A>::serialize(char* out) const {
+   auto* cur = out;
+-  folly::storeUnaligned<int32_t>(cur, size());
++  folly::storeUnaligned<int32_t>(cur, static_cast<int32_t>(size()));
+   cur += sizeof(int32_t);
+   auto byteSize = sizeof(T) * size();
+   memcpy(cur, queue_.values(), byteSize);
+diff --git a/velox/functions/lib/QuantileDigest.h b/velox/functions/lib/QuantileDigest.h
+index ca9ded610..d2c88a99e 100644
+--- a/velox/functions/lib/QuantileDigest.h
++++ b/velox/functions/lib/QuantileDigest.h
+@@ -299,7 +299,7 @@ T read(const char*& input) {
+ 
+ template <typename T>
+ void write(T value, char*& out) {
+-  folly::storeUnaligned(out, value);
++  folly::storeUnaligned<T>(out, value);
+   out += sizeof(T);
+ }
+ } // namespace detail
+diff --git a/velox/functions/lib/TDigest.h b/velox/functions/lib/TDigest.h
+index 08fddeaac..c8b14ee02 100644
+--- a/velox/functions/lib/TDigest.h
++++ b/velox/functions/lib/TDigest.h
+@@ -568,7 +568,7 @@ static_assert(folly::kIsLittleEndian);
+ 
+ template <typename T>
+ void write(T value, char*& out) {
+-  folly::storeUnaligned(out, value);
++  folly::storeUnaligned<T>(out, value);
+   out += sizeof(T);
+ }
+ 
+diff --git a/velox/serializers/PrestoSerializerSerializationUtils.cpp b/velox/serializers/PrestoSerializerSerializationUtils.cpp
+index a36832e8f..ec3801954 100644
+--- a/velox/serializers/PrestoSerializerSerializationUtils.cpp
++++ b/velox/serializers/PrestoSerializerSerializationUtils.cpp
+@@ -560,8 +560,9 @@ void copyWords(
+     const T* values,
+     Conv&& conv = {}) {
+   for (auto i = 0; i < numIndices; ++i) {
+-    folly::storeUnaligned(
+-        destination + i * sizeof(T), conv(values[indices[i]]));
++    folly::storeUnaligned<T>(
++      destination + i * sizeof(T),
++      static_cast<T>(conv(values[indices[i]])));
+   }
+ }
+ 
+@@ -577,9 +578,10 @@ void copyWordsWithRows(
+     copyWords(destination, rows, numIndices, values, std::forward<Conv>(conv));
+     return;
+   }
+-  for (auto i = 0; i < numIndices; ++i) {
+-    folly::storeUnaligned(
+-        destination + i * sizeof(T), conv(values[rows[indices[i]]]));
++    for (auto i = 0; i < numIndices; ++i) {
++    folly::storeUnaligned<T>(
++      destination + i * sizeof(T),
++      static_cast<T>(conv(values[rows[indices[i]]])));
+   }
+ }
+ 
+@@ -763,7 +765,7 @@ void serializeFlatVector<TypeKind::BOOLEAN>(
+     uint64_t word = bitsToBytes(reinterpret_cast<uint8_t*>(valueBits)[i]);
+     auto* target = output + i * 8;
+     if (i < numBytes - 1) {
+-      folly::storeUnaligned(target, word);
++      folly::storeUnaligned<uint64_t>(target, word);
+     } else {
+       memcpy(target, &word, numValueBits - i * 8);
+     }
+diff --git a/velox/serializers/VectorStream.h b/velox/serializers/VectorStream.h
+index 0d52dbbc1..162ed9204 100644
+--- a/velox/serializers/VectorStream.h
++++ b/velox/serializers/VectorStream.h
+@@ -80,7 +80,8 @@ class VectorStream {
+       VELOX_CHECK_EQ(header_.size, kHeaderSize);
+     }
+     header_.size = name.size() + sizeof(int32_t);
+-    folly::storeUnaligned<int32_t>(header_.buffer, name.size());
++    folly::storeUnaligned<int32_t>(header_.buffer,
++      static_cast<int32_t>(name.size()));
+     ::memcpy(header_.buffer + sizeof(int32_t), &name[0], name.size());
+   }
+ 
 diff --git a/velox/type/DecimalUtil.h b/velox/type/DecimalUtil.h
 index 581c776f7..cd8161fa9 100644
 --- a/velox/type/DecimalUtil.h

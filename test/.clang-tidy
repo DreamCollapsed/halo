@@ -1,0 +1,32 @@
+# Relaxed clang-tidy config for test files
+Checks: >
+  -*,
+  bugprone-*,
+  cppcoreguidelines-*,
+  clang-analyzer-*,
+  google-*,
+  modernize-*,
+  performance-*,
+  readability-*,
+  -bugprone-command-processor,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
+  -cppcoreguidelines-avoid-c-arrays,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-macro-usage,
+  -cppcoreguidelines-pro-bounds-avoid-unchecked-container-access,
+  -google-runtime-int,
+  -modernize-avoid-c-arrays,
+  -modernize-use-designated-initializers,
+  -modernize-use-trailing-return-type,
+  -readability-container-contains,
+  -readability-duplicate-include,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length,
+  -readability-identifier-naming,
+  -readability-magic-numbers,
+  -readability-math-missing-parentheses,
+  -readability-named-parameter,
+  -readability-redundant-declaration
+
+WarningsAsErrors: '*'
+HeaderFilterRegex: 'halo/(src|test)/'

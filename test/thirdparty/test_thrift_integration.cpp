@@ -61,7 +61,7 @@ TEST_F(ThriftIntegrationTest, LibraryInitialization) {
 }
 
 TEST_F(ThriftIntegrationTest, VersionCheck) {
-  EXPECT_STREQ(PACKAGE_VERSION, "0.22.0");
+  EXPECT_STREQ(PACKAGE_VERSION, "0.23.0");
 }
 
 // Test 2: Binary Protocol
@@ -365,8 +365,8 @@ TEST_F(ThriftIntegrationTest, ThriftVersionTest) {
   pclose(pipe);
 
   // Check that version contains thrift information
-  EXPECT_TRUE(version_output.find("Thrift") != std::string::npos ||
-              version_output.find("thrift") != std::string::npos)
+  EXPECT_TRUE(version_output.contains("Thrift") ||
+              version_output.contains("thrift"))
       << "Version output: " << version_output;
 }
 
@@ -403,12 +403,12 @@ TEST_F(ThriftIntegrationTest, ThriftHelpTest) {
   pclose(pipe);
 
   // Check that help output contains expected content
-  EXPECT_TRUE(help_output.find("Usage:") != std::string::npos ||
-              help_output.find("usage:") != std::string::npos ||
-              help_output.find("Options:") != std::string::npos)
+  EXPECT_TRUE(help_output.contains("Usage:") ||
+              help_output.contains("usage:") ||
+              help_output.contains("Options:"))
       << "Help should contain usage information";
 
-  EXPECT_TRUE(help_output.find("cpp") != std::string::npos)
+  EXPECT_TRUE(help_output.contains("cpp"))
       << "Help should mention C++ generation option";
 }
 

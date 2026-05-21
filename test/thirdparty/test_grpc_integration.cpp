@@ -460,10 +460,8 @@ TEST_F(GrpcIntegrationTest, GrpcCppPluginTest) {
   pclose(pipe);
 
   // Accept various forms of output indicating C++ generation capability
-  EXPECT_TRUE(help_output.find("cpp") != std::string::npos ||
-              help_output.find("C++") != std::string::npos ||
-              help_output.find("grpc") != std::string::npos ||
-              !help_output.empty())
+  EXPECT_TRUE(help_output.contains("cpp") || help_output.contains("C++") ||
+              help_output.contains("grpc") || !help_output.empty())
       << "Plugin should provide some form of help or output";
 }
 
@@ -540,5 +538,5 @@ service TestService {
 
 // Test gRPC version
 TEST_F(GrpcIntegrationTest, VersionCheck) {
-  EXPECT_EQ(grpc::Version(), "1.76.0");
+  EXPECT_EQ(grpc::Version(), "1.80.0");
 }

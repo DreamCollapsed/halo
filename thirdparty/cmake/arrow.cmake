@@ -127,6 +127,17 @@ thirdparty_build_cmake_library("arrow"
       "cpp/src/arrow/acero/asof_join_node.cc"
       "/*output=*/asof_node"
       "/*output=*/(ExecNode*)asof_node"
+      "cpp/CMakeLists.txt"
+      "\"21.1\""
+      "\"22.1\"\n    \"21.1\""
+      "cpp/src/gandiva/engine.cc"
+      "#  include <llvm/Passes/PassPlugin.h>"
+      "#  if __has_include(<llvm/Passes/PassPlugin.h>)\n#    include <llvm/Passes/PassPlugin.h>\n#  endif"
+      # Accept Apple's libtool variations (cctools and cctools_ld) when
+      # Arrow's buildutils checks the libtool version string.
+      "cpp/cmake_modules/BuildUtils.cmake"
+      ".*cctools-([0-9.]+).*"
+      ".*cctools(_ld)?-([0-9.]+).*"
     VALIDATION_FILES
         "${ARROW_INSTALL_DIR}/lib/libarrow.a"
         "${ARROW_INSTALL_DIR}/lib/cmake/Arrow/ArrowConfig.cmake"

@@ -224,7 +224,9 @@ TEST_F(AbseilIntegrationTest, IntegrationTest) {
 
   // Verify results
   EXPECT_EQ(totals.size(), 3);
-  EXPECT_EQ(totals["apple"], 15);  // 10 + 5
+  EXPECT_EQ(totals["apple"],
+            15);  // 10 + 5  //
+
   EXPECT_EQ(totals["banana"], 20);
   EXPECT_EQ(totals["orange"], 15);
 
@@ -241,7 +243,7 @@ TEST_F(AbseilIntegrationTest, IntegrationTest) {
 // Test Abseil version
 TEST_F(AbseilIntegrationTest, VersionCheck) {
   EXPECT_EQ(ABSL_LTS_RELEASE_VERSION, 20260107);
-  EXPECT_EQ(ABSL_LTS_RELEASE_PATCH_LEVEL, 0);
+  EXPECT_EQ(ABSL_LTS_RELEASE_PATCH_LEVEL, 1);
 }
 
 int main(int argc, char** argv) {

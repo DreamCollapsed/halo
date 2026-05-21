@@ -5,6 +5,25 @@ thirdparty_setup_directories("thrift")
 
 thirdparty_acquire_source("thrift" THRIFT_SOURCE_DIR)
 
+# Fix TEnumIterator missing operator== for C++23 compatibility
+# Some versions of Thrift only define operator!= but C++23 std::map requires operator==
+set(THRIFT_THRIFT_FILE "${THRIFT_SOURCE_DIR}/lib/cpp/src/thrift/Thrift.h")
+if(EXISTS "${THRIFT_THRIFT_FILE}")
+    message(DEBUG "Checking TEnumIterator in Thrift.h for C++23 compatibility")
+    file(READ "${THRIFT_THRIFT_FILE}" THRIFT_HEADER_CONTENT)
+
+    # Check if operator== is missing (has operator!= but no operator==)
+    if(THRIFT_HEADER_CONTENT MATCHES "bool operator!=" AND NOT THRIFT_HEADER_CONTENT MATCHES "bool operator==")
+        message(STATUS "Applying TEnumIterator operator== fix for C++23 compatibility")
+        string(REPLACE
+            "bool operator!=(const TEnumIterator& end) {"
+            "bool operator!=(const TEnumIterator& end) {\n    return !(*this == end);\n  }\n\n  bool operator==(const TEnumIterator& end) {\n    THRIFT_UNUSED_VARIABLE(end);\n    assert(end.n_ == -1);\n    return (ii_ == n_);"
+            THRIFT_HEADER_CONTENT "${THRIFT_HEADER_CONTENT}")
+        file(WRITE "${THRIFT_THRIFT_FILE}" "${THRIFT_HEADER_CONTENT}")
+        message(DEBUG "TEnumIterator operator== fix applied successfully")
+    endif()
+endif()
+
 set(THRIFT_TSSL_FILE "${THRIFT_SOURCE_DIR}/lib/cpp/src/thrift/transport/TSSLSocket.cpp")
 if(EXISTS "${THRIFT_TSSL_FILE}")
     message(DEBUG "Applying OpenSSL compatibility fixes to TSSLSocket.cpp")

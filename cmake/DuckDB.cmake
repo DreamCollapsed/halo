@@ -10,7 +10,7 @@
 ]]
 
 # The commit hash to pin to (currently tip of main)
-set(DUCKDB_COMMIT_HASH "48bdbbebe4403a086d6fb202a97b6658e136c65c")
+set(DUCKDB_COMMIT_HASH "262d358413e1536e971c1c9c624bc691917dd217")
 
 include_guard(GLOBAL)
 
@@ -148,6 +148,7 @@ endif()
 # ----------------------------------------------------------------------------
 # DuckDB CMake Configuration
 # ----------------------------------------------------------------------------
+set(DISABLE_UNITY ON CACHE BOOL "Disable unity builds to fix Clang 22 compatibility" FORCE)
 set(BUILD_UNITTESTS OFF CACHE BOOL "Disable DuckDB unit tests" FORCE)
 set(BUILD_SHELL OFF CACHE BOOL "Disable DuckDB shell" FORCE)
 set(BUILD_BENCHMARKS OFF CACHE BOOL "Disable DuckDB benchmarks" FORCE)

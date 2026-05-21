@@ -11,7 +11,7 @@
 TEST(XtlIntegration, VersionCheck) {
   EXPECT_EQ(XTL_VERSION_MAJOR, 0);
   EXPECT_EQ(XTL_VERSION_MINOR, 8);
-  EXPECT_EQ(XTL_VERSION_PATCH, 1);
+  EXPECT_EQ(XTL_VERSION_PATCH, 2);
 }
 
 TEST(XtlIntegration, OptionalBasic) {
@@ -136,7 +136,8 @@ TEST(XtlIntegration, SpanSubviews) {
   EXPECT_EQ(sub_span[4], 6);
 
   // Modify through subspan
-  sub_span[2] = 99;  // should modify data[4]
+  sub_span[2] = 99;  // should modify data[4]  //
+
   EXPECT_EQ(data[4], 99);
 
   // Test first/last operations

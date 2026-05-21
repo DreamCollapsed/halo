@@ -48,6 +48,8 @@ thirdparty/Makefile
 thirdparty/cmake_install.cmake
 thirdparty/*.log
 
+.claude
+
 # Other temporary/cache/test files
 *.tmp
 *.bak

@@ -206,17 +206,54 @@ if(APPLE)
     endif()
   endif()
 
-  # Force usage of system C++ headers when using Homebrew LLVM to avoid ABI mismatch with system libc++
+  # When using Apple Clang (not Homebrew LLVM), force usage of system C++ headers
+  # to avoid ABI mismatch with system libc++. Homebrew LLVM should use its own libc++.
   if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_OSX_SYSROOT)
-     set(_sys_cxx_headers "${CMAKE_OSX_SYSROOT}/usr/include/c++/v1")
-     if(EXISTS "${_sys_cxx_headers}")
-       message(STATUS "Forcing system C++ headers from SDK: ${_sys_cxx_headers}")
-       # We must modify CMAKE_CXX_FLAGS so it propagates to third-party builds via ThirdpartyUtils
-       # Check if already present to avoid duplication
-       string(FIND "${CMAKE_CXX_FLAGS}" "-nostdinc++" _has_nostdinc)
-       if(_has_nostdinc EQUAL -1)
-         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -nostdinc++ -I${_sys_cxx_headers}" CACHE STRING "Flags used by the CXX compiler" FORCE)
-       endif()
+    # Detect if this is Homebrew LLVM (not Apple Clang)
+    # Homebrew LLVM paths typically contain /opt/homebrew/opt/llvm, /opt/homebrew/Cellar/llvm, or /usr/local/opt/llvm
+    get_filename_component(_compiler_path "${CMAKE_CXX_COMPILER}" REALPATH)
+    string(FIND "${_compiler_path}" "/opt/homebrew/opt/llvm" _is_homebrew_llvm1)
+    string(FIND "${_compiler_path}" "/opt/homebrew/Cellar/llvm" _is_homebrew_llvm2)
+    string(FIND "${_compiler_path}" "/usr/local/opt/llvm" _is_homebrew_llvm3)
+    string(FIND "${_compiler_path}" "/usr/local/Cellar/llvm" _is_homebrew_llvm4)
+
+    if(_is_homebrew_llvm1 GREATER -1 OR _is_homebrew_llvm2 GREATER -1 OR _is_homebrew_llvm3 GREATER -1 OR _is_homebrew_llvm4 GREATER -1)
+      message(STATUS "Detected Homebrew LLVM compiler at ${_compiler_path} - using its bundled libc++ instead of system SDK headers")
+    else()
+      # Apple Clang: use system SDK headers
+      set(_sys_cxx_headers "${CMAKE_OSX_SYSROOT}/usr/include/c++/v1")
+      if(EXISTS "${_sys_cxx_headers}")
+        message(STATUS "Detected Apple Clang - adding system C++ headers from SDK as system includes: ${_sys_cxx_headers}")
+        string(FIND "${CMAKE_CXX_FLAGS}" "-isystem ${_sys_cxx_headers}" _has_isystem)
+        if(_has_isystem EQUAL -1)
+          set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isystem ${_sys_cxx_headers}" CACHE STRING "Flags used by the CXX compiler" FORCE)
+        endif()
+      endif()
+    endif()
+
+     # Prefer Homebrew LLVM's llvm-ar / llvm-ranlib on macOS to avoid potential
+     # system `ranlib` indexing issues on very large archives (observed assertion
+     # failures in Apple's ranlib when indexing >4GB archives). This attempts to
+     # locate common Homebrew install paths and, if found, force CMake to use
+     # those tools for creating and indexing static libraries.
+     find_program(HOMEBREW_LLVM_AR llvm-ar HINTS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin)
+     find_program(HOMEBREW_LLVM_RANLIB llvm-ranlib HINTS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin)
+
+     if(HOMEBREW_LLVM_AR AND HOMEBREW_LLVM_RANLIB)
+       message(STATUS "Found Homebrew LLVM archiver: ${HOMEBREW_LLVM_AR}, ranlib: ${HOMEBREW_LLVM_RANLIB}; forcing CMAKE_AR/CMAKE_RANLIB to Homebrew LLVM tools")
+       set(CMAKE_AR "${HOMEBREW_LLVM_AR}" CACHE FILEPATH "Archiver used for creating static libs" FORCE)
+       set(CMAKE_RANLIB "${HOMEBREW_LLVM_RANLIB}" CACHE FILEPATH "Ranlib used for indexing archives" FORCE)
+      # Ensure CMake's archive *create* and *finish* commands also use the
+      # Homebrew LLVM tools so the generated Ninja rules invoke the same
+      # toolchain for both creation and indexing. Hardcode the paths because
+      # CMake's Ninja generator resolves <CMAKE_AR> from the detected
+      # toolchain rather than from the CMAKE_AR cache variable.
+      set(CMAKE_C_ARCHIVE_CREATE "${HOMEBREW_LLVM_AR} qc <TARGET> <LINK_FLAGS> <OBJECTS>" CACHE STRING "Create static archive (C)" FORCE)
+      set(CMAKE_C_ARCHIVE_FINISH "${HOMEBREW_LLVM_RANLIB} <TARGET>" CACHE STRING "Ranlib command (C)" FORCE)
+      set(CMAKE_CXX_ARCHIVE_CREATE "${HOMEBREW_LLVM_AR} qc <TARGET> <LINK_FLAGS> <OBJECTS>" CACHE STRING "Create static archive (CXX)" FORCE)
+      set(CMAKE_CXX_ARCHIVE_FINISH "${HOMEBREW_LLVM_RANLIB} <TARGET>" CACHE STRING "Ranlib command (CXX)" FORCE)
+     else()
+       message(STATUS "Homebrew llvm-ar/llvm-ranlib not found in standard locations; using system ar/ranlib")
      endif()
   endif()
 
@@ -479,3 +516,23 @@ add_subdirectory(test)
 # Enable CTest automated testing
 include(CTest)
 enable_testing()
+
+# ----------------------------------------------------------------------------
+# Re-apply Homebrew LLVM archiver settings at end of configuration.
+# DuckDB and Velox subprojects call project() which resets language-specific
+# archive rule variables (CMAKE_CXX_ARCHIVE_CREATE, etc.).  We override them
+# here with hardcoded paths so the Ninja generator uses the correct tools.
+# ----------------------------------------------------------------------------
+if(APPLE AND HOMEBREW_LLVM_AR AND HOMEBREW_LLVM_RANLIB)
+  set(CMAKE_C_ARCHIVE_CREATE "${HOMEBREW_LLVM_AR} qc <TARGET> <LINK_FLAGS> <OBJECTS>" CACHE STRING "Create static archive (C)" FORCE)
+  set(CMAKE_C_ARCHIVE_FINISH "${HOMEBREW_LLVM_RANLIB} <TARGET>" CACHE STRING "Ranlib command (C)" FORCE)
+  set(CMAKE_CXX_ARCHIVE_CREATE "${HOMEBREW_LLVM_AR} qc <TARGET> <LINK_FLAGS> <OBJECTS>" CACHE STRING "Create static archive (CXX)" FORCE)
+  set(CMAKE_CXX_ARCHIVE_FINISH "${HOMEBREW_LLVM_RANLIB} <TARGET>" CACHE STRING "Ranlib command (CXX)" FORCE)
+  # Also force the compiler-detected archiver paths in case the Ninja
+  # generator resolves those directly instead of via <CMAKE_AR>.
+  set(CMAKE_C_COMPILER_AR "${HOMEBREW_LLVM_AR}" CACHE FILEPATH "C archiver" FORCE)
+  set(CMAKE_C_COMPILER_RANLIB "${HOMEBREW_LLVM_RANLIB}" CACHE FILEPATH "C ranlib" FORCE)
+  set(CMAKE_CXX_COMPILER_AR "${HOMEBREW_LLVM_AR}" CACHE FILEPATH "CXX archiver" FORCE)
+  set(CMAKE_CXX_COMPILER_RANLIB "${HOMEBREW_LLVM_RANLIB}" CACHE FILEPATH "CXX ranlib" FORCE)
+  message(STATUS "[finalize] Re-applied Homebrew LLVM archiver: ${HOMEBREW_LLVM_AR} / ${HOMEBREW_LLVM_RANLIB}")
+endif()

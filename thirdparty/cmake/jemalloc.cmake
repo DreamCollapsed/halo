@@ -95,6 +95,7 @@ if(APPLE)
         "#define mallctlbymib je_mallctlbymib\n"
         "#define malloc_stats_print je_malloc_stats_print\n"
         "#define malloc_usable_size je_malloc_usable_size\n"
+        "#define free_aligned_sized je_free_aligned_sized\n"
         "#endif\n\n"
         "#endif /* JEMALLOC_FOLLY_COMPAT_H */\n"
     )

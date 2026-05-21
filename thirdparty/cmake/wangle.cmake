@@ -39,6 +39,23 @@ set(_wangle_args
 thirdparty_build_cmake_library("wangle"
     SOURCE_SUBDIR "${WANGLE_NAME}"
     CMAKE_ARGS ${_wangle_args}
+    FILE_REPLACEMENTS
+        "wangle/CMakeLists.txt"
+        "find_package(folly CONFIG REQUIRED)"
+        "find_package(folly CONFIG REQUIRED)\n\n# Compatibility aliases: map older wangle-expecting Folly export names to actual exported targets.\n# This ensures a fresh build of wangle will get the same aliasing behavior as a\n# manual patch when the installed Folly exports a differently-named target.\nif (TARGET Folly::folly_io_async_async_io_uring_socket AND NOT TARGET Folly::folly_experimental_io_async_io_uring_socket)\n  add_library(Folly::folly_experimental_io_async_io_uring_socket ALIAS Folly::folly_io_async_async_io_uring_socket)\nendif()"
+        # Make ServerWorkerPool overrides match Folly's noexcept-qualified API
+        "wangle/bootstrap/ServerBootstrap-inl.h"
+        "void registerEventBase(folly::EventBase& evb) override;"
+        "void registerEventBase(folly::EventBase& evb) noexcept override;"
+        "wangle/bootstrap/ServerBootstrap-inl.h"
+        "void unregisterEventBase(folly::EventBase& evb) override;"
+        "void unregisterEventBase(folly::EventBase& evb) noexcept override;"
+        "wangle/bootstrap/ServerBootstrap.cpp"
+        "void ServerWorkerPool::registerEventBase(folly::EventBase& evb) {"
+        "void ServerWorkerPool::registerEventBase(folly::EventBase& evb) noexcept {"
+        "wangle/bootstrap/ServerBootstrap.cpp"
+        "void ServerWorkerPool::unregisterEventBase(folly::EventBase& evb) {"
+        "void ServerWorkerPool::unregisterEventBase(folly::EventBase& evb) noexcept {"
     VALIDATION_FILES
         "${WANGLE_INSTALL_DIR}/lib/libwangle.a"
         "${WANGLE_INSTALL_DIR}/include/wangle/channel/Pipeline.h"

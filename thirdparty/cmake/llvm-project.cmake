@@ -9,9 +9,9 @@ thirdparty_build_cmake_library(llvm-project
     SOURCE_SUBDIR "runtimes"
     CMAKE_CACHE_ARGS
         "LLVM_ENABLE_RUNTIMES=openmp;libunwind"
-        "CLANG_VERSION_MAJOR=21"
-        "PACKAGE_VERSION=21.1.6"
-        "CLANG_RESOURCE_DIR=21"
+        "CLANG_VERSION_MAJOR=22"
+        "PACKAGE_VERSION=22.1.3"
+        "CLANG_RESOURCE_DIR=22"
         "CMAKE_CXX_FLAGS=${_llvm_cxx_flags}"
         "OPENMP_FILECHECK_EXECUTABLE=/usr/bin/true"
         "OPENMP_LLVM_LIT_EXECUTABLE=/usr/bin/true"

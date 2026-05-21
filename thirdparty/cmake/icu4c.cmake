@@ -65,6 +65,29 @@ if(_icu_platform STREQUAL "LINUX")
     set(ENV{DYLD_FRAMEWORK_PATH} "")
 endif()
 
+# Ensure source is available for patching
+thirdparty_acquire_source("icu4c" _icu_source_dir)
+
+# Fix _Sc macro conflict with C++ standard library (libc++)
+# The _Sc macro in uprops.h conflicts with libc++ template parameter names
+set(ICU_UPROPS_FILE "${_icu_source_dir}/source/common/uprops.h")
+if(EXISTS "${ICU_UPROPS_FILE}")
+    message(DEBUG "Checking uprops.h for _Sc macro conflicts")
+    file(READ "${ICU_UPROPS_FILE}" ICU_UPROPS_CONTENT)
+
+    # Check if file has _Sc macro defined but not undefined at the end
+    if(ICU_UPROPS_CONTENT MATCHES "#define _Sc" AND NOT ICU_UPROPS_CONTENT MATCHES "#undef _Sc")
+        message(STATUS "Applying _Sc macro fix to uprops.h for C++ standard library compatibility")
+        # Add #undef _Sc before the final #endif
+        string(REPLACE
+            "#endif\n\n#endif"
+            "#endif\n\n// Undefine macros that may conflict with C++ standard library internal identifiers\n#undef _Sc\n\n#endif"
+            ICU_UPROPS_CONTENT "${ICU_UPROPS_CONTENT}")
+        file(WRITE "${ICU_UPROPS_FILE}" "${ICU_UPROPS_CONTENT}")
+        message(DEBUG "_Sc macro fix applied successfully")
+    endif()
+endif()
+
 thirdparty_build_autotools_library("icu4c"
     CONFIGURE_SCRIPT_NAME "source/configure"
     CONFIGURE_ARGS ${_icu_configure_args}

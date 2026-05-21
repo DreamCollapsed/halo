@@ -168,7 +168,7 @@ TEST_F(DuckDBIntegrationTest, DuckDBOptimizerToVelox) {
     }
 
     // 1. Handle Constants
-    if (expr.type == duckdb::ExpressionType::VALUE_CONSTANT) {
+    if (expr.GetExpressionType() == duckdb::ExpressionType::VALUE_CONSTANT) {
       const auto& constExpr =
           dynamic_cast<const duckdb::BoundConstantExpression&>(expr);
       const auto& value = constExpr.value;
@@ -201,7 +201,7 @@ TEST_F(DuckDBIntegrationTest, DuckDBOptimizerToVelox) {
     }
 
     // 2. Handle Column References
-    if (expr.type == duckdb::ExpressionType::BOUND_COLUMN_REF) {
+    if (expr.GetExpressionType() == duckdb::ExpressionType::BOUND_COLUMN_REF) {
       const auto& colRef =
           dynamic_cast<const duckdb::BoundReferenceExpression&>(expr);
       auto columnIndex = colRef.index;
@@ -216,7 +216,7 @@ TEST_F(DuckDBIntegrationTest, DuckDBOptimizerToVelox) {
     }
 
     // 3. Handle Casts (Implicit or Explicit)
-    if (expr.type == duckdb::ExpressionType::OPERATOR_CAST) {
+    if (expr.GetExpressionType() == duckdb::ExpressionType::OPERATOR_CAST) {
       // Recursively translate the child expression
       // Note: In a real implementation, we would wrap this in a CastTypedExpr.
       // For now, we just pass through or throw if types don't match,
@@ -227,8 +227,9 @@ TEST_F(DuckDBIntegrationTest, DuckDBOptimizerToVelox) {
       // childExpr, false);
     }
 
-    throw std::runtime_error("Unsupported expression type: " +
-                             duckdb::ExpressionTypeToString(expr.type));
+    throw std::runtime_error(
+        "Unsupported expression type: " +
+        duckdb::ExpressionTypeToString(expr.GetExpressionType()));
   };
 
   // Recursive function to traverse DuckDB plan and build Velox plan
@@ -267,10 +268,10 @@ TEST_F(DuckDBIntegrationTest, DuckDBOptimizerToVelox) {
 
         for (size_t i = 0; i < proj.expressions.size(); ++i) {
           auto& expr = *proj.expressions[i];
-          std::string name = expr.alias;
+          std::string name = expr.GetAlias();
 
-          if (name.empty() &&
-              expr.type == duckdb::ExpressionType::BOUND_COLUMN_REF) {
+          if (name.empty() && expr.GetExpressionType() ==
+                                  duckdb::ExpressionType::BOUND_COLUMN_REF) {
             const auto& colRef =
                 dynamic_cast<const duckdb::BoundReferenceExpression&>(expr);
             if (colRef.index < inputType->size()) {
@@ -345,8 +346,11 @@ TEST_F(DuckDBIntegrationTest, DuckDBOptimizerToVelox) {
     // Should have 1 row and 0 columns
     const auto& values = valuesNode->values();
     ASSERT_EQ(values.size(), 1);
-    ASSERT_EQ(values[0]->size(), 1);          // 1 row
-    ASSERT_EQ(values[0]->childrenSize(), 0);  // 0 columns
+    ASSERT_EQ(values[0]->size(),
+              1);  // 1 row  //
+
+    ASSERT_EQ(values[0]->childrenSize(),
+              0);  // 0 columns  //
 
   } catch (const std::exception& e) {
     std::cout << "Translation failed: " << e.what() << "\n";

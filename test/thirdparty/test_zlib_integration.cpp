@@ -35,8 +35,8 @@ class ZlibIntegrationTest : public ::testing::Test {
 TEST_F(ZlibIntegrationTest, VersionCheck) {
   EXPECT_EQ(ZLIB_VER_MAJOR, 1);
   EXPECT_EQ(ZLIB_VER_MINOR, 3);
-  EXPECT_EQ(ZLIB_VER_REVISION, 1);
-  EXPECT_STREQ(ZLIB_VERSION, "1.3.1");
+  EXPECT_EQ(ZLIB_VER_REVISION, 2);
+  EXPECT_STREQ(ZLIB_VERSION, "1.3.2");
 }
 
 // Test zlib version information
@@ -47,8 +47,7 @@ TEST_F(ZlibIntegrationTest, ZlibVersionTest) {
 
   // Check that version contains expected version number (1.3.1)
   std::string version_str(version);
-  EXPECT_TRUE(version_str.find("1.3") != std::string::npos)
-      << "Version: " << version_str;
+  EXPECT_TRUE(version_str.contains("1.3")) << "Version: " << version_str;
 
   // Test version consistency
   EXPECT_EQ(*ZLIB_VERSION, *version) << "Major version should match";
@@ -106,7 +105,9 @@ TEST_F(ZlibIntegrationTest, CompressionLevelsTest) {
 
     int result = compress2(dest.data(), &dest_len, source, source_len, level);
 
-    results.push_back({level, dest_len, result});
+    results.push_back({.level_ = level,
+                       .compressed_size_ = dest_len,
+                       .result_code_ = result});
 
     EXPECT_EQ(result, Z_OK)
         << "Compression level " << level << " should succeed";

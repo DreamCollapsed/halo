@@ -255,6 +255,45 @@ set(VELOX_ENABLE_ZLIB             ON       CACHE BOOL   "" FORCE)
 set(VELOX_ZLIB_TYPE               static   CACHE STRING "" FORCE)
 set(VELOX_GFLAGS_TYPE             static   CACHE STRING "" FORCE)
 
+# Force Velox to use Homebrew LLVM's ar/ranlib for large static libraries
+# System ar on macOS has a 4GB/65k member limit that causes "memberOffset < 0xFFFFFFFF" assertion failures
+if(APPLE)
+    # Find Homebrew LLVM ar/ranlib if not already defined
+    if(NOT DEFINED HOMEBREW_LLVM_AR OR NOT EXISTS "${HOMEBREW_LLVM_AR}")
+        find_program(_VELOX_HOMEBREW_AR llvm-ar HINTS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin)
+        if(_VELOX_HOMEBREW_AR)
+            set(HOMEBREW_LLVM_AR "${_VELOX_HOMEBREW_AR}")
+            message(STATUS "[Velox] Found Homebrew LLVM ar: ${HOMEBREW_LLVM_AR}")
+        endif()
+        unset(_VELOX_HOMEBREW_AR)
+    endif()
+    if(NOT DEFINED HOMEBREW_LLVM_RANLIB OR NOT EXISTS "${HOMEBREW_LLVM_RANLIB}")
+        find_program(_VELOX_HOMEBREW_RANLIB llvm-ranlib HINTS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin)
+        if(_VELOX_HOMEBREW_RANLIB)
+            set(HOMEBREW_LLVM_RANLIB "${_VELOX_HOMEBREW_RANLIB}")
+            message(STATUS "[Velox] Found Homebrew LLVM ranlib: ${HOMEBREW_LLVM_RANLIB}")
+        endif()
+        unset(_VELOX_HOMEBREW_RANLIB)
+    endif()
+
+    # Force CMake to use Homebrew LLVM ar/ranlib
+    if(DEFINED HOMEBREW_LLVM_AR AND EXISTS "${HOMEBREW_LLVM_AR}")
+        set(CMAKE_AR "${HOMEBREW_LLVM_AR}" CACHE FILEPATH "Archiver for Velox build" FORCE)
+        message(STATUS "[Velox] Using Homebrew LLVM ar: ${HOMEBREW_LLVM_AR}")
+    endif()
+    if(DEFINED HOMEBREW_LLVM_RANLIB AND EXISTS "${HOMEBREW_LLVM_RANLIB}")
+        set(CMAKE_RANLIB "${HOMEBREW_LLVM_RANLIB}" CACHE FILEPATH "Ranlib for Velox build" FORCE)
+        message(STATUS "[Velox] Using Homebrew LLVM ranlib: ${HOMEBREW_LLVM_RANLIB}")
+    endif()
+    # Also set archive creation commands to ensure they use the correct tools
+    if(DEFINED HOMEBREW_LLVM_AR)
+        set(CMAKE_C_ARCHIVE_CREATE "<CMAKE_AR> qc <TARGET> <LINK_FLAGS> <OBJECTS>" CACHE STRING "Create static archive (C)" FORCE)
+        set(CMAKE_C_ARCHIVE_FINISH "<CMAKE_RANLIB> <TARGET>" CACHE STRING "Ranlib command (C)" FORCE)
+        set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> qc <TARGET> <LINK_FLAGS> <OBJECTS>" CACHE STRING "Create static archive (CXX)" FORCE)
+        set(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> <TARGET>" CACHE STRING "Ranlib command (CXX)" FORCE)
+    endif()
+endif()
+
 # Velox SIMD compatibility: limit to AVX2 (x86-64-v3) to avoid AVX-512 incompatibility
 # Velox's SimdUtil.h does not implement AVX-512 versions of certain operations (e.g., CRC32)
 # Override x86-64-v4 flags set by main CMakeLists.txt for Velox subdirectory only

@@ -231,7 +231,7 @@ TEST_F(JemallocComprehensiveTest, VerifyJemallocConfiguration) {
 
   EXPECT_EQ(JEMALLOC_VERSION_MAJOR, 5);
   EXPECT_EQ(JEMALLOC_VERSION_MINOR, 3);
-  EXPECT_EQ(JEMALLOC_VERSION_BUGFIX, 0);
+  EXPECT_EQ(JEMALLOC_VERSION_BUGFIX, 1);
 
   // Check statistics functionality
   bool stats_enabled = false;
@@ -277,7 +277,7 @@ TEST_F(JemallocComprehensiveTest, StressTestAndPerformance) {
 
   // Allocate many memory blocks of different sizes
   for (int i = 0; i < NUM_ALLOCS; ++i) {
-    size_t size = (static_cast<size_t>(i) % 10 + 1) * 64;  // 64 to 640 bytes
+    size_t size = ((static_cast<size_t>(i) % 10) + 1) * 64;  // 64 to 640 bytes
     ptrs.emplace_back(size);
     void* ptr = ptrs.back().data();
 

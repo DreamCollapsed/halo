@@ -57,7 +57,7 @@ TEST_F(ProtobufIntegrationTest, LibraryInitialization) {
 // Test protobuf version
 TEST_F(ProtobufIntegrationTest, VersionCheck) {
   // Just verify it's a recent version
-  EXPECT_EQ(GOOGLE_PROTOBUF_VERSION, 6033004);
+  EXPECT_EQ(GOOGLE_PROTOBUF_VERSION, 7034000);
 }
 
 // Test basic descriptor functionality
@@ -297,7 +297,7 @@ TEST_F(ProtobufIntegrationTest, ProtocVersionTest) {
   pclose(pipe);
 
   // Check that version contains protobuf information
-  EXPECT_TRUE(version_output.find("libprotoc") != std::string::npos)
+  EXPECT_TRUE(version_output.contains("libprotoc"))
       << "Version output: " << version_output;
 }
 
@@ -327,11 +327,10 @@ TEST_F(ProtobufIntegrationTest, ProtocHelpTest) {
   pclose(pipe);
 
   // Check that help output contains expected content
-  EXPECT_TRUE(help_output.find("Usage:") != std::string::npos ||
-              help_output.find("usage:") != std::string::npos)
+  EXPECT_TRUE(help_output.contains("Usage:") || help_output.contains("usage:"))
       << "Help should contain usage information";
 
-  EXPECT_TRUE(help_output.find("cpp_out") != std::string::npos)
+  EXPECT_TRUE(help_output.contains("cpp_out"))
       << "Help should mention C++ output option";
 }
 

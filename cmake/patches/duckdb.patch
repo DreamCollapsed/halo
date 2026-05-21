@@ -1,3 +1,25 @@
+diff --git a/extension/jemalloc/jemalloc/src/background_thread.c b/extension/jemalloc/jemalloc/src/background_thread.c
+index c92fa2bc88..84e39d051d 100644
+--- a/extension/jemalloc/jemalloc/src/background_thread.c
++++ b/extension/jemalloc/jemalloc/src/background_thread.c
+@@ -171,7 +171,7 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
+ 	if (interval == BACKGROUND_THREAD_INDEFINITE_SLEEP) {
+ 		background_thread_wakeup_time_set(tsdn, info,
+ 		    BACKGROUND_THREAD_INDEFINITE_SLEEP);
+-		ret = pthread_cond_wait(&info->cond, &info->mtx.lock);
++		ret = pthread_cond_wait(&info->cond, (pthread_mutex_t *)&info->mtx.lock);
+ 		assert(ret == 0);
+ 	} else {
+ 		assert(interval >= BACKGROUND_THREAD_MIN_INTERVAL_NS &&
+@@ -193,7 +193,7 @@ background_thread_sleep(tsdn_t *tsdn, background_thread_info_t *info,
+ 		ts.tv_nsec = (size_t)nstime_nsec(&ts_wakeup);
+ 
+ 		assert(!background_thread_indefinite_sleep(info));
+-		ret = pthread_cond_timedwait(&info->cond, &info->mtx.lock, &ts);
++		ret = pthread_cond_timedwait(&info->cond, (pthread_mutex_t *)&info->mtx.lock, &ts);
+ 		assert(ret == ETIMEDOUT || ret == 0);
+ 	}
+ 	if (config_stats) {
 diff --git a/extension/parquet/include/parquet_writer.hpp b/extension/parquet/include/parquet_writer.hpp
 index f28b07bbef..32d8189553 100644
 --- a/extension/parquet/include/parquet_writer.hpp
@@ -67,6 +89,18 @@ index 07250c4ac0..1e91843007 100644
  
  } // namespace duckdb
 +
+diff --git a/src/include/duckdb/function/window/window_merge_sort_tree.hpp b/src/include/duckdb/function/window/window_merge_sort_tree.hpp
+index b560f2fc2d..0713f96afc 100644
+--- a/src/include/duckdb/function/window/window_merge_sort_tree.hpp
++++ b/src/include/duckdb/function/window/window_merge_sort_tree.hpp
+@@ -12,6 +12,7 @@
+ #include "duckdb/planner/bound_result_modifier.hpp"
+ 
+ #include "duckdb/common/sorting/sort.hpp"
++#include "duckdb/common/types/column/column_data_collection.hpp"
+ 
+ namespace duckdb {
+ 
 diff --git a/src/include/duckdb/main/profiling_utils.hpp b/src/include/duckdb/main/profiling_utils.hpp
 index 0376193094..8cf2921050 100644
 --- a/src/include/duckdb/main/profiling_utils.hpp
@@ -94,3 +128,102 @@ index 0376193094..8cf2921050 100644
 +inline QueryMetrics::~QueryMetrics() = default;
 +
  }
+diff --git a/src/include/duckdb/optimizer/remove_duplicate_groups.hpp b/src/include/duckdb/optimizer/remove_duplicate_groups.hpp
+index 2abf8bb3eb..75ae355260 100644
+--- a/src/include/duckdb/optimizer/remove_duplicate_groups.hpp
++++ b/src/include/duckdb/optimizer/remove_duplicate_groups.hpp
+@@ -9,6 +9,7 @@
+ #pragma once
+ 
+ #include "duckdb/planner/column_binding_map.hpp"
++#include "duckdb/planner/expression.hpp"
+ #include "duckdb/planner/logical_operator_visitor.hpp"
+ 
+ namespace duckdb {
+@@ -19,8 +20,8 @@ class BoundColumnRefExpression;
+ //! Duplicate groups may be introduced when joins columns are removed, e.g., by Deliminator or RemoveUnusedColumns
+ class RemoveDuplicateGroups : public LogicalOperatorVisitor {
+ public:
+-	RemoveDuplicateGroups() {
+-	}
++	RemoveDuplicateGroups();
++	~RemoveDuplicateGroups() override;
+ 
+ 	void VisitOperator(LogicalOperator &op) override;
+ 
+diff --git a/src/include/duckdb/planner/operator/logical_create_index.hpp b/src/include/duckdb/planner/operator/logical_create_index.hpp
+index 2f04c7ee46..d869de0df1 100644
+--- a/src/include/duckdb/planner/operator/logical_create_index.hpp
++++ b/src/include/duckdb/planner/operator/logical_create_index.hpp
+@@ -8,6 +8,7 @@
+ 
+ #pragma once
+ 
++#include "duckdb/parser/parsed_data/alter_table_info.hpp"
+ #include "duckdb/parser/parsed_data/create_index_info.hpp"
+ #include "duckdb/planner/logical_operator.hpp"
+ #include "duckdb/function/table_function.hpp"
+diff --git a/src/optimizer/remove_duplicate_groups.cpp b/src/optimizer/remove_duplicate_groups.cpp
+index dd09c2f3d4..19b3ebbbde 100644
+--- a/src/optimizer/remove_duplicate_groups.cpp
++++ b/src/optimizer/remove_duplicate_groups.cpp
+@@ -6,6 +6,9 @@
+ 
+ namespace duckdb {
+ 
++RemoveDuplicateGroups::RemoveDuplicateGroups() = default;
++RemoveDuplicateGroups::~RemoveDuplicateGroups() = default;
++
+ void RemoveDuplicateGroups::VisitOperator(LogicalOperator &op) {
+ 	switch (op.type) {
+ 	case LogicalOperatorType::LOGICAL_AGGREGATE_AND_GROUP_BY:
+diff --git a/src/storage/statistics/numeric_stats.cpp b/src/storage/statistics/numeric_stats.cpp
+index 225524406b..3048cf4414 100644
+--- a/src/storage/statistics/numeric_stats.cpp
++++ b/src/storage/statistics/numeric_stats.cpp
+@@ -132,6 +132,28 @@ T NumericStats::GetMaxUnsafe(const BaseStatistics &stats) {
+ 	return GetNumericValueUnion::Operation<T>(NumericStats::GetDataUnsafe(stats).max);
+ }
+ 
++template uint8_t NumericStats::GetMinUnsafe(const BaseStatistics &);
++template uint16_t NumericStats::GetMinUnsafe(const BaseStatistics &);
++template uint32_t NumericStats::GetMinUnsafe(const BaseStatistics &);
++template uint64_t NumericStats::GetMinUnsafe(const BaseStatistics &);
++template int8_t NumericStats::GetMinUnsafe(const BaseStatistics &);
++template int16_t NumericStats::GetMinUnsafe(const BaseStatistics &);
++template int32_t NumericStats::GetMinUnsafe(const BaseStatistics &);
++template int64_t NumericStats::GetMinUnsafe(const BaseStatistics &);
++template float NumericStats::GetMinUnsafe(const BaseStatistics &);
++template double NumericStats::GetMinUnsafe(const BaseStatistics &);
++
++template uint8_t NumericStats::GetMaxUnsafe(const BaseStatistics &);
++template uint16_t NumericStats::GetMaxUnsafe(const BaseStatistics &);
++template uint32_t NumericStats::GetMaxUnsafe(const BaseStatistics &);
++template uint64_t NumericStats::GetMaxUnsafe(const BaseStatistics &);
++template int8_t NumericStats::GetMaxUnsafe(const BaseStatistics &);
++template int16_t NumericStats::GetMaxUnsafe(const BaseStatistics &);
++template int32_t NumericStats::GetMaxUnsafe(const BaseStatistics &);
++template int64_t NumericStats::GetMaxUnsafe(const BaseStatistics &);
++template float NumericStats::GetMaxUnsafe(const BaseStatistics &);
++template double NumericStats::GetMaxUnsafe(const BaseStatistics &);
++
+ template <class T>
+ bool ConstantExactRange(T min, T max, T constant) {
+ 	return Equals::Operation(constant, min) && Equals::Operation(constant, max);
+diff --git a/third_party/thrift/thrift/Thrift.h b/third_party/thrift/thrift/Thrift.h
+index e9315f7858..31008ffa79 100755
+--- a/third_party/thrift/thrift/Thrift.h
++++ b/third_party/thrift/thrift/Thrift.h
+@@ -70,6 +70,12 @@ public:
+     return (ii_ != n_);
+   }
+ 
++  bool operator==(const TEnumIterator& end) {
++    THRIFT_UNUSED_VARIABLE(end);
++    assert(end.n_ == -1);
++    return (ii_ == n_);
++  }
++
+   std::pair<int, const char*> operator*() const { return std::make_pair(enums_[ii_], names_[ii_]); }
+ 
+ private:

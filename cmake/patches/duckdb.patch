@@ -21,33 +21,44 @@ index c92fa2bc88..84e39d051d 100644
  	}
  	if (config_stats) {
 diff --git a/extension/parquet/include/parquet_writer.hpp b/extension/parquet/include/parquet_writer.hpp
-index f28b07bbef..32d8189553 100644
+index a64df16b22..25034f1f9b 100644
 --- a/extension/parquet/include/parquet_writer.hpp
 +++ b/extension/parquet/include/parquet_writer.hpp
-@@ -88,8 +88,8 @@ public:
+@@ -53,6 +53,9 @@ namespace protocol {
+ class TProtocol;
+ } // namespace protocol
+ } // namespace thrift
++
++
++
+ } // namespace duckdb_apache
+ 
+ namespace duckdb {
+@@ -134,8 +137,8 @@ public:
  
  struct ParquetWriteGlobalState : public GlobalFunctionData {
  public:
 -	ParquetWriteGlobalState() {
 -	}
-+	ParquetWriteGlobalState();
-+	~ParquetWriteGlobalState();
++	ParquetWriteGlobalState() = default;
++	~ParquetWriteGlobalState() = default;
  
  public:
- 	void LogFlushingRowGroup(const ColumnDataCollection &buffer, const string &reason);
-@@ -229,4 +229,7 @@ private:
+ 	unique_ptr<ParquetWriter> writer;
+@@ -307,4 +310,8 @@ private:
  	unique_ptr<ParquetStatsAccumulator> stats_accumulator;
  };
  
-+inline ParquetWriteGlobalState::ParquetWriteGlobalState() = default;
-+inline ParquetWriteGlobalState::~ParquetWriteGlobalState() = default;
++
++
++
 +
  } // namespace duckdb
 diff --git a/extension/parquet/include/writer/variant_column_writer.hpp b/extension/parquet/include/writer/variant_column_writer.hpp
-index 07250c4ac0..1e91843007 100644
+index b495afc354..e0e394ffb4 100644
 --- a/extension/parquet/include/writer/variant_column_writer.hpp
 +++ b/extension/parquet/include/writer/variant_column_writer.hpp
-@@ -22,16 +22,18 @@ struct ArrayAnalyzeData;
+@@ -24,8 +24,10 @@ struct ArrayAnalyzeData;
  
  struct VariantAnalyzeData {
  public:
@@ -60,9 +71,10 @@ index 07250c4ac0..1e91843007 100644
  
  public:
  	//! Map for every value what type it is
- 	variant_type_map type_map = {};
+@@ -36,8 +38,8 @@ public:
+ 	idx_t total_count = 0;
+ 
  	//! Map for every decimal value what physical type it has
- 	array<idx_t, 3> decimal_type_map = {};
 -	unique_ptr<ObjectAnalyzeData> object_data = nullptr;
 -	unique_ptr<ArrayAnalyzeData> array_data = nullptr;
 +	unique_ptr<ObjectAnalyzeData> object_data;
@@ -70,10 +82,11 @@ index 07250c4ac0..1e91843007 100644
  };
  
  struct ObjectAnalyzeData {
-@@ -52,6 +54,13 @@ public:
- 	VariantAnalyzeData child;
+@@ -116,4 +118,13 @@ private:
+ 	ShreddingType analyzed_shredding_type;
  };
  
++
 +inline VariantAnalyzeData::VariantAnalyzeData() {
 +}
 +inline VariantAnalyzeData::~VariantAnalyzeData() {
@@ -81,12 +94,6 @@ index 07250c4ac0..1e91843007 100644
 +inline VariantAnalyzeData::VariantAnalyzeData(VariantAnalyzeData &&) noexcept = default;
 +inline VariantAnalyzeData &VariantAnalyzeData::operator=(VariantAnalyzeData &&) noexcept = default;
 +
- struct VariantAnalyzeSchemaState : public ParquetAnalyzeSchemaState {
- public:
- 	VariantAnalyzeSchemaState() {
-@@ -107,3 +116,4 @@ private:
- };
- 
  } // namespace duckdb
 +
 diff --git a/src/include/duckdb/function/window/window_merge_sort_tree.hpp b/src/include/duckdb/function/window/window_merge_sort_tree.hpp
@@ -102,10 +109,18 @@ index b560f2fc2d..0713f96afc 100644
  namespace duckdb {
  
 diff --git a/src/include/duckdb/main/profiling_utils.hpp b/src/include/duckdb/main/profiling_utils.hpp
-index 0376193094..8cf2921050 100644
+index d7ccb5989c..77804e27ff 100644
 --- a/src/include/duckdb/main/profiling_utils.hpp
 +++ b/src/include/duckdb/main/profiling_utils.hpp
-@@ -27,9 +27,8 @@ struct ActiveTimer;
+@@ -18,6 +18,7 @@
+ namespace duckdb_yyjson {
+ struct yyjson_mut_doc;
+ struct yyjson_mut_val;
++
+ } // namespace duckdb_yyjson
+ 
+ namespace duckdb {
+@@ -27,9 +28,8 @@ struct ActiveTimer;
  // Top level query metrics
  struct QueryMetrics {
  public:
@@ -117,7 +132,7 @@ index 0376193094..8cf2921050 100644
  
  	ProfilingInfo query_global_info;
  
-@@ -135,4 +134,10 @@ private:
+@@ -160,4 +160,10 @@ private:
  	bool is_active;
  };
  
@@ -128,29 +143,6 @@ index 0376193094..8cf2921050 100644
 +inline QueryMetrics::~QueryMetrics() = default;
 +
  }
-diff --git a/src/include/duckdb/optimizer/remove_duplicate_groups.hpp b/src/include/duckdb/optimizer/remove_duplicate_groups.hpp
-index 2abf8bb3eb..75ae355260 100644
---- a/src/include/duckdb/optimizer/remove_duplicate_groups.hpp
-+++ b/src/include/duckdb/optimizer/remove_duplicate_groups.hpp
-@@ -9,6 +9,7 @@
- #pragma once
- 
- #include "duckdb/planner/column_binding_map.hpp"
-+#include "duckdb/planner/expression.hpp"
- #include "duckdb/planner/logical_operator_visitor.hpp"
- 
- namespace duckdb {
-@@ -19,8 +20,8 @@ class BoundColumnRefExpression;
- //! Duplicate groups may be introduced when joins columns are removed, e.g., by Deliminator or RemoveUnusedColumns
- class RemoveDuplicateGroups : public LogicalOperatorVisitor {
- public:
--	RemoveDuplicateGroups() {
--	}
-+	RemoveDuplicateGroups();
-+	~RemoveDuplicateGroups() override;
- 
- 	void VisitOperator(LogicalOperator &op) override;
- 
 diff --git a/src/include/duckdb/planner/operator/logical_create_index.hpp b/src/include/duckdb/planner/operator/logical_create_index.hpp
 index 2f04c7ee46..d869de0df1 100644
 --- a/src/include/duckdb/planner/operator/logical_create_index.hpp
@@ -163,22 +155,8 @@ index 2f04c7ee46..d869de0df1 100644
  #include "duckdb/parser/parsed_data/create_index_info.hpp"
  #include "duckdb/planner/logical_operator.hpp"
  #include "duckdb/function/table_function.hpp"
-diff --git a/src/optimizer/remove_duplicate_groups.cpp b/src/optimizer/remove_duplicate_groups.cpp
-index dd09c2f3d4..19b3ebbbde 100644
---- a/src/optimizer/remove_duplicate_groups.cpp
-+++ b/src/optimizer/remove_duplicate_groups.cpp
-@@ -6,6 +6,9 @@
- 
- namespace duckdb {
- 
-+RemoveDuplicateGroups::RemoveDuplicateGroups() = default;
-+RemoveDuplicateGroups::~RemoveDuplicateGroups() = default;
-+
- void RemoveDuplicateGroups::VisitOperator(LogicalOperator &op) {
- 	switch (op.type) {
- 	case LogicalOperatorType::LOGICAL_AGGREGATE_AND_GROUP_BY:
 diff --git a/src/storage/statistics/numeric_stats.cpp b/src/storage/statistics/numeric_stats.cpp
-index 225524406b..3048cf4414 100644
+index 28aa2cfa67..7540d20f54 100644
 --- a/src/storage/statistics/numeric_stats.cpp
 +++ b/src/storage/statistics/numeric_stats.cpp
 @@ -132,6 +132,28 @@ T NumericStats::GetMaxUnsafe(const BaseStatistics &stats) {
@@ -210,20 +188,10 @@ index 225524406b..3048cf4414 100644
  template <class T>
  bool ConstantExactRange(T min, T max, T constant) {
  	return Equals::Operation(constant, min) && Equals::Operation(constant, max);
-diff --git a/third_party/thrift/thrift/Thrift.h b/third_party/thrift/thrift/Thrift.h
-index e9315f7858..31008ffa79 100755
---- a/third_party/thrift/thrift/Thrift.h
-+++ b/third_party/thrift/thrift/Thrift.h
-@@ -70,6 +70,12 @@ public:
-     return (ii_ != n_);
-   }
+@@ -626,6 +648,4 @@ void NumericStats::Verify(const BaseStatistics &stats, const Vector &vector, con
+ 	}
+ }
  
-+  bool operator==(const TEnumIterator& end) {
-+    THRIFT_UNUSED_VARIABLE(end);
-+    assert(end.n_ == -1);
-+    return (ii_ == n_);
-+  }
-+
-   std::pair<int, const char*> operator*() const { return std::make_pair(enums_[ii_], names_[ii_]); }
- 
- private:
+-template uint32_t NumericStats::GetMinUnsafe(const BaseStatistics &stats);
+-template uint32_t NumericStats::GetMaxUnsafe(const BaseStatistics &stats);
+ } // namespace duckdb

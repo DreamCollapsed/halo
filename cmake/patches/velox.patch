@@ -1,8 +1,8 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index bf177538a..ce2ad655f 100644
+index bf177538a..cf57d3715 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -33,6 +33,14 @@ endif()
+@@ -33,6 +33,29 @@ endif()
  # Set the project name.
  project(velox)
  
@@ -14,10 +14,25 @@ index bf177538a..ce2ad655f 100644
 +  include_directories(BEFORE "${THIRDPARTY_INSTALL_DIR}/jemalloc/include")
 +endif()
 +
++# Halo: Force use of Homebrew LLVM ar/ranlib to avoid system ar limitations
++if(APPLE)
++  find_program(_HALO_LLVM_AR llvm-ar HINTS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin)
++  find_program(_HALO_LLVM_RANLIB llvm-ranlib HINTS /opt/homebrew/opt/llvm/bin /usr/local/opt/llvm/bin)
++  if(_HALO_LLVM_AR AND _HALO_LLVM_RANLIB)
++    set(CMAKE_AR "${_HALO_LLVM_AR}" CACHE FILEPATH "Archiver" FORCE)
++    set(CMAKE_RANLIB "${_HALO_LLVM_RANLIB}" CACHE FILEPATH "Ranlib" FORCE)
++    set(CMAKE_CXX_ARCHIVE_CREATE "${_HALO_LLVM_AR} qc <TARGET> <LINK_FLAGS> <OBJECTS>" CACHE STRING "Archive create" FORCE)
++    set(CMAKE_CXX_ARCHIVE_FINISH "${_HALO_LLVM_RANLIB} <TARGET>" CACHE STRING "Archive finish" FORCE)
++    set(CMAKE_C_ARCHIVE_CREATE "${_HALO_LLVM_AR} qc <TARGET> <LINK_FLAGS> <OBJECTS>" CACHE STRING "Archive create" FORCE)
++    set(CMAKE_C_ARCHIVE_FINISH "${_HALO_LLVM_RANLIB} <TARGET>" CACHE STRING "Archive finish" FORCE)
++    message(STATUS "[Velox] Using Homebrew LLVM ar: ${_HALO_LLVM_AR}")
++  endif()
++endif()
++
  # If we are in an active conda env disable search in system paths and add env to
  # prefix path
  if(DEFINED ENV{CONDA_PREFIX})
-@@ -432,7 +440,9 @@ if(ENABLE_ALL_WARNINGS)
+@@ -432,7 +455,9 @@ if(ENABLE_ALL_WARNINGS)
        KNOWN_COMPILER_SPECIFIC_WARNINGS
        "-Wno-range-loop-analysis \
           -Wno-mismatched-tags \
@@ -28,7 +43,7 @@ index bf177538a..ce2ad655f 100644
      )
    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
      set(
-@@ -549,7 +559,6 @@ set(
+@@ -549,7 +574,6 @@ set(
    filesystem
    program_options
    regex
@@ -36,16 +51,16 @@ index bf177538a..ce2ad655f 100644
    thread
  )
  
-@@ -622,7 +631,7 @@ if(${VELOX_BUILD_MINIMAL_WITH_DWIO} OR ${VELOX_ENABLE_HIVE_CONNECTOR} OR VELOX_E
+@@ -622,7 +646,7 @@ if(${VELOX_BUILD_MINIMAL_WITH_DWIO} OR ${VELOX_ENABLE_HIVE_CONNECTOR} OR VELOX_E
  endif()
  
  velox_set_source(simdjson)
 -velox_resolve_dependency(simdjson 4.1.0)
-+velox_resolve_dependency(simdjson 4.3.0)
++velox_resolve_dependency(simdjson 4.6.4)
  
  velox_set_source(FastFloat)
  velox_resolve_dependency(FastFloat)
-@@ -717,7 +726,7 @@ if(NOT VELOX_DISABLE_GOOGLETEST)
+@@ -717,7 +741,7 @@ if(NOT VELOX_DISABLE_GOOGLETEST)
  endif()
  
  velox_set_source(xsimd)
@@ -54,7 +69,7 @@ index bf177538a..ce2ad655f 100644
  
  velox_set_source(stemmer)
  velox_resolve_dependency(stemmer)
-@@ -747,4 +756,24 @@ if(VELOX_ENABLE_GEO)
+@@ -747,4 +771,24 @@ if(VELOX_ENABLE_GEO)
    velox_resolve_dependency(geos)
  endif()
  
@@ -79,46 +94,6 @@ index bf177538a..ce2ad655f 100644
 +endif()
 +
  add_subdirectory(velox)
-diff --git a/dwio/parquet/common/BitPacking.h b/dwio/parquet/common/BitPacking.h
-new file mode 100644
-index 000000000..d39bbc474
---- /dev/null
-+++ b/dwio/parquet/common/BitPacking.h
-@@ -0,0 +1,34 @@
-+/*
-+ * Copyright (c) Facebook, Inc. and its affiliates.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *    http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ * Unless required by applicable law or agreed to in writing, software
-+ * distributed under the License is distributed on an "AS IS" BASIS,
-+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ * See the License for the specific language governing permissions and
-+ * limitations under the License.
-+ */
-+
-+// Adapted from Apache Arrow:
-+// https://github.com/apache/arrow/blob/apache-arrow-15.0.0/cpp/src/arrow/util/bpacking.h
-+// Copyright 2016-2024 The Apache Software Foundation
-+
-+#pragma once
-+
-+#include "arrow/util/visibility.h"
-+
-+#include <stdint.h>
-+
-+namespace arrow::internal {
-+
-+ARROW_EXPORT
-+int unpack32(const uint32_t* in, uint32_t* out, int batch_size, int num_bits);
-+ARROW_EXPORT
-+int unpack64(const uint8_t* in, uint64_t* out, int batch_size, int num_bits);
-+
-+} // namespace arrow::internal
 diff --git a/velox/common/base/Fs.cpp b/velox/common/base/Fs.cpp
 index bbea7b778..2821a2ea0 100644
 --- a/velox/common/base/Fs.cpp
@@ -449,6 +424,20 @@ index 937c86d9f..b1e253f34 100644
      return genericPermute(data, byteSetBits[mask]);
    }
  
+diff --git a/velox/common/base/SkewedPartitionBalancer.h b/velox/common/base/SkewedPartitionBalancer.h
+index 3c998920c..0f1c6f599 100644
+--- a/velox/common/base/SkewedPartitionBalancer.h
++++ b/velox/common/base/SkewedPartitionBalancer.h
+@@ -15,6 +15,9 @@
+  */
+ #pragma once
+ 
++#include <folly/SharedMutex.h>
++#include <shared_mutex>
++
+ #include "velox/common/base/IndexedPriorityQueue.h"
+ 
+ namespace facebook::velox::common {
 diff --git a/velox/common/caching/AsyncDataCache.cpp b/velox/common/caching/AsyncDataCache.cpp
 index b54b4fa69..d7f01d4e9 100644
 --- a/velox/common/caching/AsyncDataCache.cpp
@@ -547,6 +536,45 @@ index 1063e71ee..dc6903c91 100644
          current_->position += end;
          return;
        }
+diff --git a/velox/common/memory/Memory.h b/velox/common/memory/Memory.h
+index 3e40d2ff9..51c1717ad 100644
+--- a/velox/common/memory/Memory.h
++++ b/velox/common/memory/Memory.h
+@@ -16,6 +16,8 @@
+ 
+ #pragma once
+ 
++#include <folly/SharedMutex.h>
++
+ #include <atomic>
+ #include <chrono>
+ #include <limits>
+diff --git a/velox/common/memory/MemoryPool.h b/velox/common/memory/MemoryPool.h
+index 38b9febcc..af8f8e272 100644
+--- a/velox/common/memory/MemoryPool.h
++++ b/velox/common/memory/MemoryPool.h
+@@ -16,6 +16,8 @@
+ 
+ #pragma once
+ 
++#include <folly/SharedMutex.h>
++
+ #include <atomic>
+ #include <memory>
+ #include <optional>
+diff --git a/velox/common/memory/SharedArbitrator.h b/velox/common/memory/SharedArbitrator.h
+index 16efd2471..81ef17b76 100644
+--- a/velox/common/memory/SharedArbitrator.h
++++ b/velox/common/memory/SharedArbitrator.h
+@@ -16,6 +16,8 @@
+ 
+ #pragma once
+ 
++#include <folly/SharedMutex.h>
++
+ #include <shared_mutex>
+ 
+ #include <folly/executors/CPUThreadPoolExecutor.h>
 diff --git a/velox/common/process/ThreadDebugInfo.cpp b/velox/common/process/ThreadDebugInfo.cpp
 index ae681a2dc..35ebaf485 100644
 --- a/velox/common/process/ThreadDebugInfo.cpp
@@ -559,40 +587,6 @@ index ae681a2dc..35ebaf485 100644
  
  namespace facebook::velox::process {
  thread_local const ThreadDebugInfo* threadDebugInfo = nullptr;
-diff --git a/velox/dwio/common/CacheInputStream.cpp.rej b/velox/dwio/common/CacheInputStream.cpp.rej
-new file mode 100644
-index 000000000..be04b5bd8
---- /dev/null
-+++ b/velox/dwio/common/CacheInputStream.cpp.rej
-@@ -0,0 +1,12 @@
-+diff a/velox/dwio/common/CacheInputStream.cpp b/velox/dwio/common/CacheInputStream.cpp	(rejected hunks)
-+@@ -142,8 +142,8 @@ bool CacheInputStream::SkipInt64(int64_t count) {
-+   return false;
-+ }
-+ 
-+-google::protobuf::int64 CacheInputStream::ByteCount() const {
-+-  return static_cast<google::protobuf::int64>(position_);
-++int64_t CacheInputStream::ByteCount() const {
-++  return static_cast<int64_t>(position_);
-+ }
-+ 
-+ void CacheInputStream::seekToPosition(PositionProvider& seekPosition) {
-diff --git a/velox/dwio/common/CacheInputStream.h.rej b/velox/dwio/common/CacheInputStream.h.rej
-new file mode 100644
-index 000000000..6ab9fd83e
---- /dev/null
-+++ b/velox/dwio/common/CacheInputStream.h.rej
-@@ -0,0 +1,10 @@
-+diff a/velox/dwio/common/CacheInputStream.h b/velox/dwio/common/CacheInputStream.h	(rejected hunks)
-+@@ -51,7 +51,7 @@ class CacheInputStream : public SeekableInputStream {
-+   bool Next(const void** data, int* size) override;
-+   void BackUp(int count) override;
-+   bool SkipInt64(int64_t count) override;
-+-  google::protobuf::int64 ByteCount() const override;
-++  int64_t ByteCount() const override;
-+   void seekToPosition(PositionProvider& position) override;
-+   std::string getName() const override;
-+   size_t positionSize() const override;
 diff --git a/velox/dwio/common/ColumnVisitors.h b/velox/dwio/common/ColumnVisitors.h
 index ed29de618..6377a9972 100644
 --- a/velox/dwio/common/ColumnVisitors.h
@@ -609,286 +603,19 @@ index ed29de618..6377a9972 100644
      constexpr int N = xsimd::batch<int32_t, A>::size;
      alignas(A::alignment()) int32_t tmp[N];
      for (int i = 0; i < N; ++i) {
-diff --git a/velox/dwio/common/DirectInputStream.cpp.rej b/velox/dwio/common/DirectInputStream.cpp.rej
-new file mode 100644
-index 000000000..1f870fe77
---- /dev/null
-+++ b/velox/dwio/common/DirectInputStream.cpp.rej
-@@ -0,0 +1,12 @@
-+diff a/velox/dwio/common/DirectInputStream.cpp b/velox/dwio/common/DirectInputStream.cpp	(rejected hunks)
-+@@ -91,8 +91,8 @@ bool DirectInputStream::SkipInt64(int64_t count) {
-+   return false;
-+ }
-+ 
-+-google::protobuf::int64 DirectInputStream::ByteCount() const {
-+-  return static_cast<google::protobuf::int64>(offsetInRegion_);
-++int64_t DirectInputStream::ByteCount() const {
-++  return static_cast<int64_t>(offsetInRegion_);
-+ }
-+ 
-+ void DirectInputStream::seekToPosition(PositionProvider& seekPosition) {
-diff --git a/velox/dwio/common/DirectInputStream.h.rej b/velox/dwio/common/DirectInputStream.h.rej
-new file mode 100644
-index 000000000..04ef8ffe1
---- /dev/null
-+++ b/velox/dwio/common/DirectInputStream.h.rej
-@@ -0,0 +1,10 @@
-+diff a/velox/dwio/common/DirectInputStream.h b/velox/dwio/common/DirectInputStream.h	(rejected hunks)
-+@@ -44,7 +44,7 @@ class DirectInputStream : public SeekableInputStream {
-+   bool Next(const void** data, int* size) override;
-+   void BackUp(int count) override;
-+   bool SkipInt64(int64_t count) override;
-+-  google::protobuf::int64 ByteCount() const override;
-++  int64_t ByteCount() const override;
-+ 
-+   void seekToPosition(PositionProvider& position) override;
-+   std::string getName() const override;
-diff --git a/velox/dwio/common/OutputStream.h.rej b/velox/dwio/common/OutputStream.h.rej
-new file mode 100644
-index 000000000..bc40d4977
---- /dev/null
-+++ b/velox/dwio/common/OutputStream.h.rej
-@@ -0,0 +1,12 @@
-+diff a/velox/dwio/common/OutputStream.h b/velox/dwio/common/OutputStream.h	(rejected hunks)
-+@@ -47,8 +47,8 @@ class BufferedOutputStream : public google::protobuf::io::ZeroCopyOutputStream {
-+ 
-+   void BackUp(int32_t count) override;
-+ 
-+-  google::protobuf::int64 ByteCount() const override {
-+-    return static_cast<google::protobuf::int64>(size());
-++  int64_t ByteCount() const override {
-++    return static_cast<int64_t>(size());
-+   }
-+ 
-+   bool WriteAliasedRaw(const void* /* unused */, int32_t /* unused */)
-diff --git a/velox/dwio/common/SeekableInputStream.cpp.rej b/velox/dwio/common/SeekableInputStream.cpp.rej
-new file mode 100644
-index 000000000..ebca3cfc5
---- /dev/null
-+++ b/velox/dwio/common/SeekableInputStream.cpp.rej
-@@ -0,0 +1,42 @@
-+diff a/velox/dwio/common/SeekableInputStream.cpp b/velox/dwio/common/SeekableInputStream.cpp	(rejected hunks)
-+@@ -152,19 +152,20 @@ void SeekableArrayInputStream::BackUp(int32_t count) {
-+ bool SeekableArrayInputStream::SkipInt64(int64_t count) {
-+   loadIfAvailable();
-+ 
-+-  if (count >= 0) {
-+-    const uint64_t unsignedCount = static_cast<uint64_t>(count);
-+-    if (unsignedCount + position_ <= length_) {
-+-      position_ += unsignedCount;
-+-      return true;
-+-    }
-++  if (count < 0) {
-++    return false;
-++  }
-++  const uint64_t unsignedCount = static_cast<uint64_t>(count);
-++  if (unsignedCount > length_ - position_) {
-+     position_ = length_;
-++    return false;
-+   }
-+-  return false;
-++  position_ += unsignedCount;
-++  return true;
-+ }
-+ 
-+-google::protobuf::int64 SeekableArrayInputStream::ByteCount() const {
-+-  return static_cast<google::protobuf::int64>(position_);
-++int64_t SeekableArrayInputStream::ByteCount() const {
-++  return static_cast<int64_t>(position_);
-+ }
-+ 
-+ void SeekableArrayInputStream::seekToPosition(PositionProvider& position) {
-+@@ -241,8 +242,8 @@ bool SeekableFileInputStream::SkipInt64(int64_t signedCount) {
-+   return position_ < length_;
-+ }
-+ 
-+-google::protobuf::int64 SeekableFileInputStream::ByteCount() const {
-+-  return static_cast<google::protobuf::int64>(position_);
-++int64_t SeekableFileInputStream::ByteCount() const {
-++  return static_cast<int64_t>(position_);
-+ }
-+ 
-+ void SeekableFileInputStream::seekToPosition(PositionProvider& location) {
-diff --git a/velox/dwio/common/SeekableInputStream.h.rej b/velox/dwio/common/SeekableInputStream.h.rej
-new file mode 100644
-index 000000000..637bc05df
---- /dev/null
-+++ b/velox/dwio/common/SeekableInputStream.h.rej
-@@ -0,0 +1,19 @@
-+diff a/velox/dwio/common/SeekableInputStream.h b/velox/dwio/common/SeekableInputStream.h	(rejected hunks)
-+@@ -79,7 +79,7 @@ class SeekableArrayInputStream : public SeekableInputStream {
-+   virtual bool Next(const void** data, int32_t* size) override;
-+   virtual void BackUp(int32_t count) override;
-+   virtual bool SkipInt64(int64_t count) override;
-+-  virtual google::protobuf::int64 ByteCount() const override;
-++  virtual int64_t ByteCount() const override;
-+   virtual void seekToPosition(PositionProvider& position) override;
-+   virtual std::string getName() const override;
-+   virtual size_t positionSize() const override;
-+@@ -120,7 +120,7 @@ class SeekableFileInputStream : public SeekableInputStream {
-+   virtual bool Next(const void** data, int32_t* size) override;
-+   virtual void BackUp(int32_t count) override;
-+   virtual bool SkipInt64(int64_t count) override;
-+-  virtual google::protobuf::int64 ByteCount() const override;
-++  virtual int64_t ByteCount() const override;
-+   virtual void seekToPosition(PositionProvider& position) override;
-+   virtual std::string getName() const override;
-+   virtual size_t positionSize() const override;
-diff --git a/velox/dwio/common/compression/PagedInputStream.h.rej b/velox/dwio/common/compression/PagedInputStream.h.rej
-new file mode 100644
-index 000000000..f6358bb5d
---- /dev/null
-+++ b/velox/dwio/common/compression/PagedInputStream.h.rej
-@@ -0,0 +1,10 @@
-+diff a/velox/dwio/common/compression/PagedInputStream.h b/velox/dwio/common/compression/PagedInputStream.h	(rejected hunks)
-+@@ -56,7 +56,7 @@ class PagedInputStream : public dwio::common::SeekableInputStream {
-+   // NOTE: This always returns true.
-+   bool SkipInt64(int64_t count) override;
-+ 
-+-  google::protobuf::int64 ByteCount() const override {
-++  int64_t ByteCount() const override {
-+     return bytesReturned_ + pendingSkip_;
-+   }
-+ 
-diff --git a/velox/dwio/dwrf/test/TestDecompression.cpp.rej b/velox/dwio/dwrf/test/TestDecompression.cpp.rej
-new file mode 100644
-index 000000000..19e487f24
---- /dev/null
-+++ b/velox/dwio/dwrf/test/TestDecompression.cpp.rej
-@@ -0,0 +1,10 @@
-+diff a/velox/dwio/dwrf/test/TestDecompression.cpp b/velox/dwio/dwrf/test/TestDecompression.cpp	(rejected hunks)
-+@@ -1065,7 +1065,7 @@ class TestingSeekableInputStream : public SeekableInputStream {
-+     return true;
-+   }
-+ 
-+-  google::protobuf::int64 ByteCount() const override {
-++  int64_t ByteCount() const override {
-+     return position_;
-+   }
-+ 
-diff --git a/velox/dwio/dwrf/writer/IndexBuilder.h.rej b/velox/dwio/dwrf/writer/IndexBuilder.h.rej
-new file mode 100644
-index 000000000..1d1b61756
---- /dev/null
-+++ b/velox/dwio/dwrf/writer/IndexBuilder.h.rej
-@@ -0,0 +1,13 @@
-+diff a/velox/dwio/dwrf/writer/IndexBuilder.h b/velox/dwio/dwrf/writer/IndexBuilder.h	(rejected hunks)
-+@@ -41,9 +41,9 @@ class IndexBuilder : public PositionRecorder {
-+       : out_{std::move(out)},
-+         arena_(std::make_unique<google::protobuf::Arena>()) {
-+     auto rowIndex =
-+-        google::protobuf::Arena::CreateMessage<proto::RowIndex>(arena_.get());
-++        google::protobuf::Arena::Create<proto::RowIndex>(arena_.get());
-+     auto rowIndexEntry =
-+-        google::protobuf::Arena::CreateMessage<proto::RowIndexEntry>(
-++        google::protobuf::Arena::Create<proto::RowIndexEntry>(
-+             arena_.get());
-+ 
-+     index_ = std::make_unique<RowIndexWriteWrapper>(rowIndex);
-diff --git a/velox/dwio/dwrf/writer/LayoutPlanner.cpp.rej b/velox/dwio/dwrf/writer/LayoutPlanner.cpp.rej
-new file mode 100644
-index 000000000..e7a04ff8f
---- /dev/null
-+++ b/velox/dwio/dwrf/writer/LayoutPlanner.cpp.rej
-@@ -0,0 +1,10 @@
-+diff a/velox/dwio/dwrf/writer/LayoutPlanner.cpp b/velox/dwio/dwrf/writer/LayoutPlanner.cpp	(rejected hunks)
-+@@ -129,7 +129,7 @@ EncodingManager::EncodingManager(
-+       arena_{std::make_unique<google::protobuf::Arena>()} {
-+   initEncryptionGroups();
-+   auto dwrfStripeFooter =
-+-      google::protobuf::Arena::CreateMessage<proto::StripeFooter>(arena_.get());
-++      google::protobuf::Arena::Create<proto::StripeFooter>(arena_.get());
-+   footer_ = std::make_unique<StripeFooterWriteWrapper>(dwrfStripeFooter);
-+ }
-+ 
-diff --git a/velox/dwio/dwrf/writer/StatisticsBuilder.cpp.rej b/velox/dwio/dwrf/writer/StatisticsBuilder.cpp.rej
-new file mode 100644
-index 000000000..08f51e0c1
---- /dev/null
-+++ b/velox/dwio/dwrf/writer/StatisticsBuilder.cpp.rej
-@@ -0,0 +1,10 @@
-+diff a/velox/dwio/dwrf/writer/StatisticsBuilder.cpp b/velox/dwio/dwrf/writer/StatisticsBuilder.cpp	(rejected hunks)
-+@@ -119,7 +119,7 @@ void StatisticsBuilder::toProto(ColumnStatisticsWriteWrapper& stats) const {
-+ std::unique_ptr<dwio::common::ColumnStatistics> StatisticsBuilder::build()
-+     const {
-+   auto columnStatistics =
-+-      google::protobuf::Arena::CreateMessage<proto::ColumnStatistics>(
-++      google::protobuf::Arena::Create<proto::ColumnStatistics>(
-+           arena_.get());
-+   auto stats = ColumnStatisticsWriteWrapper(columnStatistics);
-+   toProto(stats);
-diff --git a/velox/dwio/dwrf/writer/WriterBase.cpp.rej b/velox/dwio/dwrf/writer/WriterBase.cpp.rej
-new file mode 100644
-index 000000000..73888d6da
---- /dev/null
-+++ b/velox/dwio/dwrf/writer/WriterBase.cpp.rej
-@@ -0,0 +1,10 @@
-+diff a/velox/dwio/dwrf/writer/WriterBase.cpp b/velox/dwio/dwrf/writer/WriterBase.cpp	(rejected hunks)
-+@@ -59,7 +59,7 @@ void WriterBase::writeFooter(const Type& type) {
-+   // write postscript
-+   pos = writerSink_->size();
-+   auto dwrfPostScript =
-+-      google::protobuf::Arena::CreateMessage<proto::PostScript>(arena_.get());
-++      google::protobuf::Arena::Create<proto::PostScript>(arena_.get());
-+   std::unique_ptr<PostScriptWriteWrapper> ps =
-+       std::make_unique<PostScriptWriteWrapper>(dwrfPostScript);
-+   ps->setWriterVersion(writerVersion);
-diff --git a/velox/dwio/dwrf/writer/WriterBase.h.rej b/velox/dwio/dwrf/writer/WriterBase.h.rej
-new file mode 100644
-index 000000000..046adb07b
---- /dev/null
-+++ b/velox/dwio/dwrf/writer/WriterBase.h.rej
-@@ -0,0 +1,10 @@
-+diff a/velox/dwio/dwrf/writer/WriterBase.h b/velox/dwio/dwrf/writer/WriterBase.h	(rejected hunks)
-+@@ -90,7 +90,7 @@ class WriterBase {
-+         context_->getMemoryPool(MemoryUsageCategory::OUTPUT_STREAM),
-+         context_->getConfigs());
-+     auto dwrfFooter_ =
-+-        google::protobuf::Arena::CreateMessage<proto::Footer>(arena_.get());
-++        google::protobuf::Arena::Create<proto::Footer>(arena_.get());
-+     footer_ = std::make_unique<FooterWriteWrapper>(dwrfFooter_);
-+   }
-+ 
-diff --git a/velox/dwio/parquet/common/BitPacking.h b/velox/dwio/parquet/common/BitPacking.h
-new file mode 100644
-index 000000000..8eef9d15a
---- /dev/null
-+++ b/velox/dwio/parquet/common/BitPacking.h
-@@ -0,0 +1,34 @@
-+/*
-+ * Copyright (c) Facebook, Inc. and its affiliates.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ * Unless required by applicable law or agreed to in writing, software
-+ * distributed under the License is distributed on an "AS IS" BASIS,
-+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ * See the License for the specific language governing permissions and
-+ * limitations under the License.
-+ */
+diff --git a/velox/dwio/common/Throttler.h b/velox/dwio/common/Throttler.h
+index 05bce4ceb..9f847a009 100644
+--- a/velox/dwio/common/Throttler.h
++++ b/velox/dwio/common/Throttler.h
+@@ -24,6 +24,8 @@
+ 
+ #pragma once
+ 
++#include <folly/SharedMutex.h>
 +
-+// Adapted from Apache Arrow:
-+// https://github.com/apache/arrow/blob/apache-arrow-15.0.0/cpp/src/arrow/util/bpacking.h
-+// Copyright 2016-2024 The Apache Software Foundation
-+
-+#pragma once
-+
-+#include "arrow/util/visibility.h"
-+
-+#include <stdint.h>
-+
-+namespace arrow::internal {
-+
-+ARROW_EXPORT
-+int unpack32(const uint32_t* in, uint32_t* out, int batch_size, int num_bits);
-+ARROW_EXPORT
-+int unpack64(const uint8_t* in, uint64_t* out, int batch_size, int num_bits);
-+
-+} // namespace arrow::internal
+ namespace facebook::velox::dwio::common {
+ 
+ /// A throttler that can be used to backoff IO when the storage is overloaded.
 diff --git a/velox/dwio/parquet/common/BitStreamUtilsInternal.h b/velox/dwio/parquet/common/BitStreamUtilsInternal.h
 index a49cea663..001e3b3a0 100644
 --- a/velox/dwio/parquet/common/BitStreamUtilsInternal.h
@@ -903,121 +630,6 @@ index a49cea663..001e3b3a0 100644
  
  namespace facebook::velox::parquet {
  
-diff --git a/velox/dwio/parquet/common/Spaced.h b/velox/dwio/parquet/common/Spaced.h
-new file mode 100644
-index 000000000..3cc4340d2
---- /dev/null
-+++ b/velox/dwio/parquet/common/Spaced.h
-@@ -0,0 +1,109 @@
-+/*
-+ * Copyright (c) Facebook, Inc. and its affiliates.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ * Unless required by applicable law or agreed to in writing, software
-+ * distributed under the License is distributed on an "AS IS" BASIS,
-+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ * See the License for the specific language governing permissions and
-+ * limitations under the License.
-+ */
-+
-+// Adapted from Apache Arrow:
-+// https://github.com/apache/arrow/blob/apache-arrow-15.0.0/cpp/src/arrow/util/spaced.h
-+// Copyright 2016-2024 The Apache Software Foundation
-+
-+#pragma once
-+
-+#include <cassert>
-+#include <cstdint>
-+#include <cstring>
-+
-+#include <arrow/util/bit_run_reader.h>
-+
-+namespace facebook::velox::parquet::arrow::util::internal {
-+
-+/// \brief Compress the buffer to spaced, excluding the null entries.
-+///
-+/// \param[in] src the source buffer
-+/// \param[in] num_values the size of source buffer
-+/// \param[in] valid_bits bitmap data indicating position of valid slots
-+/// \param[in] valid_bits_offset offset into valid_bits
-+/// \param[out] output the output buffer spaced
-+/// \return The size of spaced buffer.
-+template <typename T>
-+inline int SpacedCompress(
-+    const T* src,
-+    int num_values,
-+    const uint8_t* valid_bits,
-+    int64_t valid_bits_offset,
-+    T* output) {
-+  int num_valid_values = 0;
-+
-+  ::arrow::internal::SetBitRunReader reader(
-+      valid_bits, valid_bits_offset, num_values);
-+  while (true) {
-+    const auto run = reader.NextRun();
-+    if (run.length == 0) {
-+      break;
-+    }
-+    std::memcpy(
-+        output + num_valid_values, src + run.position, run.length * sizeof(T));
-+    num_valid_values += static_cast<int32_t>(run.length);
-+  }
-+
-+  return num_valid_values;
-+}
-+
-+/// \brief Relocate values in buffer into positions of non-null values as
-+/// indicated by a validity bitmap.
-+///
-+/// \param[in, out] buffer the in-place buffer
-+/// \param[in] num_values total size of buffer including null slots
-+/// \param[in] null_count number of null slots
-+/// \param[in] valid_bits bitmap data indicating position of valid slots
-+/// \param[in] valid_bits_offset offset into valid_bits
-+/// \return The number of values expanded, including nulls.
-+template <typename T>
-+inline int SpacedExpand(
-+    T* buffer,
-+    int num_values,
-+    int null_count,
-+    const uint8_t* valid_bits,
-+    int64_t valid_bits_offset) {
-+  // Point to end as we add the spacing from the back.
-+  int idx_decode = num_values - null_count;
-+
-+  // Depending on the number of nulls, some of the value slots in buffer may
-+  // be uninitialized, and this will cause valgrind warnings / potentially UB
-+  std::memset(
-+      static_cast<void*>(buffer + idx_decode), 0, null_count * sizeof(T));
-+  if (idx_decode == 0) {
-+    // All nulls, nothing more to do
-+    return num_values;
-+  }
-+
-+  ::arrow::internal::ReverseSetBitRunReader reader(
-+      valid_bits, valid_bits_offset, num_values);
-+  while (true) {
-+    const auto run = reader.NextRun();
-+    if (run.length == 0) {
-+      break;
-+    }
-+    idx_decode -= static_cast<int32_t>(run.length);
-+    assert(idx_decode >= 0);
-+    std::memmove(
-+        buffer + run.position, buffer + idx_decode, run.length * sizeof(T));
-+  }
-+
-+  // Otherwise caller gave an incorrect null_count
-+  assert(idx_decode == 0);
-+  return num_values;
-+}
-+
-+} // namespace facebook::velox::parquet::arrow::util::internal
 diff --git a/velox/dwio/parquet/writer/arrow/Encoding.cpp b/velox/dwio/parquet/writer/arrow/Encoding.cpp
 index f4a5990e5..77829fe68 100644
 --- a/velox/dwio/parquet/writer/arrow/Encoding.cpp
@@ -1167,43 +779,6 @@ index b71cfc926..6a638028e 100644
  
    explicit ParquetException(std::string msg) : msg_(std::move(msg)) {}
  
-diff --git a/velox/dwio/parquet/writer/arrow/Exception.h.rej b/velox/dwio/parquet/writer/arrow/Exception.h.rej
-new file mode 100644
-index 000000000..47664ac13
---- /dev/null
-+++ b/velox/dwio/parquet/writer/arrow/Exception.h.rej
-@@ -0,0 +1,31 @@
-+diff a/velox/dwio/parquet/writer/arrow/Exception.h b/velox/dwio/parquet/writer/arrow/Exception.h	(rejected hunks)
-+@@ -23,8 +23,13 @@
-+ #include <string>
-+ #include <utility>
-+ 
-++#include "arrow/config.h"
-+ #include "arrow/type_fwd.h"
-++#if ARROW_VERSION_MAJOR >= 21
-++#include "arrow/util/string_util.h"
-++#else
-+ #include "arrow/util/string_builder.h"
-++#endif
-+ #include "velox/dwio/parquet/writer/arrow/Platform.h"
-+ 
-+ // PARQUET-1085
-+@@ -102,7 +124,14 @@ class ParquetException : public std::exception {
-+ 
-+   template <typename... Args>
-+   explicit ParquetException(Args&&... args)
-+-      : msg_(::arrow::util::StringBuilder(std::forward<Args>(args)...)) {}
-++      : msg_(
-++#if ARROW_VERSION_MAJOR >= 21
-++          ::arrow::internal::JoinToString(std::forward<Args>(args)...)
-++#else
-++          ::arrow::util::StringBuilder(std::forward<Args>(args)...)
-++#endif
-++      ) {
-++  }
-+ 
-+   explicit ParquetException(std::string msg) : msg_(std::move(msg)) {}
-+ 
 diff --git a/velox/dwio/parquet/writer/arrow/Writer.cpp b/velox/dwio/parquet/writer/arrow/Writer.cpp
 index f3a101a02..8ed8dbf4a 100644
 --- a/velox/dwio/parquet/writer/arrow/Writer.cpp
@@ -1308,130 +883,22 @@ index 47d501aef..5bd0f6129 100644
            src, num_values, valid_bits, valid_bits_offset, data);
        Put(data, num_valid_values);
      } else {
-diff --git a/velox/dwio/parquet/writer/arrow/util/Spaced.h b/velox/dwio/parquet/writer/arrow/util/Spaced.h
-new file mode 100644
-index 000000000..3cc4340d2
---- /dev/null
-+++ b/velox/dwio/parquet/writer/arrow/util/Spaced.h
-@@ -0,0 +1,109 @@
-+/*
-+ * Copyright (c) Facebook, Inc. and its affiliates.
-+ *
-+ * Licensed under the Apache License, Version 2.0 (the "License");
-+ * you may not use this file except in compliance with the License.
-+ * You may obtain a copy of the License at
-+ *
-+ *     http://www.apache.org/licenses/LICENSE-2.0
-+ *
-+ * Unless required by applicable law or agreed to in writing, software
-+ * distributed under the License is distributed on an "AS IS" BASIS,
-+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-+ * See the License for the specific language governing permissions and
-+ * limitations under the License.
-+ */
+diff --git a/velox/exec/Task.h b/velox/exec/Task.h
+index ee2fbe86e..fc8f4b26d 100644
+--- a/velox/exec/Task.h
++++ b/velox/exec/Task.h
+@@ -15,6 +15,8 @@
+  */
+ #pragma once
+ 
++#include <folly/SharedMutex.h>
 +
-+// Adapted from Apache Arrow:
-+// https://github.com/apache/arrow/blob/apache-arrow-15.0.0/cpp/src/arrow/util/spaced.h
-+// Copyright 2016-2024 The Apache Software Foundation
-+
-+#pragma once
-+
-+#include <cassert>
-+#include <cstdint>
-+#include <cstring>
-+
-+#include <arrow/util/bit_run_reader.h>
-+
-+namespace facebook::velox::parquet::arrow::util::internal {
-+
-+/// \brief Compress the buffer to spaced, excluding the null entries.
-+///
-+/// \param[in] src the source buffer
-+/// \param[in] num_values the size of source buffer
-+/// \param[in] valid_bits bitmap data indicating position of valid slots
-+/// \param[in] valid_bits_offset offset into valid_bits
-+/// \param[out] output the output buffer spaced
-+/// \return The size of spaced buffer.
-+template <typename T>
-+inline int SpacedCompress(
-+    const T* src,
-+    int num_values,
-+    const uint8_t* valid_bits,
-+    int64_t valid_bits_offset,
-+    T* output) {
-+  int num_valid_values = 0;
-+
-+  ::arrow::internal::SetBitRunReader reader(
-+      valid_bits, valid_bits_offset, num_values);
-+  while (true) {
-+    const auto run = reader.NextRun();
-+    if (run.length == 0) {
-+      break;
-+    }
-+    std::memcpy(
-+        output + num_valid_values, src + run.position, run.length * sizeof(T));
-+    num_valid_values += static_cast<int32_t>(run.length);
-+  }
-+
-+  return num_valid_values;
-+}
-+
-+/// \brief Relocate values in buffer into positions of non-null values as
-+/// indicated by a validity bitmap.
-+///
-+/// \param[in, out] buffer the in-place buffer
-+/// \param[in] num_values total size of buffer including null slots
-+/// \param[in] null_count number of null slots
-+/// \param[in] valid_bits bitmap data indicating position of valid slots
-+/// \param[in] valid_bits_offset offset into valid_bits
-+/// \return The number of values expanded, including nulls.
-+template <typename T>
-+inline int SpacedExpand(
-+    T* buffer,
-+    int num_values,
-+    int null_count,
-+    const uint8_t* valid_bits,
-+    int64_t valid_bits_offset) {
-+  // Point to end as we add the spacing from the back.
-+  int idx_decode = num_values - null_count;
-+
-+  // Depending on the number of nulls, some of the value slots in buffer may
-+  // be uninitialized, and this will cause valgrind warnings / potentially UB
-+  std::memset(
-+      static_cast<void*>(buffer + idx_decode), 0, null_count * sizeof(T));
-+  if (idx_decode == 0) {
-+    // All nulls, nothing more to do
-+    return num_values;
-+  }
-+
-+  ::arrow::internal::ReverseSetBitRunReader reader(
-+      valid_bits, valid_bits_offset, num_values);
-+  while (true) {
-+    const auto run = reader.NextRun();
-+    if (run.length == 0) {
-+      break;
-+    }
-+    idx_decode -= static_cast<int32_t>(run.length);
-+    assert(idx_decode >= 0);
-+    std::memmove(
-+        buffer + run.position, buffer + idx_decode, run.length * sizeof(T));
-+  }
-+
-+  // Otherwise caller gave an incorrect null_count
-+  assert(idx_decode == 0);
-+  return num_values;
-+}
-+
-+} // namespace facebook::velox::parquet::arrow::util::internal
+ #include <folly/container/IntrusiveList.h>
+ 
+ #include "velox/common/base/SkewedPartitionBalancer.h"
 diff --git a/velox/external/hdfs/ArrowHdfsInternal.cpp b/velox/external/hdfs/ArrowHdfsInternal.cpp
-index dc22b64ce306eb7665509b099b196223e8d91116..5ecc3546c18dd090de3efeb1d30a6d6688441f1e 100644
-GIT binary patch
-delta 21
-ccmex0k+ESC;|4zqHpieK|M2+Deimy409!8yy8r+H
-
-delta 14
-VcmZpe#Q19>;|4#A%^?<R1OP6^1<?Qi
-
+index dc22b64ce..5ecc3546c 100644
+Binary files a/velox/external/hdfs/ArrowHdfsInternal.cpp and b/velox/external/hdfs/ArrowHdfsInternal.cpp differ
 diff --git a/velox/functions/lib/ApproxMostFrequentStreamSummary.h b/velox/functions/lib/ApproxMostFrequentStreamSummary.h
 index b34197c15..8e843f7d8 100644
 --- a/velox/functions/lib/ApproxMostFrequentStreamSummary.h

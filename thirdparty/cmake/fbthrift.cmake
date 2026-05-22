@@ -235,6 +235,25 @@ thirdparty_build_cmake_library("fbthrift"
         ${THIRDPARTY_INSTALL_DIR}/fbthrift/include/thrift/lib/cpp2/Thrift.h
 )
 
+# Fix std::bind_front incompatibility with libstdc++ on Linux
+# std::bind_front with member function pointers fails on some libstdc++ versions
+if(NOT APPLE)
+    set(_fbthrift_src_dir "${THIRDPARTY_SRC_DIR}/fbthrift")
+    set(_fbthrift_fix_file "${_fbthrift_src_dir}/thrift/lib/cpp2/transport/rocket/server/detail/RocketRequestHandler.cpp")
+    if(EXISTS "${_fbthrift_fix_file}")
+        file(READ "${_fbthrift_fix_file}" _fbthrift_fix_content)
+        string(FIND "${_fbthrift_fix_content}" "std::bind_front" _fbthrift_has_bind_front)
+        if(NOT _fbthrift_has_bind_front EQUAL -1)
+            string(REPLACE
+                "std::bind_front(&RocketRequestHandler::shouldSample, this)"
+                "[this](const apache::thrift::transport::THeader& header) { return shouldSample(header); }"
+                _fbthrift_fix_content "${_fbthrift_fix_content}")
+            file(WRITE "${_fbthrift_fix_file}" "${_fbthrift_fix_content}")
+            message(STATUS "[fbthrift] Fixed std::bind_front incompatibility in RocketRequestHandler.cpp")
+        endif()
+    endif()
+endif()
+
 halo_find_package(FBThrift CONFIG REQUIRED)
 
 thirdparty_map_imported_config(FBThrift::thriftcpp2)

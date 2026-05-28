@@ -898,7 +898,17 @@ index ee2fbe86e..fc8f4b26d 100644
  #include "velox/common/base/SkewedPartitionBalancer.h"
 diff --git a/velox/external/hdfs/ArrowHdfsInternal.cpp b/velox/external/hdfs/ArrowHdfsInternal.cpp
 index dc22b64ce..5ecc3546c 100644
-Binary files a/velox/external/hdfs/ArrowHdfsInternal.cpp and b/velox/external/hdfs/ArrowHdfsInternal.cpp differ
+--- a/velox/external/hdfs/ArrowHdfsInternal.cpp
++++ b/velox/external/hdfs/ArrowHdfsInternal.cpp
+@@ -457,7 +457,7 @@ tSize LibHdfsShim::Pread(
+     void* buffer,
+     tSize length) {
+   GET_SYMBOL(this, hdfsPread);
+-  DCHECK(this->hdfsPread);
++  ARROW_DCHECK(this->hdfsPread);
+   return this->hdfsPread(fs, file, position, buffer, length);
+ }
+ 
 diff --git a/velox/functions/lib/ApproxMostFrequentStreamSummary.h b/velox/functions/lib/ApproxMostFrequentStreamSummary.h
 index b34197c15..8e843f7d8 100644
 --- a/velox/functions/lib/ApproxMostFrequentStreamSummary.h

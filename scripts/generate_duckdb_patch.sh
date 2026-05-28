@@ -105,7 +105,7 @@ if [ -n "$DUCKDB_STAGED_FILES" ]; then
     
     # Generate patch from duckdb submodule excluding .duckdb_patched files
     cd "$PROJECT_ROOT/duckdb"
-    git diff --cached --binary -- ':!*.duckdb_patched' ':!**/.duckdb_patched' > "$PATCH_FILE"
+    git diff --cached --text --ignore-cr-at-eol --no-ext-diff -- ':!*.duckdb_patched' ':!**/.duckdb_patched' > "$PATCH_FILE"
     cd "$PROJECT_ROOT"
     
     # Verify patch file was created and is not empty
